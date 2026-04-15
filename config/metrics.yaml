@@ -1,0 +1,24 @@
+metrics:
+  gdp_per_capita:
+    display_name: GDP per capita
+    category: economy
+    unit: current_usd
+    higher_is_better: true
+    default_weight: 1.0
+    normalization: log_minmax
+
+  rule_of_law:
+    display_name: Rule of Law
+    category: governance
+    unit: index
+    higher_is_better: true
+    default_weight: 1.0
+    normalization: minmax
+
+  democracy_index:
+    display_name: Democracy Index
+    category: governance
+    unit: index
+    higher_is_better: true
+    default_weight: 1.0
+    normalization: minmax
