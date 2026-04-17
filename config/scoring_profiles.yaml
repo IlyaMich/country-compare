@@ -1,0 +1,44 @@
+default_profile: default_profile
+weight_handling: normalize
+default_year_strategy: latest_per_metric
+default_missing_data_policy: renormalize_weights
+
+profiles:
+  default_profile:
+    description: Balanced default profile across core development and governance metrics.
+    metrics:
+      - gdp_per_capita
+      - rule_of_law
+      - democracy_index
+      - life_expectancy
+    weights: {}
+    normalization_overrides: {}
+
+  economic_focus:
+    description: Prioritizes economic performance while still keeping institutional context.
+    metrics:
+      - gdp_per_capita
+      - inflation
+      - rule_of_law
+    weights:
+      gdp_per_capita: 2.0
+      inflation: 1.5
+      rule_of_law: 1.0
+    normalization_overrides:
+      inflation: rank
+      gdp_per_capita: log-minmax
+    year_strategy: latest_per_metric
+    missing_data_policy: renormalize_weights
+
+  governance_focus:
+    description: Focuses on institutional and democratic quality.
+    metrics:
+      - rule_of_law
+      - democracy_index
+      - life_expectancy
+    weights:
+      rule_of_law: 2.0
+      democracy_index: 1.5
+    normalization_overrides:
+      rule_of_law: percentile
+    year_strategy: common_year      

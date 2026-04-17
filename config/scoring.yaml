@@ -1,9 +1,0 @@
-profiles:
-  balanced_demo:
-    description: Simple starter profile for overall comparison
-    weights:
-      gdp_per_capita: 0.4
-      rule_of_law: 0.3
-      democracy_index: 0.3
-    missing_data_policy: renormalize
-    year_strategy: latest_per_metric

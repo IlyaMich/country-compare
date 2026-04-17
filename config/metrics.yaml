@@ -2,23 +2,49 @@ metrics:
   gdp_per_capita:
     display_name: GDP per capita
     category: economy
-    unit: current_usd
     higher_is_better: true
     default_weight: 1.0
-    normalization: log_minmax
+    description: GDP per capita in current international dollars or equivalent standardized unit.
+    unit: USD
+    source: World Bank
+    normalization_method: log-minmax
 
   rule_of_law:
     display_name: Rule of Law
     category: governance
-    unit: index
     higher_is_better: true
     default_weight: 1.0
-    normalization: minmax
+    description: Rule of law composite index.
+    unit: index
+    source: World Justice Project
+    normalization_method: minmax
 
   democracy_index:
     display_name: Democracy Index
     category: governance
-    unit: index
     higher_is_better: true
     default_weight: 1.0
-    normalization: minmax
+    description: Democracy score from a recognized public source.
+    unit: index
+    source: Economist Intelligence Unit
+    normalization_method: minmax
+
+  life_expectancy:
+    display_name: Life Expectancy
+    category: health
+    higher_is_better: true
+    default_weight: 1.0
+    description: Life expectancy at birth.
+    unit: years
+    source: World Bank
+    normalization_method: percentile
+
+  inflation:
+    display_name: Inflation
+    category: economy
+    higher_is_better: false
+    default_weight: 0.75
+    description: Annual inflation rate. Lower is better for broad stability comparisons.
+    unit: percent
+    source: World Bank
+    normalization_method: rank
