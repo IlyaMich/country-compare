@@ -15,6 +15,15 @@ from country_compare.data.contract import (
 from country_compare.data.models import MetricDataset, MetricRecord
 
 
+@dataclass(frozen=True)
+class ValidationSettings:
+    coerce_dtypes: bool = True
+    normalize_columns: bool = True
+    min_year: int = DEFAULT_MIN_YEAR
+    max_year: int = DEFAULT_MAX_YEAR
+    strict: bool = True
+
+
 @dataclass
 class ValidationIssue:
     rule: str
@@ -324,19 +333,71 @@ def validate_and_parse_dataframe(
     max_year: int = DEFAULT_MAX_YEAR,
 ) -> MetricDataset:
     working = df.copy()
+    working = canonicalize_and_validate_dataframe(
+        df,
+        settings=ValidationSettings(
+            coerce_dtypes=coerce_dtypes,
+            normalize_columns=normalize_columns,
+            min_year=min_year,
+            max_year=max_year,
+            strict=True,
+        ),
+    )
+    return dataframe_to_metric_dataset(working)
 
-    # Validate required columns before normalization adds missing ones.
+
+def validate_dataframe_or_raise(
+    df: pd.DataFrame,
+    *,
+    min_year: int = DEFAULT_MIN_YEAR,
+    max_year: int = DEFAULT_MAX_YEAR,
+) -> ValidationResult:
+    result = validate_dataframe(df, min_year=min_year, max_year=max_year)
+    result.raise_if_invalid()
+    return result
+
+
+def canonicalize_and_validate_dataframe(
+    df: pd.DataFrame,
+    *,
+    settings: ValidationSettings | None = None,
+) -> pd.DataFrame:
+    settings = settings or ValidationSettings()
+    working = df.copy()
+
     required_column_issues = validate_required_columns(working)
-    if required_column_issues:
+    if required_column_issues and settings.strict:
         ValidationResult(valid=False, issues=required_column_issues).raise_if_invalid()
 
-    if normalize_columns:
+    if settings.normalize_columns:
         working = normalize_canonical_columns(working)
 
-    if coerce_dtypes:
+    if settings.coerce_dtypes:
         working = coerce_to_canonical_dtypes(working)
 
-    result = validate_dataframe(working, min_year=min_year, max_year=max_year)
-    result.raise_if_invalid()
+    result = validate_dataframe(
+        working,
+        min_year=settings.min_year,
+        max_year=settings.max_year,
+    )
 
-    return dataframe_to_metric_dataset(working)
+    if settings.strict:
+        result.raise_if_invalid()
+
+    return working
+
+
+def prepare_dataframe_for_storage(
+    df: pd.DataFrame,
+    *,
+    settings: ValidationSettings | None = None,
+) -> pd.DataFrame:
+    return canonicalize_and_validate_dataframe(df, settings=settings)
+
+
+def prepare_dataframe_for_read(
+    df: pd.DataFrame,
+    *,
+    settings: ValidationSettings | None = None,
+) -> pd.DataFrame:
+    return canonicalize_and_validate_dataframe(df, settings=settings)
