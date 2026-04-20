@@ -38,6 +38,8 @@ class PresentationResult:
     summary: dict[str, Any] = field(default_factory=dict)
     table: pd.DataFrame | None = None
     chart: Figure | None = None
+    tables: dict[str, pd.DataFrame] = field(default_factory=dict)
+    charts: dict[str, Figure] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
     diagnostics: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
@@ -46,4 +48,6 @@ class PresentationResult:
 
     @property
     def ok(self) -> bool:
-        return self.error is None and self.table is not None
+        return self.error is None and (
+            self.table is not None or bool(self.tables) or self.chart is not None or bool(self.charts)
+        )

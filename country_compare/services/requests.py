@@ -20,6 +20,18 @@ def _normalize_codes(values: list[str]) -> list[str]:
     return normalized
 
 
+def _normalize_strings(values: list[str]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value).strip()
+        if not text or text in seen:
+            continue
+        normalized.append(text)
+        seen.add(text)
+    return normalized
+
+
 @dataclass(slots=True)
 class BaseComparisonRequest:
     countries: list[str]
@@ -61,15 +73,9 @@ class MultiMetricRequest(BaseComparisonRequest):
 
     def __post_init__(self) -> None:
         BaseComparisonRequest.__post_init__(self)
-        normalized: list[str] = []
-        seen: set[str] = set()
-        for metric_id in self.metric_ids:
-            text = str(metric_id).strip()
-            if not text or text in seen:
-                continue
-            normalized.append(text)
-            seen.add(text)
-        self.metric_ids = normalized
+        self.metric_ids = _normalize_strings(self.metric_ids)
+        if not self.metric_ids:
+            raise ValueError("metric_ids must contain at least one metric")
 
 
 @dataclass(slots=True)
