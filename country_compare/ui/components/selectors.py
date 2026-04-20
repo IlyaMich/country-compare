@@ -8,44 +8,12 @@ import streamlit as st
 from country_compare.config.models import YearStrategy
 
 
-# def render_country_selector(
-#     countries: Sequence[dict[str, Any]] | Sequence[str],
-#     *,
-#     default: list[str] | None = None,
-#     key: str = "compare_selected_countries",
-# ) -> list[str]:
-#     options: list[str] = []
-#     labels: dict[str, str] = {}
-
-#     for item in countries:
-#         if isinstance(item, dict):
-#             code = str(item.get("country_code") or item.get("code") or "").upper()
-#             name = str(item.get("country_name") or item.get("name") or code)
-#         else:
-#             code = str(item).upper()
-#             name = code
-#         if not code:
-#             continue
-#         label = f"{name} ({code})" if name != code else code
-#         labels[code] = label
-#         options.append(code)
-
-#     selected = st.multiselect(
-#         "Countries",
-#         options=options,
-#         default=default or [],
-#         format_func=lambda code: labels.get(code, code),
-#         key=key,
-#     )
-#     return [str(code).upper() for code in selected]
 def render_country_selector(
-    countries,
+    countries: Sequence[Any],
     *,
     default: list[str] | None = None,
     key: str = "compare_selected_countries",
 ) -> list[str]:
-    import streamlit as st
-
     options: list[str] = []
     labels: dict[str, str] = {}
 
@@ -69,6 +37,7 @@ def render_country_selector(
         labels[code] = f"{name} ({code})" if name != code else code
         options.append(code)
 
+    options = list(dict.fromkeys(options))
     valid_default = [value for value in (default or []) if value in options]
 
     selected = st.multiselect(
@@ -117,7 +86,7 @@ def render_target_year_input(
     if not enabled:
         st.number_input(
             "Target year",
-            value=default or 2000,
+            value=int(default or 2000),
             step=1,
             disabled=True,
             key=key,
@@ -148,49 +117,99 @@ def render_target_year_input(
     )
 
 
-# def render_single_metric_selector(
-#     metrics: Sequence[dict[str, Any]] | Sequence[str],
-#     *,
-#     default: str | None = None,
-#     key: str = "compare_single_metric_id",
-# ) -> str:
-#     options: list[str] = []
-#     labels: dict[str, str] = {}
-
-#     for item in metrics:
-#         if isinstance(item, dict):
-#             metric_id = str(item.get("metric_id") or item.get("id") or "")
-#             display_name = str(item.get("display_name") or item.get("metric_name") or metric_id)
-#         else:
-#             metric_id = str(item)
-#             display_name = metric_id
-#         if not metric_id:
-#             continue
-#         labels[metric_id] = f"{display_name} ({metric_id})" if display_name != metric_id else metric_id
-#         options.append(metric_id)
-
-#     index = options.index(default) if default in options else 0 if options else None
-#     if not options:
-#         return ""
-
-#     return st.selectbox(
-#         "Metric",
-#         options=options,
-#         index=index,
-#         format_func=lambda value: labels.get(value, value),
-#         key=key,
-#     )
 def render_single_metric_selector(
-    metrics,
+    metrics: Sequence[Any],
     *,
     default: str | None = None,
     key: str = "compare_single_metric_id",
 ) -> str:
-    import streamlit as st
+    options, labels = _resolve_metric_options(metrics)
 
+    if not options:
+        return ""
+
+    if key in st.session_state and st.session_state[key] not in options:
+        del st.session_state[key]
+
+    safe_default = default if default in options else options[0]
+    index = options.index(safe_default)
+
+    selected = st.selectbox(
+        "Metric",
+        options=options,
+        index=index,
+        format_func=lambda value: labels.get(value, value),
+        key=key,
+    )
+
+    return str(selected).strip() if selected is not None else ""
+
+
+def render_multi_metric_selector(
+    metrics: Sequence[Any],
+    *,
+    default: list[str] | None = None,
+    key: str = "compare_multi_metric_ids",
+) -> list[str]:
+    options, labels = _resolve_metric_options(metrics)
+    valid_default = [metric_id for metric_id in (default or []) if metric_id in options]
+    selected = st.multiselect(
+        "Metrics",
+        options=options,
+        default=valid_default,
+        format_func=lambda value: labels.get(value, value),
+        key=key,
+    )
+    return [str(metric_id).strip() for metric_id in selected]
+
+
+def render_profile_selector(
+    profiles: Sequence[Any],
+    *,
+    default: str | None = None,
+    key: str = "compare_profile_name",
+) -> str:
     options: list[str] = []
     labels: dict[str, str] = {}
-    
+
+    for item in profiles:
+        if isinstance(item, dict):
+            name = str(item.get("name") or "").strip()
+            description = str(item.get("description") or "").strip()
+        elif hasattr(item, "name"):
+            name = str(getattr(item, "name", "")).strip()
+            description = str(getattr(item, "description", "") or "").strip()
+        else:
+            name = str(item).strip()
+            description = ""
+
+        if not name:
+            continue
+
+        options.append(name)
+        labels[name] = f"{name} — {description}" if description else name
+
+    options = list(dict.fromkeys(options))
+    if not options:
+        return ""
+
+    safe_default = default if default in options else options[0]
+    index = options.index(safe_default)
+
+    selected = st.selectbox(
+        "Scoring profile",
+        options=options,
+        index=index,
+        format_func=lambda value: labels.get(value, value),
+        key=key,
+    )
+    return str(selected).strip() if selected is not None else ""
+
+
+def _resolve_metric_options(metrics: Sequence[Any]) -> tuple[list[str], dict[str, str]]:
+    options: list[str] = []
+    labels: dict[str, str] = {}
+
     for item in metrics:
         if isinstance(item, dict):
             metric_id = str(item.get("metric_id") or item.get("id") or "").strip()
@@ -211,23 +230,4 @@ def render_single_metric_selector(
         labels[metric_id] = f"{display_name} ({metric_id})" if display_name != metric_id else metric_id
         options.append(metric_id)
 
-    if not options:
-        return ""
-
-    options = list(dict.fromkeys(options))
-
-    if key in st.session_state and st.session_state[key] not in options:
-        del st.session_state[key]
-
-    safe_default = default if default in options else options[0]
-    index = options.index(safe_default)
-
-    selected = st.selectbox(
-        "Metric",
-        options=options,
-        index=index,
-        format_func=lambda value: labels.get(value, value),
-        key=key,
-    )
-
-    return str(selected).strip() if selected is not None else ""
+    return list(dict.fromkeys(options)), labels
