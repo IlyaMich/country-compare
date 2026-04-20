@@ -28,6 +28,8 @@ DEFAULT_SELECTION_STATE = {
     "active_mode": "single_metric",
     "selected_countries": [],
     "single_metric_id": None,
+    "multi_metric_ids": [],
+    "weighted_profile_name": None,
     "year_strategy": "latest_per_metric",
     "target_year": None,
 }
@@ -36,7 +38,12 @@ DEFAULT_RESULT_STATE = {
     "compare_result": None,
     "compare_presentation": None,
     "compare_error": None,
+    "latest_mode": "single_metric",
+    "compare_results_by_mode": {},
+    "compare_presentations_by_mode": {},
+    "compare_errors_by_mode": {},
 }
+
 
 def initialize_session_state(*, default_debug: bool = False) -> None:
     st.session_state.setdefault(StateKey.SELECTED_PAGE, DEFAULT_PAGE)
@@ -68,6 +75,7 @@ def set_debug_mode(value: bool) -> None:
 def set_last_error_code(value: str | None) -> None:
     st.session_state[StateKey.LAST_ERROR_CODE] = value
 
+
 def get_catalog_state() -> dict:
     initialize_session_state()
     return st.session_state[StateKey.CATALOG_STATE]
@@ -90,32 +98,64 @@ def set_selection_state(update: dict) -> None:
     st.session_state[StateKey.SELECTION_STATE] = current
 
 
-def get_latest_compare_presentation():
+def get_latest_compare_presentation(mode: str | None = None):
     initialize_session_state()
-    return st.session_state[StateKey.RESULT_STATE].get("compare_presentation")
+    result_state = st.session_state[StateKey.RESULT_STATE]
+    if mode is not None:
+        return result_state.get("compare_presentations_by_mode", {}).get(mode)
+    return result_state.get("compare_presentation")
 
 
-def set_compare_presentation(*, compare_result, presentation) -> None:
+def set_compare_presentation(*, compare_result, presentation, mode: str | None = None) -> None:
     initialize_session_state()
-    st.session_state[StateKey.RESULT_STATE] = {
-        "compare_result": compare_result,
-        "compare_presentation": presentation,
-        "compare_error": None,
-    }
+    resolved_mode = mode or getattr(compare_result, "mode", None) or getattr(presentation, "mode", None) or "single_metric"
+    current = dict(st.session_state[StateKey.RESULT_STATE])
+    results_by_mode = dict(current.get("compare_results_by_mode", {}))
+    presentations_by_mode = dict(current.get("compare_presentations_by_mode", {}))
+    errors_by_mode = dict(current.get("compare_errors_by_mode", {}))
+
+    results_by_mode[resolved_mode] = compare_result
+    presentations_by_mode[resolved_mode] = presentation
+    errors_by_mode[resolved_mode] = None
+
+    current.update(
+        {
+            "compare_result": compare_result,
+            "compare_presentation": presentation,
+            "compare_error": None,
+            "latest_mode": resolved_mode,
+            "compare_results_by_mode": results_by_mode,
+            "compare_presentations_by_mode": presentations_by_mode,
+            "compare_errors_by_mode": errors_by_mode,
+        }
+    )
+    st.session_state[StateKey.RESULT_STATE] = current
     set_last_error_code(None)
 
 
-def set_compare_error(error) -> None:
+def set_compare_error(error, mode: str | None = None) -> None:
     initialize_session_state()
+    resolved_mode = mode or st.session_state[StateKey.SELECTION_STATE].get("active_mode", "single_metric")
     current = dict(st.session_state[StateKey.RESULT_STATE])
-    current["compare_error"] = error
+    errors_by_mode = dict(current.get("compare_errors_by_mode", {}))
+    errors_by_mode[resolved_mode] = error
+    current.update(
+        {
+            "compare_error": error,
+            "latest_mode": resolved_mode,
+            "compare_errors_by_mode": errors_by_mode,
+        }
+    )
     st.session_state[StateKey.RESULT_STATE] = current
     set_last_error_code(getattr(error, "code", None))
 
 
-def get_compare_error():
+def get_compare_error(mode: str | None = None):
     initialize_session_state()
-    return st.session_state[StateKey.RESULT_STATE].get("compare_error")
+    result_state = st.session_state[StateKey.RESULT_STATE]
+    if mode is not None:
+        return result_state.get("compare_errors_by_mode", {}).get(mode)
+    return result_state.get("compare_error")
 
 
 def get_debug_mode() -> bool:
