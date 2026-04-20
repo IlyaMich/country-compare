@@ -97,7 +97,7 @@ def get_latest_compare_presentation():
 
 def set_compare_presentation(*, compare_result, presentation) -> None:
     initialize_session_state()
-    st.session_state[StateKey.CATALOG_STATE] = {
+    st.session_state[StateKey.RESULT_STATE] = {
         "compare_result": compare_result,
         "compare_presentation": presentation,
         "compare_error": None,

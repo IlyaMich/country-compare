@@ -20,6 +20,7 @@ from country_compare.ui.state import (
     get_latest_compare_presentation,
     get_selection_state,
     set_compare_error,
+    get_compare_error,
     set_compare_presentation,
     set_selection_state,
 )
@@ -136,7 +137,7 @@ def render_compare_view(context: AppContext) -> None:
 
         latest_presentation = get_latest_compare_presentation()
         render_single_metric_result(latest_presentation, debug=get_debug_mode())
-        error = st.session_state.get("compare_error")
+        error = get_compare_error()
         if error is not None:
             render_app_error(error, debug=get_debug_mode())
 
