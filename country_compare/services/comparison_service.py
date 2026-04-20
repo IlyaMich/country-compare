@@ -7,7 +7,6 @@ from typing import Any
 
 import pandas as pd
 from pydantic import ValidationError as PydanticValidationError
-from urllib3 import request
 
 from country_compare.config import load_configuration_bundle
 from country_compare.config.models import YearStrategy
@@ -57,12 +56,6 @@ class ComparisonService:
                 request=request,
             )
             result_df, extra_metadata = self._coerce_comparison_output(raw_output)
-
-            if "country_code" in result_df.columns:
-                selected = {code.upper() for code in request.countries}
-                result_df = result_df.loc[
-                result_df["country_code"].astype("string").str.upper().isin(selected)
-            ].copy()
 
             warnings: list[str] = []
             if result_df.empty:
@@ -181,6 +174,7 @@ class ComparisonService:
             "countries": request.countries,
             "country_codes": request.countries,
             "selected_countries": request.countries,
+            "countries_include": request.countries,
             "year_strategy": request.year_strategy,
             "target_year": request.target_year,
             "normalization_method": getattr(metric_cfg, "normalization_method", None),
