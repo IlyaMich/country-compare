@@ -10,6 +10,9 @@ class StateKey(StrEnum):
     SELECTED_PAGE = "country_compare.selected_page"
     DEBUG_MODE = "country_compare.debug_mode"
     LAST_ERROR_CODE = "country_compare.last_error_code"
+    CATALOG_STATE = "country_compare.catalog_state"
+    SELECTION_STATE = "country_compare.selection_state"
+    RESULT_STATE = "country_compare.result_state"
 
 
 @dataclass(frozen=True)
@@ -21,11 +24,28 @@ class UIStateSnapshot:
 
 DEFAULT_PAGE = "Overview"
 
+DEFAULT_SELECTION_STATE = {
+    "active_mode": "single_metric",
+    "selected_countries": [],
+    "single_metric_id": None,
+    "year_strategy": "latest_per_metric",
+    "target_year": None,
+}
+
+DEFAULT_RESULT_STATE = {
+    "compare_result": None,
+    "compare_presentation": None,
+    "compare_error": None,
+}
 
 def initialize_session_state(*, default_debug: bool = False) -> None:
     st.session_state.setdefault(StateKey.SELECTED_PAGE, DEFAULT_PAGE)
     st.session_state.setdefault(StateKey.DEBUG_MODE, default_debug)
     st.session_state.setdefault(StateKey.LAST_ERROR_CODE, None)
+
+    st.session_state.setdefault(StateKey.CATALOG_STATE, {})
+    st.session_state.setdefault(StateKey.SELECTION_STATE, dict(DEFAULT_SELECTION_STATE))
+    st.session_state.setdefault(StateKey.RESULT_STATE, dict(DEFAULT_RESULT_STATE))
 
 
 def snapshot() -> UIStateSnapshot:
@@ -47,3 +67,57 @@ def set_debug_mode(value: bool) -> None:
 
 def set_last_error_code(value: str | None) -> None:
     st.session_state[StateKey.LAST_ERROR_CODE] = value
+
+def get_catalog_state() -> dict:
+    initialize_session_state()
+    return st.session_state[StateKey.CATALOG_STATE]
+
+
+def set_catalog_state(value: dict) -> None:
+    initialize_session_state()
+    st.session_state[StateKey.CATALOG_STATE] = value
+
+
+def get_selection_state() -> dict:
+    initialize_session_state()
+    return st.session_state[StateKey.SELECTION_STATE]
+
+
+def set_selection_state(update: dict) -> None:
+    initialize_session_state()
+    current = dict(st.session_state[StateKey.SELECTION_STATE])
+    current.update(update)
+    st.session_state[StateKey.SELECTION_STATE] = current
+
+
+def get_latest_compare_presentation():
+    initialize_session_state()
+    return st.session_state[StateKey.RESULT_STATE].get("compare_presentation")
+
+
+def set_compare_presentation(*, compare_result, presentation) -> None:
+    initialize_session_state()
+    st.session_state[StateKey.CATALOG_STATE] = {
+        "compare_result": compare_result,
+        "compare_presentation": presentation,
+        "compare_error": None,
+    }
+    set_last_error_code(None)
+
+
+def set_compare_error(error) -> None:
+    initialize_session_state()
+    current = dict(st.session_state[StateKey.RESULT_STATE])
+    current["compare_error"] = error
+    st.session_state[StateKey.RESULT_STATE] = current
+    set_last_error_code(getattr(error, "code", None))
+
+
+def get_compare_error():
+    initialize_session_state()
+    return st.session_state[StateKey.RESULT_STATE].get("compare_error")
+
+
+def get_debug_mode() -> bool:
+    initialize_session_state()
+    return bool(st.session_state[StateKey.DEBUG_MODE])
