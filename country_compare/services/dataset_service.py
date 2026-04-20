@@ -196,3 +196,13 @@ class DatasetService:
         if raw_path is None:
             return None
         return Path(raw_path).resolve()
+
+def get_country_catalog(self):
+    if hasattr(self, "list_countries"):
+        return self.list_countries()
+    raise AttributeError("DatasetService must provide list_countries() or get_country_catalog().")
+
+def get_metric_catalog(self):
+    if hasattr(self, "list_metrics"):
+        return self.list_metrics()
+    raise AttributeError("DatasetService must provide list_metrics() or get_metric_catalog().")
