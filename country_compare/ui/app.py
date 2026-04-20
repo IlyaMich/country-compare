@@ -5,10 +5,15 @@ import streamlit as st
 from country_compare.ui import state
 from country_compare.ui.bootstrap import bootstrap_app
 from country_compare.ui.views.overview import render_page as render_overview_page
+from country_compare.ui.views.compare import render_compare_view
 
 
-AVAILABLE_PAGES = ("Overview", "Compare (coming soon)", "Config Editor (coming soon)")
+AVAILABLE_PAGES = ("Overview", "Compare", "Config Editor (coming soon)")
 
+# VIEWS = {
+#     "Overview": lambda facade, debug: render_overview_page(facade, debug=debug),
+#     "Compare": lambda facade, debug: render_compare_view(),
+# }
 
 def main() -> None:
     st.set_page_config(
@@ -18,6 +23,11 @@ def main() -> None:
     )
 
     context, facade = bootstrap_app()
+    
+    views = {
+        "Overview": lambda: render_overview_page(facade, debug=state.snapshot().debug_mode),
+        "Compare": lambda: render_compare_view(context),
+    }
 
     with st.sidebar:
         st.title("Country Compare")
@@ -32,8 +42,10 @@ def main() -> None:
         st.caption(f"Scoring config: {context.scoring_config_path}")
 
     current_state = state.snapshot()
-    if current_state.selected_page == "Overview":
-        render_overview_page(facade, debug=current_state.debug_mode)
+    view = views.get(current_state.selected_page)
+
+    if view is not None:
+        view()
     else:
         st.title(current_state.selected_page)
         st.info("This page is reserved for a later UI phase.")
