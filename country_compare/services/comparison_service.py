@@ -435,7 +435,7 @@ class ComparisonService:
             "metric_category": metric_cfg.category,
             "metric_unit": metric_cfg.unit,
             "year_strategy": request.year_strategy.value,
-            "target_year": request.target_year,
+            "target_year": request.target_year if request.year_strategy == YearStrategy.TARGET_YEAR else None,
             "selected_countries": list(request.countries),
             "result_row_count": int(len(dataframe)),
             "years_used": years_used,
@@ -459,7 +459,7 @@ class ComparisonService:
             "metric_labels": metric_labels,
             "selected_countries": list(request.countries),
             "year_strategy": request.year_strategy.value,
-            "target_year": request.target_year,
+            "target_year": request.target_year if request.year_strategy == YearStrategy.TARGET_YEAR else None,
             "result_row_count": int(len(dataframe)),
             "countries_returned": self._extract_string_values(dataframe, "country_code"),
             "metrics_returned": self._extract_string_values(dataframe, "metric_id"),
@@ -483,7 +483,11 @@ class ComparisonService:
             "profile_name": resolved_profile.profile_name,
             "selected_countries": list(request.countries),
             "profile_year_strategy": resolved_profile.year_strategy.value,
-            "target_year": request.target_year,
+            "target_year": (
+                request.target_year
+                if resolved_profile.year_strategy == YearStrategy.TARGET_YEAR
+                else None
+            ),
             "missing_data_policy": resolved_profile.missing_data_policy.value,
             "resolved_weights": dict(resolved_profile.weights),
             "result_row_count": int(len(dataframe)),

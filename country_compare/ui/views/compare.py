@@ -92,6 +92,9 @@ def render_compare_view(context: AppContext) -> None:
             enabled=(year_strategy == YearStrategy.TARGET_YEAR),
             default=selection_state.get("target_year"),
         )
+        effective_target_year = (
+           target_year if year_strategy == YearStrategy.TARGET_YEAR else None
+        )
 
     set_selection_state(
         {
@@ -142,7 +145,7 @@ def render_compare_view(context: AppContext) -> None:
                     countries=selected_countries,
                     metric_id=normalized_metric_id,
                     year_strategy=year_strategy,
-                    target_year=target_year,
+                    target_year=effective_target_year,
                 )
                 compare_result = comparison_service.run_single_metric(request)
                 if compare_result.ok:
@@ -198,7 +201,7 @@ def render_compare_view(context: AppContext) -> None:
                     countries=selected_countries,
                     metric_ids=metric_ids,
                     year_strategy=year_strategy,
-                    target_year=target_year,
+                    target_year=effective_target_year,
                 )
                 compare_result = comparison_service.run_multi_metric(request)
                 if compare_result.ok:
