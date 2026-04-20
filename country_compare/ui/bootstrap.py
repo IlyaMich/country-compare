@@ -37,7 +37,10 @@ def _build_facade_cached(context: AppContext) -> AppFacade:
 @st.cache_resource(show_spinner=False)
 def _build_phase_b_services_cached(context: AppContext) -> dict[str, object]:
     dataset_service = DatasetService(context=context)
-    config_service = ConfigService(context=context)
+    config_service = ConfigService(
+        context=context,
+        dataset_service=dataset_service,
+    )
     comparison_service = ComparisonService(
         context=context,
         dataset_service=dataset_service,
