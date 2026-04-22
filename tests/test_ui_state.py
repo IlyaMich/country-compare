@@ -4,6 +4,9 @@ import pandas as pd
 import pytest
 from typing import Iterator
 import streamlit as st
+from copy import deepcopy
+
+from country_compare.ui import state
 
 from country_compare.services.results import ComparisonResult, PresentationResult
 from country_compare.ui.state import (
@@ -16,6 +19,32 @@ from country_compare.ui.state import (
     set_compare_error,
     set_compare_presentation,
 )
+
+METRICS_DATA = {
+    "metrics": {
+        "gdp_per_capita": {
+            "display_name": "GDP per capita",
+            "category": "Economy",
+            "higher_is_better": True,
+            "default_weight": 1.0,
+            "normalization_method": "minmax",
+        }
+    }
+}
+
+SCORING_DATA = {
+    "default_profile": "balanced",
+    "weight_handling": "normalize",
+    "default_year_strategy": "latest_per_metric",
+    "default_missing_data_policy": "renormalize_weights",
+    "profiles": {
+        "balanced": {
+            "metrics": ["gdp_per_capita"],
+            "weights": {},
+            "normalization_overrides": {},
+        }
+    },
+}
 
 
 @pytest.fixture(autouse=True)
@@ -95,3 +124,75 @@ def test_set_compare_error_stores_mode_specific_error() -> None:
     assert result_state["latest_mode"] == "weighted_score"
     assert result_state["compare_errors_by_mode"]["weighted_score"] is error
     assert st.session_state["country_compare.last_error_code"] == "selection_invalid"
+
+def _patch_session_state(monkeypatch):
+    store = {}
+    monkeypatch.setattr(state, "_session_state", lambda: store)
+    return store
+
+
+def test_initialize_config_editor_draft_sets_clean_snapshot(monkeypatch) -> None:
+    _patch_session_state(monkeypatch)
+
+    state.initialize_session_state()
+    state.initialize_config_editor_draft(
+        metrics_data=METRICS_DATA,
+        scoring_data=SCORING_DATA,
+        force=True,
+    )
+
+    editor_state = state.get_config_editor_state()
+    assert editor_state["draft_metrics_data"] == METRICS_DATA
+    assert editor_state["draft_scoring_data"] == SCORING_DATA
+    assert editor_state["selected_metric_id"] == "gdp_per_capita"
+    assert editor_state["selected_profile_name"] == "balanced"
+    assert editor_state["dirty"] is False
+
+
+def test_set_config_editor_drafts_marks_dirty_and_reset_restores(monkeypatch) -> None:
+    _patch_session_state(monkeypatch)
+
+    state.initialize_session_state()
+    state.initialize_config_editor_draft(
+        metrics_data=METRICS_DATA,
+        scoring_data=SCORING_DATA,
+        force=True,
+    )
+
+    updated_metrics = deepcopy(METRICS_DATA)
+    updated_metrics["metrics"]["gdp_per_capita"]["display_name"] = "GDP per person"
+    state.set_config_editor_drafts(metrics_data=updated_metrics)
+
+    assert state.config_editor_is_dirty() is True
+    assert state.get_config_editor_state()["validation_report"] is None
+
+    state.reset_config_editor_draft()
+
+    editor_state = state.get_config_editor_state()
+    assert editor_state["draft_metrics_data"] == METRICS_DATA
+    assert editor_state["dirty"] is False
+
+
+def test_commit_config_editor_saved_state_clears_dirty(monkeypatch) -> None:
+    _patch_session_state(monkeypatch)
+
+    state.initialize_session_state()
+    state.initialize_config_editor_draft(
+        metrics_data=METRICS_DATA,
+        scoring_data=SCORING_DATA,
+        force=True,
+    )
+
+    updated_metrics = deepcopy(METRICS_DATA)
+    updated_metrics["metrics"]["gdp_per_capita"]["display_name"] = "GDP per person"
+    state.set_config_editor_drafts(metrics_data=updated_metrics)
+
+    state.commit_config_editor_saved_state(
+        metrics_data=updated_metrics,
+        scoring_data=SCORING_DATA,
+    )
+
+    editor_state = state.get_config_editor_state()
+    assert editor_state["loaded_metrics_data"] == updated_metrics
+    assert editor_state["draft_metrics_data"] == updated_metrics
+    assert editor_state["dirty"] is False
