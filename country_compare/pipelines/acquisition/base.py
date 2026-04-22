@@ -7,6 +7,13 @@ from country_compare.pipelines.models import AcquiredAsset, SourceSpec
 
 
 class RawAcquirer(ABC):
+    """Abstract base class for raw asset acquisition."""
+
     @abstractmethod
-    def acquire(self, source_spec: SourceSpec, *, raw_root: Path | None = None) -> list[AcquiredAsset]:
-        raise NotImplementedError
+    def acquire(
+        self,
+        source_spec: SourceSpec,
+        *,
+        raw_root: Path | None = None,
+    ) -> list[AcquiredAsset]:
+        """Resolve one logical source into one or more acquired local assets."""
