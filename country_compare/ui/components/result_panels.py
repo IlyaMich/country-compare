@@ -5,6 +5,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+from country_compare.ui.components.export_controls import render_presentation_exports
 from country_compare.ui.components.messages import render_app_error, render_messages
 
 
@@ -12,10 +13,12 @@ def render_single_metric_result(
     presentation: Any | None,
     *,
     debug: bool = False,
+    presentation_service: Any | None = None,
 ) -> None:
     render_comparison_result(
         presentation,
         debug=debug,
+        presentation_service=presentation_service,
         empty_message="Run a single-metric comparison to see results here.",
     )
 
@@ -24,6 +27,7 @@ def render_comparison_result(
     presentation: Any | None,
     *,
     debug: bool = False,
+    presentation_service: Any | None = None,
     empty_message: str = "Run a comparison to see results here.",
 ) -> None:
     if presentation is None:
@@ -71,6 +75,14 @@ def render_comparison_result(
         for title, figure in extra_charts.items():
             st.markdown(f"**{title}**")
             st.pyplot(figure, use_container_width=True)
+
+    if presentation_service is not None:
+        render_presentation_exports(
+            presentation,
+            presentation_service=presentation_service,
+            debug=debug,
+            key_prefix=f"result_{getattr(presentation, 'mode', 'comparison')}",
+        )
 
     metadata = getattr(presentation, "metadata", {}) or {}
     if metadata:

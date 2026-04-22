@@ -13,16 +13,21 @@ def render_app_error(error: Any, *, debug: bool = False) -> None:
     user_message = getattr(error, "user_message", str(error))
     field_errors = getattr(error, "field_errors", None) or {}
     technical_detail = getattr(error, "technical_detail", None)
+    code = getattr(error, "code", None)
 
     st.error(f"{title}: {user_message}")
 
     if field_errors:
+        st.markdown("**Fields to review**")
         for field_name, message in field_errors.items():
             st.caption(f"{field_name}: {message}")
 
-    if debug and technical_detail:
+    if debug and (technical_detail or code):
         with st.expander("Technical details"):
-            st.code(str(technical_detail))
+            if code:
+                st.write(f"**Code:** {code}")
+            if technical_detail:
+                st.code(str(technical_detail))
 
 
 def render_messages(messages: list[Any]) -> None:

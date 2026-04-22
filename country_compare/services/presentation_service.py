@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import inspect
+import io
+import json
 from typing import Any
 
 import pandas as pd
 
 from country_compare.services.results import AppMessage, ComparisonResult, PresentationResult
+from country_compare.services.serialization import (
+    serialize_comparison_result,
+    serialize_presentation_result,
+    to_jsonable,
+)
 
 
 class PresentationService:
-    """Convert raw comparison outputs into UI-ready artifacts."""
+    """Convert raw comparison outputs into UI-ready artifacts and exports."""
 
     def build_single_metric_presentation(
         self,
@@ -91,6 +98,68 @@ class PresentationService:
             warnings=list(result.warnings),
             messages=messages,
         )
+
+    def serialize_comparison_result(
+        self,
+        result: ComparisonResult,
+        *,
+        include_records: bool = True,
+        max_records: int = 500,
+    ) -> dict[str, Any]:
+        return serialize_comparison_result(result, include_records=include_records, max_records=max_records)
+
+    def serialize_presentation_result(
+        self,
+        presentation: PresentationResult,
+        *,
+        include_records: bool = True,
+        max_records: int = 500,
+    ) -> dict[str, Any]:
+        return serialize_presentation_result(
+            presentation,
+            include_records=include_records,
+            max_records=max_records,
+        )
+
+    def export_table_csv_bytes(self, dataframe: pd.DataFrame) -> bytes:
+        buffer = io.StringIO()
+        dataframe.to_csv(buffer, index=False)
+        return buffer.getvalue().encode("utf-8")
+
+    def export_chart_png_bytes(self, figure: Any) -> bytes:
+        buffer = io.BytesIO()
+        figure.savefig(buffer, format="png", bbox_inches="tight")
+        return buffer.getvalue()
+
+    def export_metadata_json_bytes(self, metadata: dict[str, Any]) -> bytes:
+        return self._export_json_bytes(metadata)
+
+    def export_diagnostics_json_bytes(self, diagnostics: dict[str, Any]) -> bytes:
+        return self._export_json_bytes(diagnostics)
+
+    def export_comparison_result_json_bytes(
+        self,
+        result: ComparisonResult,
+        *,
+        include_records: bool = True,
+        max_records: int = 500,
+    ) -> bytes:
+        payload = self.serialize_comparison_result(result, include_records=include_records, max_records=max_records)
+        return self._export_json_bytes(payload)
+
+    def export_presentation_bundle_json_bytes(
+        self,
+        presentation: PresentationResult,
+        *,
+        include_records: bool = True,
+        max_records: int = 500,
+    ) -> bytes:
+        payload = self.serialize_presentation_result(
+            presentation,
+            include_records=include_records,
+            max_records=max_records,
+        )
+        return self._export_json_bytes(payload)
 
     def _error_presentation(self, result: ComparisonResult) -> PresentationResult:
         return PresentationResult(
@@ -428,6 +497,11 @@ class PresentationService:
             return row.to_dict()
         row = dataframe.iloc[0]
         return row.to_dict()
+
+    def _export_json_bytes(self, payload: Any) -> bytes:
+        safe_payload = to_jsonable(payload, dataframe_records=True)
+        return json.dumps(safe_payload, indent=2, ensure_ascii=False, sort_keys=True).encode("utf-8")
+
 
 
 def _invoke_callable_with_supported_kwargs(func: Any, aliases: dict[str, Any]) -> Any:

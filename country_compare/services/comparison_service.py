@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pandas as pd
@@ -10,18 +11,29 @@ from pydantic import ValidationError as PydanticValidationError
 
 from country_compare.comparison.single_metric import ComparisonError
 from country_compare.config import load_configuration_bundle
-from country_compare.config.models import YearStrategy
-from country_compare.config.validator import ConfigurationValidationError
+from country_compare.config.models import MissingDataPolicy, YearStrategy
+from country_compare.config.validator import (
+    ConfigurationValidationError,
+    resolve_profile_options,
+    resolve_profile_weights,
+)
 from country_compare.data import load_metric_dataframe
 from country_compare.data.stores.registry import create_metric_store
-from country_compare.scoring.weighted_score import ScoringError, resolve_scoring_profile
-from country_compare.services.errors import AppError
+from country_compare.services.errors import AppError, error_from_exception
 from country_compare.services.requests import (
     MultiMetricRequest,
     SingleMetricRequest,
     WeightedScoreRequest,
 )
 from country_compare.services.results import ComparisonResult
+
+try:  # pragma: no cover - package availability depends on project state
+    from country_compare.scoring.weighted_score import ScoringError, resolve_scoring_profile
+except Exception:  # pragma: no cover
+    class ScoringError(ValueError):
+        """Fallback scoring error when the scoring module is unavailable."""
+
+    resolve_scoring_profile = None
 
 
 class ComparisonService:
@@ -109,7 +121,7 @@ class ComparisonService:
                 diagnostics=diagnostics_builder(result_df),
                 warnings=warnings,
             )
-        except Exception as exc:  # pragma: no cover - exercised via mapping-focused tests
+        except Exception as exc:  # pragma: no cover - exercised via mapping-oriented tests
             return ComparisonResult(
                 mode=getattr(request, "mode", default_mode),
                 request=request,
@@ -209,11 +221,7 @@ class ComparisonService:
         if request.profile_name not in bundle.scoring.profiles:
             field_errors["profile_name"] = f"Unknown scoring profile: {request.profile_name}"
         else:
-            resolved_profile = resolve_scoring_profile(
-                bundle.metrics,
-                bundle.scoring,
-                profile_name=request.profile_name,
-            )
+            resolved_profile = self._resolve_weighted_profile(bundle, request.profile_name)
             if resolved_profile.year_strategy == YearStrategy.TARGET_YEAR and request.target_year is None:
                 field_errors["target_year"] = (
                     "This scoring profile uses target-year mode, so a target year is required."
@@ -474,20 +482,12 @@ class ComparisonService:
         dataframe: pd.DataFrame,
         bundle: Any,
     ) -> dict[str, Any]:
-        resolved_profile = resolve_scoring_profile(
-            bundle.metrics,
-            bundle.scoring,
-            profile_name=request.profile_name,
-        )
+        resolved_profile = self._resolve_weighted_profile(bundle, request.profile_name)
         return {
-            "profile_name": resolved_profile.profile_name,
+            "profile_name": request.profile_name,
             "selected_countries": list(request.countries),
             "profile_year_strategy": resolved_profile.year_strategy.value,
-            "target_year": (
-                request.target_year
-                if resolved_profile.year_strategy == YearStrategy.TARGET_YEAR
-                else None
-            ),
+            "target_year": request.target_year if resolved_profile.year_strategy == YearStrategy.TARGET_YEAR else None,
             "missing_data_policy": resolved_profile.missing_data_policy.value,
             "resolved_weights": dict(resolved_profile.weights),
             "result_row_count": int(len(dataframe)),
@@ -495,140 +495,132 @@ class ComparisonService:
         }
 
     def _build_single_metric_diagnostics(self, dataframe: pd.DataFrame) -> dict[str, Any]:
-        diagnostics: dict[str, Any] = {}
-        if dataframe is None or dataframe.empty:
-            diagnostics["empty_result"] = True
-            return diagnostics
-
-        diagnostics["countries_returned"] = self._extract_string_values(dataframe, "country_code")
-        diagnostics["ranked"] = "rank" in dataframe.columns
-        diagnostics["normalization_applied"] = "normalization_method" in dataframe.columns
-        return diagnostics
-
-    def _build_multi_metric_diagnostics(self, dataframe: pd.DataFrame) -> dict[str, Any]:
-        diagnostics: dict[str, Any] = {}
-        if dataframe is None or dataframe.empty:
-            diagnostics["empty_result"] = True
-            return diagnostics
-
-        diagnostics["countries_returned"] = self._extract_string_values(dataframe, "country_code")
-        diagnostics["metrics_returned"] = self._extract_string_values(dataframe, "metric_id")
-        diagnostics["years_used"] = self._extract_years_used(dataframe)
-        diagnostics["ranked"] = "rank" in dataframe.columns
-        diagnostics["normalization_applied"] = "normalization_method" in dataframe.columns
-        return diagnostics
-
-    def _build_weighted_score_diagnostics(self, dataframe: pd.DataFrame) -> dict[str, Any]:
-        diagnostics: dict[str, Any] = {}
-        if dataframe is None or dataframe.empty:
-            diagnostics["empty_result"] = True
-            return diagnostics
-
-        diagnostics["countries_scored"] = self._extract_string_values(dataframe, "country_code")
-        diagnostics["score_ranked"] = "score_rank" in dataframe.columns
-        if "missing_metric_count" in dataframe.columns:
-            diagnostics["countries_with_missing_metrics"] = int(
-                dataframe["missing_metric_count"].fillna(0).gt(0).sum()
-            )
-        return diagnostics
-
-    def _available_country_codes(self, dataframe: pd.DataFrame) -> set[str]:
         return {
-            str(value).upper()
-            for value in dataframe["country_code"].dropna().astype("string").unique().tolist()
+            "row_count": int(len(dataframe)),
+            "ranked": "rank" in dataframe.columns,
+            "normalized": "normalized_value" in dataframe.columns,
+            "available_columns": list(dataframe.columns),
         }
 
-    def _available_metric_ids(self, dataframe: pd.DataFrame) -> set[str]:
+    def _build_multi_metric_diagnostics(self, dataframe: pd.DataFrame) -> dict[str, Any]:
         return {
-            str(value)
-            for value in dataframe["metric_id"].dropna().astype("string").unique().tolist()
+            "row_count": int(len(dataframe)),
+            "ranked": "rank" in dataframe.columns,
+            "normalized": "normalized_value" in dataframe.columns,
+            "metric_count": int(dataframe["metric_id"].nunique()) if "metric_id" in dataframe.columns else 0,
+            "available_columns": list(dataframe.columns),
+        }
+
+    def _build_weighted_score_diagnostics(self, dataframe: pd.DataFrame) -> dict[str, Any]:
+        missing_count_summary = None
+        if "missing_metric_count" in dataframe.columns:
+            missing_count_summary = sorted(
+                {int(value) for value in dataframe["missing_metric_count"].fillna(0).tolist()}
+            )
+        return {
+            "row_count": int(len(dataframe)),
+            "scored": "weighted_score" in dataframe.columns,
+            "ranked": "score_rank" in dataframe.columns,
+            "missing_metric_count_values": missing_count_summary,
+            "available_columns": list(dataframe.columns),
         }
 
     def _extract_years_used(self, dataframe: pd.DataFrame) -> list[int]:
         if "year" not in dataframe.columns:
             return []
-        return sorted(
-            int(value)
-            for value in dataframe["year"].dropna().astype("Int64").unique().tolist()
-        )
+        years = [int(value) for value in dataframe["year"].dropna().tolist()]
+        return sorted(set(years))
 
     def _extract_string_values(self, dataframe: pd.DataFrame, column: str) -> list[str]:
         if column not in dataframe.columns:
             return []
-        return sorted(
-            {
-                str(value)
-                for value in dataframe[column].dropna().astype("string").tolist()
-                if str(value)
-            }
+        values = [str(value) for value in dataframe[column].dropna().astype("string").tolist()]
+        return sorted(set(values))
+
+    def _available_country_codes(self, dataframe: pd.DataFrame) -> set[str]:
+        if "country_code" not in dataframe.columns:
+            return set()
+        return {
+            str(value).upper()
+            for value in dataframe["country_code"].dropna().astype("string").tolist()
+        }
+
+    def _available_metric_ids(self, dataframe: pd.DataFrame) -> set[str]:
+        if "metric_id" not in dataframe.columns:
+            return set()
+        return {
+            str(value)
+            for value in dataframe["metric_id"].dropna().astype("string").tolist()
+        }
+
+    def _resolve_weighted_profile(self, bundle: Any, profile_name: str) -> Any:
+        if resolve_scoring_profile is not None:
+            return resolve_scoring_profile(
+                bundle.metrics,
+                bundle.scoring,
+                profile_name=profile_name,
+            )
+
+        resolved_options = resolve_profile_options(bundle.scoring, profile_name)
+        resolved_weights = resolve_profile_weights(bundle.metrics, bundle.scoring, profile_name)
+        return SimpleNamespace(
+            weights=resolved_weights,
+            year_strategy=YearStrategy(resolved_options["year_strategy"]),
+            missing_data_policy=MissingDataPolicy(resolved_options["missing_data_policy"]),
         )
 
     def _map_exception(self, exc: Exception) -> AppError:
-        technical_detail = repr(exc)
-
-        if isinstance(exc, FileNotFoundError):
-            return AppError(
-                code="resource_not_found",
-                title="Missing project resource",
-                user_message=str(exc),
-                technical_detail=technical_detail,
-            )
-
-        if isinstance(exc, (ConfigurationValidationError, PydanticValidationError)):
-            return AppError(
-                code="config_invalid",
-                title="Configuration is invalid",
-                user_message="The metrics or scoring configuration could not be loaded.",
-                technical_detail=str(exc),
-            )
-
-        if isinstance(exc, ValueError) and isinstance(getattr(exc, "args", [None])[0], dict):
-            field_errors = dict(exc.args[0])
+        if isinstance(exc, ValueError) and exc.args and isinstance(exc.args[0], dict):
+            field_errors = {str(key): str(value) for key, value in exc.args[0].items()}
             return AppError(
                 code="selection_invalid",
                 title="Selection is invalid",
-                user_message="Please fix the highlighted comparison inputs and try again.",
-                technical_detail=technical_detail,
+                user_message="Please review the current selection and try again.",
+                technical_detail=str(field_errors),
                 field_errors=field_errors,
+            )
+
+        if isinstance(exc, PydanticValidationError):
+            field_errors = {
+                ".".join(str(part) for part in item.get("loc", [])): item.get("msg", "Invalid value")
+                for item in exc.errors()
+            }
+            return AppError(
+                code="validation_failed",
+                title="Request validation failed",
+                user_message="One or more request values are invalid.",
+                technical_detail=str(exc),
+                field_errors=field_errors or None,
+            )
+
+        if isinstance(exc, ConfigurationValidationError):
+            return AppError(
+                code="configuration_invalid",
+                title="Configuration is invalid",
+                user_message="The current configuration bundle is not valid for this comparison.",
+                technical_detail=str(exc),
             )
 
         if isinstance(exc, ScoringError):
             return AppError(
                 code="scoring_failed",
                 title="Weighted scoring failed",
-                user_message=str(exc),
-                technical_detail=technical_detail,
+                user_message="The weighted scoring run could not be completed for the current selection.",
+                technical_detail=str(exc),
             )
 
         if isinstance(exc, ComparisonError):
             return AppError(
                 code="comparison_failed",
                 title="Comparison failed",
-                user_message=str(exc),
-                technical_detail=technical_detail,
+                user_message="The comparison could not be completed for the current selection.",
+                technical_detail=str(exc),
             )
 
-        message = str(exc).lower()
-        if "common year" in message:
-            return AppError(
-                code="common_year_unavailable",
-                title="No valid common year",
-                user_message=str(exc),
-                technical_detail=technical_detail,
-            )
-        if "normalization" in message:
-            return AppError(
-                code="normalization_failed",
-                title="Normalization failed",
-                user_message=str(exc),
-                technical_detail=technical_detail,
-            )
-
-        return AppError(
-            code="unexpected_error",
-            title="Comparison failed",
-            user_message="The comparison could not be completed.",
-            technical_detail=technical_detail,
+        return error_from_exception(
+            exc,
+            default_title="Unexpected comparison error",
+            default_user_message="The comparison could not be completed because an unexpected error occurred.",
         )
 
 

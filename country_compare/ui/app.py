@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from country_compare.ui import state
+from country_compare.ui import query_state, state
 from country_compare.ui.bootstrap import bootstrap_app
 from country_compare.ui.views.compare import render_compare_view
 from country_compare.ui.views.config_editor import render_config_editor_view
@@ -27,6 +27,7 @@ def main() -> None:
     )
 
     context, facade = bootstrap_app()
+    query_state.apply_query_params_once()
 
     views = {
         "Overview": lambda: render_overview_page(facade, debug=state.snapshot().debug_mode),
@@ -51,6 +52,11 @@ def main() -> None:
         st.caption(f"Backend: {context.store_backend}")
         st.caption(f"Metrics config: {context.metrics_config_path}")
         st.caption(f"Scoring config: {context.scoring_config_path}")
+
+    query_state.sync_query_params_from_state(
+        selected_page=selected_page,
+        selection_state=state.get_selection_state(),
+    )
 
     current_state = state.snapshot()
     view = views.get(current_state.selected_page)

@@ -16,6 +16,7 @@ class StateKey(StrEnum):
     SELECTION_STATE = "country_compare.selection_state"
     RESULT_STATE = "country_compare.result_state"
     CONFIG_EDITOR_STATE = "country_compare.config_editor_state"
+    QUERY_STATE_INITIALIZED = "country_compare.query_state_initialized"
 
 
 @dataclass(frozen=True)
@@ -104,6 +105,7 @@ def initialize_session_state(*, default_debug: bool = False) -> None:
     session.setdefault(StateKey.DEBUG_MODE, default_debug)
     session.setdefault(StateKey.LAST_ERROR_CODE, None)
     session.setdefault(StateKey.CATALOG_STATE, {})
+    session.setdefault(StateKey.QUERY_STATE_INITIALIZED, False)
 
     session.setdefault(StateKey.SELECTION_STATE, {})
     for key, value in DEFAULT_SELECTION_STATE.items():
@@ -116,6 +118,7 @@ def initialize_session_state(*, default_debug: bool = False) -> None:
     session.setdefault(StateKey.CONFIG_EDITOR_STATE, {})
     for key, value in DEFAULT_CONFIG_EDITOR_STATE.items():
         session[StateKey.CONFIG_EDITOR_STATE].setdefault(key, deepcopy(value))
+
 
 
 def snapshot() -> UIStateSnapshot:
@@ -248,6 +251,16 @@ def get_compare_error(mode: str | None = None):
 def get_debug_mode() -> bool:
     initialize_session_state()
     return bool(_session_state()[StateKey.DEBUG_MODE])
+
+
+def query_state_initialized() -> bool:
+    initialize_session_state()
+    return bool(_session_state()[StateKey.QUERY_STATE_INITIALIZED])
+
+
+def mark_query_state_initialized(value: bool = True) -> None:
+    initialize_session_state()
+    _session_state()[StateKey.QUERY_STATE_INITIALIZED] = bool(value)
 
 
 def get_config_editor_state() -> dict[str, Any]:

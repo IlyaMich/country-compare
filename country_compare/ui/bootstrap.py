@@ -5,10 +5,6 @@ from pathlib import Path
 import streamlit as st
 
 from country_compare.services import AppContext, AppFacade
-from country_compare.services.comparison_service import ComparisonService
-from country_compare.services.config_service import ConfigService
-from country_compare.services.dataset_service import DatasetService
-from country_compare.services.presentation_service import PresentationService
 from country_compare.ui import state
 
 
@@ -37,21 +33,19 @@ def _build_facade_cached(context: AppContext) -> AppFacade:
 
 @st.cache_resource(show_spinner=False)
 def _build_ui_services_cached(context: AppContext) -> dict[str, object]:
-    dataset_service = DatasetService(context=context)
-    config_service = ConfigService(context=context, dataset_service=dataset_service)
-    comparison_service = ComparisonService(
-        context=context,
-        dataset_service=dataset_service,
-        config_service=config_service,
-    )
-    presentation_service = PresentationService()
+    facade = _build_facade_cached(context)
     return {
         "context": context,
-        "dataset_service": dataset_service,
-        "config_service": config_service,
-        "comparison_service": comparison_service,
-        "presentation_service": presentation_service,
+        "facade": facade,
+        "dataset_service": facade.dataset,
+        "config_service": facade.config,
+        "comparison_service": facade.comparison,
+        "presentation_service": facade.presentation,
     }
+
+
+def get_app_facade(context: AppContext) -> AppFacade:
+    return _build_facade_cached(context)
 
 
 def get_ui_services(context: AppContext) -> dict[str, object]:
@@ -59,6 +53,7 @@ def get_ui_services(context: AppContext) -> dict[str, object]:
 
 
 def get_phase_b_services(context: AppContext) -> dict[str, object]:
+    """Backward-compatible alias retained for existing imports."""
     return get_ui_services(context)
 
 

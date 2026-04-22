@@ -10,9 +10,10 @@ from country_compare.services.requests import (
     SingleMetricRequest,
     WeightedScoreRequest,
 )
-from country_compare.ui.bootstrap import get_phase_b_services
+from country_compare.ui import query_state
+from country_compare.ui.bootstrap import get_ui_services
 from country_compare.ui.components.messages import render_app_error
-from country_compare.ui.components.result_panels import render_comparison_result, render_single_metric_result
+from country_compare.ui.components.result_panels import render_comparison_result
 from country_compare.ui.components.selectors import (
     render_country_selector,
     render_multi_metric_selector,
@@ -43,9 +44,9 @@ def _as_list(value):
 
 def render_compare_view(context: AppContext) -> None:
     st.title("Compare")
-    st.caption("Compare countries with single metric, multi-metric, and weighted-score workflows.")
+    st.caption("Run single-metric, multi-metric, and weighted-score comparisons.")
 
-    services = get_phase_b_services(context)
+    services = get_ui_services(context)
     dataset_service = services["dataset_service"]
     config_service = services["config_service"]
     comparison_service = services["comparison_service"]
@@ -64,11 +65,11 @@ def render_compare_view(context: AppContext) -> None:
         else dataset_service.list_metrics()
     )
     years_catalog = dataset_service.list_years()
-    profiles_catalog = (
-        config_service.get_profile_summaries()
-        if hasattr(config_service, "get_profile_summaries")
-        else []
-    )
+
+    try:
+        profiles_catalog = config_service.get_profile_summaries()
+    except Exception:
+        profiles_catalog = []
 
     catalog_state = {
         "countries": _as_list(countries_catalog),
@@ -92,14 +93,11 @@ def render_compare_view(context: AppContext) -> None:
             enabled=(year_strategy == YearStrategy.TARGET_YEAR),
             default=selection_state.get("target_year"),
         )
-        effective_target_year = (
-           target_year if year_strategy == YearStrategy.TARGET_YEAR else None
-        )
 
     set_selection_state(
         {
             "selected_countries": selected_countries,
-            "year_strategy": year_strategy,
+            "year_strategy": year_strategy.value,
             "target_year": target_year,
         }
     )
@@ -113,54 +111,26 @@ def render_compare_view(context: AppContext) -> None:
             catalog_state.get("metrics", []),
             default=selection_state.get("single_metric_id"),
         )
-        run_clicked = st.button("Run comparison", type="primary", key="run_single_metric")
-
         set_selection_state({"single_metric_id": metric_id})
 
-        if run_clicked:
+        if st.button("Run single-metric comparison", type="primary", key="run_single_metric"):
             set_selection_state({"active_mode": "single_metric"})
-            normalized_metric_id = str(metric_id).strip() if metric_id is not None else ""
-            if not normalized_metric_id:
-                set_compare_error(
-                    AppError(
-                        code="input_invalid",
-                        title="Metric is required",
-                        user_message="Please select a metric before running the comparison.",
-                        technical_detail=f"metric_id={metric_id!r}",
-                    ),
-                    mode="single_metric",
-                )
-            elif len(selected_countries) < 2:
-                set_compare_error(
-                    AppError(
-                        code="input_invalid",
-                        title="Countries are required",
-                        user_message="Please select at least two countries.",
-                        technical_detail=f"selected_countries={selected_countries!r}",
-                    ),
-                    mode="single_metric",
-                )
-            else:
-                request = SingleMetricRequest(
-                    countries=selected_countries,
-                    metric_id=normalized_metric_id,
-                    year_strategy=year_strategy,
-                    target_year=effective_target_year,
-                )
-                compare_result = comparison_service.run_single_metric(request)
-                if compare_result.ok:
-                    presentation = presentation_service.build_single_metric_presentation(compare_result)
-                    set_compare_presentation(
-                        compare_result=compare_result,
-                        presentation=presentation,
-                        mode="single_metric",
-                    )
-                    set_compare_error(None, mode="single_metric")
-                else:
-                    set_compare_error(compare_result.error, mode="single_metric")
+            _run_single_metric_flow(
+                selected_countries=selected_countries,
+                metric_id=metric_id,
+                year_strategy=year_strategy,
+                target_year=target_year,
+                comparison_service=comparison_service,
+                presentation_service=presentation_service,
+            )
 
         latest_presentation = get_latest_compare_presentation(mode="single_metric")
-        render_single_metric_result(latest_presentation, debug=get_debug_mode())
+        render_comparison_result(
+            latest_presentation,
+            debug=get_debug_mode(),
+            presentation_service=presentation_service,
+            empty_message="Run a single-metric comparison to see results here.",
+        )
         error = get_compare_error(mode="single_metric")
         if error is not None:
             render_app_error(error, debug=get_debug_mode())
@@ -170,55 +140,24 @@ def render_compare_view(context: AppContext) -> None:
             catalog_state.get("metrics", []),
             default=selection_state.get("multi_metric_ids", []),
         )
-        run_clicked = st.button("Run multi-metric comparison", type="primary", key="run_multi_metric")
-
         set_selection_state({"multi_metric_ids": metric_ids})
 
-        if run_clicked:
+        if st.button("Run multi-metric comparison", type="primary", key="run_multi_metric"):
             set_selection_state({"active_mode": "multi_metric"})
-            if len(selected_countries) < 2:
-                set_compare_error(
-                    AppError(
-                        code="input_invalid",
-                        title="Countries are required",
-                        user_message="Please select at least two countries.",
-                        technical_detail=f"selected_countries={selected_countries!r}",
-                    ),
-                    mode="multi_metric",
-                )
-            elif not metric_ids:
-                set_compare_error(
-                    AppError(
-                        code="input_invalid",
-                        title="Metrics are required",
-                        user_message="Please select at least one metric.",
-                        technical_detail="metric_ids=[]",
-                    ),
-                    mode="multi_metric",
-                )
-            else:
-                request = MultiMetricRequest(
-                    countries=selected_countries,
-                    metric_ids=metric_ids,
-                    year_strategy=year_strategy,
-                    target_year=effective_target_year,
-                )
-                compare_result = comparison_service.run_multi_metric(request)
-                if compare_result.ok:
-                    presentation = presentation_service.build_multi_metric_presentation(compare_result)
-                    set_compare_presentation(
-                        compare_result=compare_result,
-                        presentation=presentation,
-                        mode="multi_metric",
-                    )
-                    set_compare_error(None, mode="multi_metric")
-                else:
-                    set_compare_error(compare_result.error, mode="multi_metric")
+            _run_multi_metric_flow(
+                selected_countries=selected_countries,
+                metric_ids=metric_ids,
+                year_strategy=year_strategy,
+                target_year=target_year,
+                comparison_service=comparison_service,
+                presentation_service=presentation_service,
+            )
 
         latest_presentation = get_latest_compare_presentation(mode="multi_metric")
         render_comparison_result(
             latest_presentation,
             debug=get_debug_mode(),
+            presentation_service=presentation_service,
             empty_message="Run a multi-metric comparison to see results here.",
         )
         error = get_compare_error(mode="multi_metric")
@@ -230,61 +169,179 @@ def render_compare_view(context: AppContext) -> None:
             catalog_state.get("profiles", []),
             default=selection_state.get("weighted_profile_name"),
         )
-        st.caption(
-            "Weighted Score uses the selected profile's configured year strategy and "
-            "missing-data policy. The shared target year is used only when that profile "
-            "requires target-year mode."
-        )
-        run_clicked = st.button("Run weighted score", type="primary", key="run_weighted_score")
-
         set_selection_state({"weighted_profile_name": profile_name})
 
-        if run_clicked:
+        if st.button("Run weighted-score comparison", type="primary", key="run_weighted_score"):
             set_selection_state({"active_mode": "weighted_score"})
-            if len(selected_countries) < 2:
-                set_compare_error(
-                    AppError(
-                        code="input_invalid",
-                        title="Countries are required",
-                        user_message="Please select at least two countries.",
-                        technical_detail=f"selected_countries={selected_countries!r}",
-                    ),
-                    mode="weighted_score",
-                )
-            elif not str(profile_name).strip():
-                set_compare_error(
-                    AppError(
-                        code="input_invalid",
-                        title="Scoring profile is required",
-                        user_message="Please select a scoring profile.",
-                        technical_detail=f"profile_name={profile_name!r}",
-                    ),
-                    mode="weighted_score",
-                )
-            else:
-                request = WeightedScoreRequest(
-                    countries=selected_countries,
-                    profile_name=profile_name,
-                    target_year=target_year,
-                )
-                compare_result = comparison_service.run_weighted_score(request)
-                if compare_result.ok:
-                    presentation = presentation_service.build_weighted_score_presentation(compare_result)
-                    set_compare_presentation(
-                        compare_result=compare_result,
-                        presentation=presentation,
-                        mode="weighted_score",
-                    )
-                    set_compare_error(None, mode="weighted_score")
-                else:
-                    set_compare_error(compare_result.error, mode="weighted_score")
+            _run_weighted_score_flow(
+                selected_countries=selected_countries,
+                profile_name=profile_name,
+                target_year=target_year,
+                comparison_service=comparison_service,
+                presentation_service=presentation_service,
+            )
 
         latest_presentation = get_latest_compare_presentation(mode="weighted_score")
         render_comparison_result(
             latest_presentation,
             debug=get_debug_mode(),
+            presentation_service=presentation_service,
             empty_message="Run a weighted-score comparison to see results here.",
         )
         error = get_compare_error(mode="weighted_score")
         if error is not None:
             render_app_error(error, debug=get_debug_mode())
+
+    query_state.sync_query_params_from_state(
+        selected_page="Compare",
+        selection_state=get_selection_state(),
+    )
+
+
+
+def _run_single_metric_flow(
+    *,
+    selected_countries: list[str],
+    metric_id: str,
+    year_strategy: YearStrategy,
+    target_year: int | None,
+    comparison_service,
+    presentation_service,
+) -> None:
+    normalized_metric_id = str(metric_id).strip() if metric_id is not None else ""
+
+    if not normalized_metric_id:
+        set_compare_error(
+            AppError(
+                code="input_invalid",
+                title="Metric is required",
+                user_message="Please select a metric before running the comparison.",
+                technical_detail=f"metric_id={metric_id!r}",
+            ),
+            mode="single_metric",
+        )
+        return
+
+    if len(selected_countries) < 2:
+        set_compare_error(
+            AppError(
+                code="input_invalid",
+                title="Countries are required",
+                user_message="Please select at least two countries.",
+                technical_detail=f"selected_countries={selected_countries!r}",
+            ),
+            mode="single_metric",
+        )
+        return
+
+    request = SingleMetricRequest(
+        countries=selected_countries,
+        metric_id=normalized_metric_id,
+        year_strategy=year_strategy,
+        target_year=target_year,
+    )
+    compare_result = comparison_service.run_single_metric(request)
+    if compare_result.ok:
+        presentation = presentation_service.build_single_metric_presentation(compare_result)
+        set_compare_presentation(compare_result=compare_result, presentation=presentation, mode="single_metric")
+        set_compare_error(None, mode="single_metric")
+    else:
+        set_compare_error(compare_result.error, mode="single_metric")
+
+
+
+def _run_multi_metric_flow(
+    *,
+    selected_countries: list[str],
+    metric_ids: list[str],
+    year_strategy: YearStrategy,
+    target_year: int | None,
+    comparison_service,
+    presentation_service,
+) -> None:
+    if len(selected_countries) < 2:
+        set_compare_error(
+            AppError(
+                code="input_invalid",
+                title="Countries are required",
+                user_message="Please select at least two countries.",
+                technical_detail=f"selected_countries={selected_countries!r}",
+            ),
+            mode="multi_metric",
+        )
+        return
+
+    if not metric_ids:
+        set_compare_error(
+            AppError(
+                code="input_invalid",
+                title="Metrics are required",
+                user_message="Please select at least one metric before running the comparison.",
+                technical_detail=f"metric_ids={metric_ids!r}",
+            ),
+            mode="multi_metric",
+        )
+        return
+
+    request = MultiMetricRequest(
+        countries=selected_countries,
+        metric_ids=metric_ids,
+        year_strategy=year_strategy,
+        target_year=target_year,
+    )
+    compare_result = comparison_service.run_multi_metric(request)
+    if compare_result.ok:
+        presentation = presentation_service.build_multi_metric_presentation(compare_result)
+        set_compare_presentation(compare_result=compare_result, presentation=presentation, mode="multi_metric")
+        set_compare_error(None, mode="multi_metric")
+    else:
+        set_compare_error(compare_result.error, mode="multi_metric")
+
+
+
+def _run_weighted_score_flow(
+    *,
+    selected_countries: list[str],
+    profile_name: str,
+    target_year: int | None,
+    comparison_service,
+    presentation_service,
+) -> None:
+    normalized_profile_name = str(profile_name).strip() if profile_name is not None else ""
+
+    if len(selected_countries) < 2:
+        set_compare_error(
+            AppError(
+                code="input_invalid",
+                title="Countries are required",
+                user_message="Please select at least two countries.",
+                technical_detail=f"selected_countries={selected_countries!r}",
+            ),
+            mode="weighted_score",
+        )
+        return
+
+    if not normalized_profile_name:
+        set_compare_error(
+            AppError(
+                code="input_invalid",
+                title="Profile is required",
+                user_message="Please select a scoring profile before running the comparison.",
+                technical_detail=f"profile_name={profile_name!r}",
+            ),
+            mode="weighted_score",
+        )
+        return
+
+    request = WeightedScoreRequest(
+        countries=selected_countries,
+        profile_name=normalized_profile_name,
+        target_year=target_year,
+    )
+    compare_result = comparison_service.run_weighted_score(request)
+    if compare_result.ok:
+        presentation = presentation_service.build_weighted_score_presentation(compare_result)
+        set_compare_presentation(compare_result=compare_result, presentation=presentation, mode="weighted_score")
+        set_compare_error(None, mode="weighted_score")
+    else:
+        set_compare_error(compare_result.error, mode="weighted_score")
