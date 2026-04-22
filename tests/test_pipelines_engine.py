@@ -185,3 +185,81 @@ def test_pipeline_surfaces_config_validation_failure(
     assert result.validation_report is not None
     assert result.validation_report.config_checked is True
     assert any("config/dataframe mismatch" in message for message in result.validation_report.error_messages)
+
+
+def test_pipeline_run_succeeds_for_wide_year_metric_csv_input(tmp_path: Path) -> None:
+    raw = pd.DataFrame(
+        {
+            "Country Name": ["Israel", "Germany"],
+            "Country Code": ["ISR", "DEU"],
+            "2022": [52000, 61000],
+            "2023": [54000, 65000],
+        }
+    )
+    csv_path = tmp_path / "wide.csv"
+    raw.to_csv(csv_path, index=False)
+
+    request = ProcessingRequest(
+        sources=[
+            SourceSpec(
+                source_id="wide_metric",
+                adapter_id="wide_year_metric_csv",
+                path=csv_path.name,
+                metric_id="gdp_per_capita",
+                metric_name="GDP per capita",
+                unit="USD",
+                category="economy",
+                higher_is_better=True,
+                source_name="Example Source",
+                source_url="https://example.org/gdp",
+            )
+        ],
+        raw_root=tmp_path,
+    )
+
+    result = PipelineEngine().run(request)
+
+    assert result.ok is True
+    assert result.canonical_dataframe is not None
+    assert len(result.canonical_dataframe.index) == 4
+    assert set(result.canonical_dataframe["year"].tolist()) == {2022, 2023}
+    assert result.validation_report is not None and result.validation_report.ok is True
+
+
+def test_pipeline_fails_when_merged_sources_create_duplicate_primary_keys(tmp_path: Path) -> None:
+    raw = pd.DataFrame(
+        {
+            "Country Name": ["Israel"],
+            "Country Code": ["ISR"],
+            "2023": [54000],
+        }
+    )
+    path_a = tmp_path / "wide_a.csv"
+    path_b = tmp_path / "wide_b.csv"
+    raw.to_csv(path_a, index=False)
+    raw.to_csv(path_b, index=False)
+
+    source_kwargs = dict(
+        adapter_id="wide_year_metric_csv",
+        metric_id="gdp_per_capita",
+        metric_name="GDP per capita",
+        unit="USD",
+        category="economy",
+        higher_is_better=True,
+        source_name="Example Source",
+        source_url="https://example.org/gdp",
+    )
+
+    request = ProcessingRequest(
+        sources=[
+            SourceSpec(source_id="a", path=path_a.name, **source_kwargs),
+            SourceSpec(source_id="b", path=path_b.name, **source_kwargs),
+        ],
+        raw_root=tmp_path,
+    )
+
+    result = PipelineEngine().run(request)
+
+    assert result.ok is False
+    assert result.error is not None
+    assert "duplicate canonical primary-key rows detected after merge" in result.error
