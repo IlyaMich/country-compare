@@ -1,0 +1,187 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+from country_compare.pipelines.engine import PipelineEngine
+from country_compare.pipelines.models import ProcessingRequest, SourceSpec
+
+
+class InMemoryStore:
+    def __init__(self) -> None:
+        self.backend_name = "memory"
+        self.path = None
+        self.written: pd.DataFrame | None = None
+
+    def write(self, dataframe: pd.DataFrame) -> None:
+        self.written = dataframe.copy(deep=True)
+
+    def read(self, columns: list[str] | None = None) -> pd.DataFrame:
+        if self.written is None:
+            return pd.DataFrame()
+        if columns is None:
+            return self.written.copy(deep=True)
+        return self.written.loc[:, columns].copy(deep=True)
+
+    def exists(self) -> bool:
+        return self.written is not None
+
+    def delete(self) -> None:
+        self.written = None
+
+
+@pytest.fixture()
+def canonical_dataframe() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "country_code": ["ISR", "DEU"],
+            "country_name": ["Israel", "Germany"],
+            "metric_id": ["gdp_per_capita", "gdp_per_capita"],
+            "metric_name": ["GDP per capita", "GDP per capita"],
+            "value": [54000.0, 65000.0],
+            "year": [2023, 2023],
+            "unit": ["USD", "USD"],
+            "source_name": ["Example Source", "Example Source"],
+            "source_url": ["https://example.org/gdp", "https://example.org/gdp"],
+            "higher_is_better": [True, True],
+            "category": ["economy", "economy"],
+        }
+    )
+
+
+def test_pipeline_run_succeeds_for_canonical_csv_input(
+    tmp_path: Path,
+    canonical_dataframe: pd.DataFrame,
+) -> None:
+    csv_path = tmp_path / "canonical.csv"
+    canonical_dataframe.to_csv(csv_path, index=False)
+
+    request = ProcessingRequest(
+        sources=[
+            SourceSpec(
+                source_id="canonical_source",
+                adapter_id="canonical_tabular_passthrough",
+                path=csv_path.name,
+                source_name="Example Source",
+                source_url="https://example.org/gdp",
+            )
+        ],
+        raw_root=tmp_path,
+    )
+
+    result = PipelineEngine().run(request)
+
+    assert result.ok is True
+    assert result.canonical_dataframe is not None
+    assert len(result.canonical_dataframe.index) == 2
+    assert result.validation_report is not None and result.validation_report.ok is True
+    assert result.source_results[0].ok is True
+
+
+def test_pipeline_run_fails_for_invalid_canonical_input(tmp_path: Path) -> None:
+    invalid = pd.DataFrame(
+        {
+            "country_name": ["Israel"],
+            "metric_id": ["gdp_per_capita"],
+            "metric_name": ["GDP per capita"],
+            "value": [54000.0],
+            "year": [2023],
+            "unit": ["USD"],
+            "source_name": ["Example Source"],
+            "source_url": ["https://example.org/gdp"],
+            "higher_is_better": [True],
+            "category": ["economy"],
+        }
+    )
+    csv_path = tmp_path / "invalid.csv"
+    invalid.to_csv(csv_path, index=False)
+
+    request = ProcessingRequest(
+        sources=[
+            SourceSpec(
+                source_id="invalid_source",
+                adapter_id="canonical_tabular_passthrough",
+                path=csv_path.name,
+            )
+        ],
+        raw_root=tmp_path,
+    )
+
+    result = PipelineEngine().run(request)
+
+    assert result.ok is False
+    assert result.error is not None
+    detailed_errors = list(result.validation_report.error_messages) if result.validation_report is not None else []
+    detailed_errors.extend(result.warnings)
+    assert any("country_code" in message for message in detailed_errors)
+
+
+def test_pipeline_publishes_dataframe_via_store(
+    tmp_path: Path,
+    canonical_dataframe: pd.DataFrame,
+) -> None:
+    csv_path = tmp_path / "canonical.csv"
+    canonical_dataframe.to_csv(csv_path, index=False)
+    store = InMemoryStore()
+
+    request = ProcessingRequest(
+        sources=[
+            SourceSpec(
+                source_id="canonical_source",
+                adapter_id="canonical_tabular_passthrough",
+                path=csv_path.name,
+            )
+        ],
+        raw_root=tmp_path,
+        publish=True,
+        store=store,
+    )
+
+    result = PipelineEngine().run(request)
+
+    assert result.ok is True
+    assert result.publication_report is not None and result.publication_report.ok is True
+    assert store.written is not None
+    assert len(store.written.index) == 2
+
+
+def test_pipeline_surfaces_config_validation_failure(
+    tmp_path: Path,
+    canonical_dataframe: pd.DataFrame,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    csv_path = tmp_path / "canonical.csv"
+    canonical_dataframe.to_csv(csv_path, index=False)
+
+    import country_compare.config.validator as config_validator
+
+    def fake_validate_metrics_against_dataframe(metrics, dataframe):
+        raise ValueError("config/dataframe mismatch")
+
+    monkeypatch.setattr(
+        config_validator,
+        "validate_metrics_against_dataframe",
+        fake_validate_metrics_against_dataframe,
+    )
+
+    request = ProcessingRequest(
+        sources=[
+            SourceSpec(
+                source_id="canonical_source",
+                adapter_id="canonical_tabular_passthrough",
+                path=csv_path.name,
+            )
+        ],
+        raw_root=tmp_path,
+        validate_against_config=True,
+        metrics_config=object(),
+    )
+
+    result = PipelineEngine().run(request)
+
+    assert result.ok is False
+    assert result.validation_report is not None
+    assert result.validation_report.config_checked is True
+    assert any("config/dataframe mismatch" in message for message in result.validation_report.error_messages)
