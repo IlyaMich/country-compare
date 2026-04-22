@@ -9,6 +9,7 @@ from uuid import uuid4
 import pandas as pd
 
 from country_compare.data.contract import ALL_COLUMNS, PRIMARY_KEY_COLUMNS, REQUIRED_COLUMNS
+from country_compare.data.ingestion.base import AdapterResult
 from country_compare.data.ingestion.registry import resolve_source_adapter
 from country_compare.pipelines.acquisition.directory import DirectoryRawAcquirer
 from country_compare.pipelines.errors import (
@@ -21,6 +22,7 @@ from country_compare.pipelines.models import (
     ProcessingRequest,
     ProcessingResult,
     PublicationReport,
+    RowIssue,
     RunMetadata,
     SourceProcessingResult,
     ValidationReport,
@@ -43,6 +45,7 @@ class PipelineEngine:
         source_results: list[SourceProcessingResult] = []
         canonical_frames: list[pd.DataFrame] = []
         warnings: list[str] = []
+        issues: list[RowIssue] = []
         run_error: str | None = None
         validation_report: ValidationReport | None = None
         publication_report: PublicationReport | None = None
@@ -55,6 +58,9 @@ class PipelineEngine:
 
                 source_result = self._process_source(source_spec, request=request)
                 source_results.append(source_result)
+                warnings.extend(source_result.warnings)
+                issues.extend(source_result.issues)
+
                 if source_result.ok and source_result.dataframe is not None:
                     canonical_frames.append(source_result.dataframe)
                 else:
@@ -78,6 +84,7 @@ class PipelineEngine:
             validation_report, validated_dataframe, metric_dataset = self._validate_merged_dataframe(
                 merged,
                 request=request,
+                issues=issues,
             )
 
             if not validation_report.ok:
@@ -99,7 +106,7 @@ class PipelineEngine:
                     row_count=int(len(validated_dataframe.index)),
                 )
 
-            result = ProcessingResult(
+            return ProcessingResult(
                 canonical_dataframe=validated_dataframe,
                 metric_dataset=metric_dataset if request.write_metric_dataset else None,
                 source_results=tuple(source_results),
@@ -110,8 +117,8 @@ class PipelineEngine:
                     finished_at=datetime.now(tz=timezone.utc),
                 ),
                 warnings=warnings,
+                issues=issues,
             )
-            return result
 
         except PublicationError as exc:
             run_error = str(exc)
@@ -122,6 +129,7 @@ class PipelineEngine:
             validation_report = ValidationReport(
                 ok=False,
                 error_messages=[run_error or "pipeline failed before validation"],
+                issues=issues,
             )
         if publication_report is None:
             publication_report = PublicationReport(
@@ -141,6 +149,7 @@ class PipelineEngine:
                 finished_at=datetime.now(tz=timezone.utc),
             ),
             warnings=warnings,
+            issues=issues,
             error=run_error,
         )
 
@@ -155,15 +164,17 @@ class PipelineEngine:
                 self.acquirer.acquire(source_spec, raw_root=self._resolve_raw_root(request.raw_root))
             )
             adapter = resolve_source_adapter(source_spec.adapter_id)
-            dataframe = self._execute_adapter(adapter, assets, source_spec=source_spec)
+            adapter_result = self._execute_adapter(adapter, assets, source_spec=source_spec)
             return SourceProcessingResult(
                 source_id=source_spec.source_id,
                 adapter_id=source_spec.adapter_id,
                 ok=True,
                 assets=assets,
-                dataframe=dataframe,
-                raw_row_count=int(len(dataframe.index)),
-                canonical_row_count=int(len(dataframe.index)),
+                dataframe=adapter_result.dataframe,
+                raw_row_count=adapter_result.raw_row_count,
+                canonical_row_count=int(len(adapter_result.dataframe.index)),
+                issues=list(adapter_result.issues),
+                warnings=list(adapter_result.warnings),
             )
         except Exception as exc:
             return SourceProcessingResult(
@@ -180,24 +191,46 @@ class PipelineEngine:
         return Path(raw_root)
 
     @staticmethod
-    def _execute_adapter(adapter: Any, assets: tuple[Any, ...], *, source_spec: Any) -> pd.DataFrame:
+    def _execute_adapter(adapter: Any, assets: tuple[Any, ...], *, source_spec: Any) -> AdapterResult:
         try:
             if hasattr(adapter, "process"):
-                dataframe = adapter.process(list(assets), source_spec=source_spec)
+                result = adapter.process(list(assets), source_spec=source_spec)
             elif len(assets) == 1 and hasattr(adapter, "adapt"):
-                dataframe = adapter.adapt(assets[0], source_spec=source_spec)
+                result = adapter.adapt(assets[0], source_spec=source_spec)
             else:
-                dataframe = adapter.to_standardized_dataframe()
+                result = adapter.to_standardized_dataframe()
         except Exception as exc:
             raise AdapterExecutionError(str(exc)) from exc
 
-        if not isinstance(dataframe, pd.DataFrame):
-            raise AdapterExecutionError("adapter did not return a pandas DataFrame")
-        return dataframe.copy(deep=True)
+        if isinstance(result, pd.DataFrame):
+            return AdapterResult(dataframe=result.copy(deep=True), raw_row_count=int(len(result.index)))
+        if isinstance(result, AdapterResult):
+            return AdapterResult(
+                dataframe=result.dataframe.copy(deep=True),
+                raw_row_count=result.raw_row_count,
+                issues=list(result.issues),
+                warnings=list(result.warnings),
+            )
+        dataframe = getattr(result, "dataframe", None)
+        if isinstance(dataframe, pd.DataFrame):
+            return AdapterResult(
+                dataframe=dataframe.copy(deep=True),
+                raw_row_count=int(getattr(result, "raw_row_count", len(dataframe.index))),
+                issues=list(getattr(result, "issues", [])),
+                warnings=list(getattr(result, "warnings", [])),
+            )
+        raise AdapterExecutionError("adapter did not return a pandas DataFrame or AdapterResult")
 
     @staticmethod
     def _merge_frames(frames: list[pd.DataFrame]) -> pd.DataFrame:
         merged = pd.concat(frames, ignore_index=True)
+        duplicate_mask = merged.duplicated(subset=list(PRIMARY_KEY_COLUMNS), keep=False)
+        if duplicate_mask.any():
+            duplicates = merged.loc[duplicate_mask, list(PRIMARY_KEY_COLUMNS)]
+            raise CanonicalValidationError(
+                "duplicate canonical primary-key rows detected after merge: "
+                f"{duplicates.to_dict(orient='records')}"
+            )
         ordered_columns = [column for column in ALL_COLUMNS if column in merged.columns]
         remaining_columns = [column for column in merged.columns if column not in ordered_columns]
         return merged.loc[:, [*ordered_columns, *remaining_columns]].copy(deep=True)
@@ -207,6 +240,7 @@ class PipelineEngine:
         dataframe: pd.DataFrame,
         *,
         request: ProcessingRequest,
+        issues: list[RowIssue],
     ) -> tuple[ValidationReport, pd.DataFrame, Any | None]:
         errors: list[str] = []
         warnings: list[str] = []
@@ -238,6 +272,7 @@ class PipelineEngine:
             ok=not errors,
             error_messages=errors,
             warning_messages=warnings,
+            issues=list(issues),
             validated_row_count=int(len(validated_dataframe.index)),
             config_checked=config_checked,
         )
@@ -324,9 +359,7 @@ def _fallback_validate_dataframe(dataframe: pd.DataFrame) -> None:
     country_codes = dataframe["country_code"].astype("string").str.upper()
     invalid_country_codes = country_codes[country_codes.str.len() != 3]
     if not invalid_country_codes.empty:
-        raise CanonicalValidationError(
-            "country_code must contain ISO alpha-3 codes"
-        )
+        raise CanonicalValidationError("country_code must contain ISO alpha-3 codes")
 
 
 def run_processing_pipeline(request: ProcessingRequest) -> ProcessingResult:

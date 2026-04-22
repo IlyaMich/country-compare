@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from country_compare.pipelines.engine import PipelineEngine, run_processing_pipeline
 from country_compare.pipelines.models import (
     AcquiredAsset,

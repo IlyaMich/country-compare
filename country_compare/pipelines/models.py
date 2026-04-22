@@ -25,6 +25,14 @@ class SourceSpec:
     mapping_overrides: dict[str, Any] = field(default_factory=dict)
     enabled: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
+    country_name_column: str | None = None
+    country_code_column: str | None = None
+    year_columns: list[str] | None = None
+    metric_id: str | None = None
+    metric_name: str | None = None
+    unit: str | None = None
+    category: str | None = None
+    higher_is_better: bool | None = None
 
     def __post_init__(self) -> None:
         self.source_id = str(self.source_id).strip()
@@ -37,6 +45,8 @@ class SourceSpec:
             raise ValueError("SourceSpec requires either 'path' or 'glob'")
         if self.path is not None:
             self.path = Path(self.path)
+        if self.year_columns is not None:
+            self.year_columns = [str(value) for value in self.year_columns]
 
 
 @dataclass(slots=True)
@@ -138,6 +148,7 @@ class ProcessingResult:
     publication_report: PublicationReport | None = None
     run_metadata: RunMetadata | None = None
     warnings: list[str] = field(default_factory=list)
+    issues: list[RowIssue] = field(default_factory=list)
     error: str | None = None
 
     @property

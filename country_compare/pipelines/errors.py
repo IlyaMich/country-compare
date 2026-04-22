@@ -5,25 +5,21 @@ class PipelineError(RuntimeError):
     """Base error for processing-pipeline failures."""
 
 
-class AcquisitionError(PipelineError):
-    pass
+class SourceNotFoundError(PipelineError):
+    """Raised when a source file cannot be found."""
 
 
-class SourceNotFoundError(AcquisitionError):
-    pass
-
-
-class UnsupportedFormatError(AcquisitionError):
-    pass
+class UnsupportedFormatError(PipelineError):
+    """Raised when a source file format is unsupported."""
 
 
 class AdapterExecutionError(PipelineError):
-    pass
+    """Raised when an adapter fails to transform an acquired asset."""
 
 
 class CanonicalValidationError(PipelineError):
-    pass
+    """Raised when canonical validation fails."""
 
 
 class PublicationError(PipelineError):
-    pass
+    """Raised when publication to the data layer fails."""
