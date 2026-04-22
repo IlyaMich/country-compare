@@ -25,7 +25,7 @@ metrics:
     higher_is_better: true
     default_weight: 1.0
     description: Democracy score from a recognized public source.
-    unit: index
+    unit: score_0_10
     source: Economist Intelligence Unit
     normalization_method: minmax
 
