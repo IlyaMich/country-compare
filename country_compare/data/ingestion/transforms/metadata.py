@@ -24,33 +24,27 @@ def build_source_defaults(source_spec: Any | None) -> dict[str, Any]:
 def stamp_metadata_defaults(dataframe: pd.DataFrame, *, source_spec: Any | None) -> pd.DataFrame:
     result = dataframe.copy(deep=True)
     defaults = build_source_defaults(source_spec)
-
     asset_path = None
     if source_spec is not None:
         asset_path = getattr(getattr(source_spec, "metadata", {}), "get", lambda *_: None)("path")
         if asset_path is None and getattr(source_spec, "path", None) is not None:
             asset_path = str(getattr(source_spec, "path"))
-
     notes_default = None
     if asset_path is not None:
         notes_default = f"ingested_from={Path(str(asset_path)).name}"
-
     if "notes" not in result.columns:
         result["notes"] = notes_default
     elif notes_default is not None:
         result["notes"] = result["notes"].fillna(notes_default)
-
     for column, default_value in defaults.items():
         if default_value is None:
             continue
         if column not in result.columns:
             result[column] = default_value
             continue
-
         series = result[column]
         if pd.api.types.is_string_dtype(series.dtype) or series.dtype == object:
             result[column] = series.replace("", pd.NA).fillna(default_value)
         else:
             result[column] = series.fillna(default_value)
-
     return result
