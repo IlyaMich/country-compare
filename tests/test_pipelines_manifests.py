@@ -1,0 +1,84 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+
+from country_compare.pipelines.manifests import load_source_manifest, manifest_to_processing_request
+
+
+def test_load_source_manifest_inherits_manifest_tags_and_labels(tmp_path: Path) -> None:
+    manifest_path = tmp_path / 'sources.yaml'
+    manifest_path.write_text(
+        yaml.safe_dump(
+            {
+                'name': 'demo_manifest',
+                'raw_root': str(tmp_path),
+                'tags': ['manifest', 'batch'],
+                'labels': {'owner': 'data-team'},
+                'defaults': {
+                    'adapter_id': 'canonical_tabular_passthrough',
+                    'source_name': 'Example Source',
+                    'source_url': 'https://example.org/source',
+                    'tags': ['defaults'],
+                    'labels': {'env': 'test'},
+                },
+                'processing': {'publish': False},
+                'sources': [
+                    {
+                        'source_id': 'dataset_a',
+                        'path': 'dataset_a.csv',
+                        'tags': ['source'],
+                        'labels': {'table': 'metrics'},
+                    }
+                ],
+            }
+        ),
+        encoding='utf-8',
+    )
+
+    manifest = load_source_manifest(manifest_path)
+
+    assert manifest.name == 'demo_manifest'
+    assert manifest.raw_root == tmp_path
+    assert len(manifest.sources) == 1
+
+    source = manifest.sources[0]
+    assert source.source_id == 'dataset_a'
+    assert source.adapter_id == 'canonical_tabular_passthrough'
+    assert source.source_name == 'Example Source'
+    assert source.source_url == 'https://example.org/source'
+    assert source.tags == ('defaults', 'manifest', 'batch', 'source')
+    assert source.labels == {
+        'env': 'test',
+        'owner': 'data-team',
+        'table': 'metrics',
+    }
+
+
+def test_manifest_to_processing_request_uses_manifest_processing_defaults(tmp_path: Path) -> None:
+    manifest_path = tmp_path / 'sources.yaml'
+    manifest_path.write_text(
+        yaml.safe_dump(
+            {
+                'raw_root': str(tmp_path),
+                'processing': {
+                    'publish': False,
+                    'write_audit_artifacts': True,
+                    'canonical_preview_rows': 3,
+                },
+                'defaults': {'adapter_id': 'canonical_tabular_passthrough'},
+                'sources': [{'source_id': 'dataset_a', 'path': 'dataset_a.csv'}],
+            }
+        ),
+        encoding='utf-8',
+    )
+
+    manifest = load_source_manifest(manifest_path)
+    request = manifest_to_processing_request(manifest)
+
+    assert request.raw_root == tmp_path
+    assert request.publish is False
+    assert request.write_audit_artifacts is True
+    assert request.canonical_preview_rows == 3
+    assert len(request.sources) == 1
