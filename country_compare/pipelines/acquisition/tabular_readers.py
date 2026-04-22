@@ -22,6 +22,8 @@ def read_acquired_asset(
     if file_format == "parquet":
         return pd.read_parquet(path, **options)
     if file_format == "excel":
+        if "sheet_name" not in options and asset.metadata.get("sheet_name") is not None:
+            options["sheet_name"] = asset.metadata["sheet_name"]
         return pd.read_excel(path, **options)
 
     raise UnsupportedFormatError(
