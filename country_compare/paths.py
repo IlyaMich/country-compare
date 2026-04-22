@@ -10,4 +10,4 @@ EXAMPLES_DATA_DIR = DATA_DIR / "examples"
 
 CONFIG_DIR = PROJECT_ROOT / "config"
 METRICS_CONFIG_PATH = CONFIG_DIR / "metrics.yaml"
-SCORING_CONFIG_PATH = CONFIG_DIR / "scoring.yaml"
+SCORING_CONFIG_PATH = CONFIG_DIR / "scoring_profiles.yaml"

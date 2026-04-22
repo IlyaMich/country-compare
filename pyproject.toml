@@ -9,11 +9,12 @@ description = "Country comparison toolkit using standardized long-format metric 
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "pandas>=2.2.0",
-    "pyarrow>=15.0.0",
-    "PyYAML>=6.0",
-    "pydantic>=2.6.0",
+    "pandas>=3.0.2",
+    "pyarrow>=23.0.1",
+    "PyYAML>=6.0.3",
+    "pydantic>=2.13.2",
     "matplotlib>=3.10.8",
+    "streamlit>=1.56.0",
 ]
 
 [project.optional-dependencies]
