@@ -4,16 +4,20 @@ import streamlit as st
 
 from country_compare.ui import state
 from country_compare.ui.bootstrap import bootstrap_app
-from country_compare.ui.views.overview import render_page as render_overview_page
 from country_compare.ui.views.compare import render_compare_view
+from country_compare.ui.views.config_editor import render_config_editor_view
+from country_compare.ui.views.overview import render_page as render_overview_page
 
 
-AVAILABLE_PAGES = ("Overview", "Compare", "Config Editor (coming soon)")
+AVAILABLE_PAGES = ("Overview", "Compare", "Config Editor")
 
-# VIEWS = {
-#     "Overview": lambda facade, debug: render_overview_page(facade, debug=debug),
-#     "Compare": lambda facade, debug: render_compare_view(),
-# }
+
+def _page_index(selected_page: str) -> int:
+    try:
+        return AVAILABLE_PAGES.index(selected_page)
+    except ValueError:
+        return 0
+
 
 def main() -> None:
     st.set_page_config(
@@ -23,18 +27,25 @@ def main() -> None:
     )
 
     context, facade = bootstrap_app()
-    
+
     views = {
         "Overview": lambda: render_overview_page(facade, debug=state.snapshot().debug_mode),
         "Compare": lambda: render_compare_view(context),
+        "Config Editor": lambda: render_config_editor_view(context),
     }
+
+    current_snapshot = state.snapshot()
 
     with st.sidebar:
         st.title("Country Compare")
-        selected_page = st.radio("Page", AVAILABLE_PAGES, index=0)
+        selected_page = st.radio(
+            "Page",
+            AVAILABLE_PAGES,
+            index=_page_index(current_snapshot.selected_page),
+        )
         state.set_selected_page(selected_page)
 
-        debug_mode = st.checkbox("Debug mode", value=state.snapshot().debug_mode)
+        debug_mode = st.checkbox("Debug mode", value=current_snapshot.debug_mode)
         state.set_debug_mode(debug_mode)
 
         st.caption(f"Backend: {context.store_backend}")

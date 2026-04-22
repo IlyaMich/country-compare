@@ -5,11 +5,11 @@ from pathlib import Path
 import streamlit as st
 
 from country_compare.services import AppContext, AppFacade
-from country_compare.ui import state
 from country_compare.services.comparison_service import ComparisonService
-from country_compare.services.presentation_service import PresentationService
-from country_compare.services.dataset_service import DatasetService
 from country_compare.services.config_service import ConfigService
+from country_compare.services.dataset_service import DatasetService
+from country_compare.services.presentation_service import PresentationService
+from country_compare.ui import state
 
 
 def build_app_context(
@@ -34,13 +34,11 @@ def build_app_context(
 def _build_facade_cached(context: AppContext) -> AppFacade:
     return AppFacade(context)
 
+
 @st.cache_resource(show_spinner=False)
-def _build_phase_b_services_cached(context: AppContext) -> dict[str, object]:
+def _build_ui_services_cached(context: AppContext) -> dict[str, object]:
     dataset_service = DatasetService(context=context)
-    config_service = ConfigService(
-        context=context,
-        dataset_service=dataset_service,
-    )
+    config_service = ConfigService(context=context, dataset_service=dataset_service)
     comparison_service = ComparisonService(
         context=context,
         dataset_service=dataset_service,
@@ -56,8 +54,18 @@ def _build_phase_b_services_cached(context: AppContext) -> dict[str, object]:
     }
 
 
+def get_ui_services(context: AppContext) -> dict[str, object]:
+    return _build_ui_services_cached(context)
+
+
 def get_phase_b_services(context: AppContext) -> dict[str, object]:
-    return _build_phase_b_services_cached(context)
+    return get_ui_services(context)
+
+
+def refresh_cached_services() -> None:
+    _build_facade_cached.clear()
+    _build_ui_services_cached.clear()
+
 
 def bootstrap_app(
     *,
