@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+import importlib
 import inspect
+import sys
 from collections.abc import Callable
 
 from country_compare.data.ingestion.base import SourceAdapter
@@ -14,20 +16,39 @@ class AdapterRegistryError(KeyError):
 
 _REGISTRY: dict[str, AdapterRegistration] = {}
 _BUILTINS_REGISTERED = False
+_BUILTIN_MODULES = (
+    "country_compare.data.ingestion.adapters.passthrough",
+    "country_compare.data.ingestion.adapters.wide_year_metric_csv",
+)
+_EXPECTED_BUILTINS = {
+    "canonical_tabular_passthrough",
+    "wide_year_metric_csv",
+}
 
 
 def _ensure_builtin_adapters_registered() -> None:
     global _BUILTINS_REGISTERED
-    if _BUILTINS_REGISTERED:
+    if _EXPECTED_BUILTINS.issubset(_REGISTRY):
+        _BUILTINS_REGISTERED = True
         return
 
+    # clear_source_adapters() removes registry entries, but Python keeps already-imported
+    # modules cached. import_module() alone would not re-run module-level
+    # register_source_adapter(...) calls, so we must reload cached builtins.
+    for module_name in _BUILTIN_MODULES:
+        module = sys.modules.get(module_name)
+        if module is None:
+            importlib.import_module(module_name)
+        else:
+            importlib.reload(module)
+
+    missing = sorted(_EXPECTED_BUILTINS.difference(_REGISTRY))
+    if missing:
+        raise AdapterRegistryError(
+            "builtin adapters failed to register: "
+            f"{missing}"
+        )
     _BUILTINS_REGISTERED = True
-    try:
-        from country_compare.data.ingestion.adapters import passthrough  # noqa: F401
-    except Exception:
-        # Keep import lazy and tolerant. Resolution will still fail clearly if the
-        # requested adapter is unavailable.
-        pass
 
 
 def _make_factory(
