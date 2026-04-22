@@ -9,6 +9,10 @@ from country_compare.pipelines.models import (
     ProcessingResult,
     SourceSpec,
 )
+from country_compare.pipelines.runners import (
+    load_processing_request_from_manifest,
+    run_processing_manifest,
+)
 
 __all__ = [
     "PipelineEngine",
@@ -19,4 +23,6 @@ __all__ = [
     "ProcessingRequest",
     "ProcessingResult",
     "SourceSpec",
+    "load_processing_request_from_manifest",
+    "run_processing_manifest",
 ]
