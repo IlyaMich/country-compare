@@ -9,9 +9,9 @@ from uuid import uuid4
 import pandas as pd
 
 from country_compare.data.contract import ALL_COLUMNS, PRIMARY_KEY_COLUMNS, REQUIRED_COLUMNS
-from country_compare.data.ingestion.base import AdapterResult
 from country_compare.data.ingestion.registry import resolve_source_adapter
 from country_compare.pipelines.acquisition.directory import DirectoryRawAcquirer
+from country_compare.pipelines.audit import write_audit_artifacts
 from country_compare.pipelines.errors import (
     AdapterExecutionError,
     CanonicalValidationError,
@@ -19,9 +19,12 @@ from country_compare.pipelines.errors import (
     PublicationError,
 )
 from country_compare.pipelines.models import (
+    AdapterResult,
+    AuditReport,
     ProcessingRequest,
     ProcessingResult,
     PublicationReport,
+    RejectedRow,
     RowIssue,
     RunMetadata,
     SourceProcessingResult,
@@ -45,11 +48,11 @@ class PipelineEngine:
         source_results: list[SourceProcessingResult] = []
         canonical_frames: list[pd.DataFrame] = []
         warnings: list[str] = []
-        issues: list[RowIssue] = []
         run_error: str | None = None
         validation_report: ValidationReport | None = None
         publication_report: PublicationReport | None = None
         metric_dataset: Any | None = None
+        canonical_dataframe: pd.DataFrame | None = None
 
         try:
             for source_spec in request.sources:
@@ -58,9 +61,6 @@ class PipelineEngine:
 
                 source_result = self._process_source(source_spec, request=request)
                 source_results.append(source_result)
-                warnings.extend(source_result.warnings)
-                issues.extend(source_result.issues)
-
                 if source_result.ok and source_result.dataframe is not None:
                     canonical_frames.append(source_result.dataframe)
                 else:
@@ -75,16 +75,18 @@ class PipelineEngine:
                             f"{source_result.error or 'unknown source failure'}"
                         )
 
+                warnings.extend(source_result.warnings)
+
             run_metadata.successful_source_count = sum(1 for result in source_results if result.ok)
 
             if not canonical_frames:
                 raise PipelineError("no valid canonical outputs were produced by the pipeline")
 
             merged = self._merge_frames(canonical_frames)
-            validation_report, validated_dataframe, metric_dataset = self._validate_merged_dataframe(
+            validation_report, canonical_dataframe, metric_dataset = self._validate_merged_dataframe(
                 merged,
                 request=request,
-                issues=issues,
+                source_results=source_results,
             )
 
             if not validation_report.ok:
@@ -95,7 +97,7 @@ class PipelineEngine:
 
             if request.publish:
                 publication_report = publish_dataframe(
-                    validated_dataframe,
+                    canonical_dataframe,
                     store=request.store,
                     write_metric_dataset=request.write_metric_dataset,
                 )
@@ -103,22 +105,9 @@ class PipelineEngine:
                 publication_report = PublicationReport(
                     attempted=False,
                     ok=True,
-                    row_count=int(len(validated_dataframe.index)),
+                    row_count=int(len(canonical_dataframe.index)),
+                    wrote_metric_dataset=request.write_metric_dataset,
                 )
-
-            return ProcessingResult(
-                canonical_dataframe=validated_dataframe,
-                metric_dataset=metric_dataset if request.write_metric_dataset else None,
-                source_results=tuple(source_results),
-                validation_report=validation_report,
-                publication_report=publication_report,
-                run_metadata=replace(
-                    run_metadata,
-                    finished_at=datetime.now(tz=timezone.utc),
-                ),
-                warnings=warnings,
-                issues=issues,
-            )
 
         except PublicationError as exc:
             run_error = str(exc)
@@ -129,29 +118,37 @@ class PipelineEngine:
             validation_report = ValidationReport(
                 ok=False,
                 error_messages=[run_error or "pipeline failed before validation"],
-                issues=issues,
+                source_issue_count=sum(item.issue_count for item in source_results),
+                rejected_row_count=sum(item.rejected_row_count for item in source_results),
             )
         if publication_report is None:
             publication_report = PublicationReport(
                 attempted=request.publish,
                 ok=False if request.publish else True,
                 error=run_error if request.publish else None,
+                wrote_metric_dataset=request.write_metric_dataset,
             )
 
-        return ProcessingResult(
-            canonical_dataframe=None,
-            metric_dataset=None,
+        finished_metadata = self._finalize_run_metadata(
+            run_metadata,
+            source_results=source_results,
+            validation_report=validation_report,
+            canonical_dataframe=canonical_dataframe,
+            warnings=warnings,
+            error=run_error,
+        )
+
+        result = ProcessingResult(
+            canonical_dataframe=canonical_dataframe if run_error is None else None,
+            metric_dataset=metric_dataset if (request.write_metric_dataset and run_error is None) else None,
             source_results=tuple(source_results),
             validation_report=validation_report,
             publication_report=publication_report,
-            run_metadata=replace(
-                run_metadata,
-                finished_at=datetime.now(tz=timezone.utc),
-            ),
+            run_metadata=finished_metadata,
             warnings=warnings,
-            issues=issues,
             error=run_error,
         )
+        return self._attach_audit_report(result, request=request)
 
     def _process_source(
         self,
@@ -165,16 +162,21 @@ class PipelineEngine:
             )
             adapter = resolve_source_adapter(source_spec.adapter_id)
             adapter_result = self._execute_adapter(adapter, assets, source_spec=source_spec)
+            dataframe = adapter_result.dataframe
+            raw_row_count = adapter_result.raw_row_count
+            if raw_row_count is None:
+                raw_row_count = int(len(dataframe.index)) + len(adapter_result.rejected_rows)
             return SourceProcessingResult(
                 source_id=source_spec.source_id,
                 adapter_id=source_spec.adapter_id,
                 ok=True,
                 assets=assets,
-                dataframe=adapter_result.dataframe,
-                raw_row_count=adapter_result.raw_row_count,
-                canonical_row_count=int(len(adapter_result.dataframe.index)),
-                issues=list(adapter_result.issues),
-                warnings=list(adapter_result.warnings),
+                dataframe=dataframe,
+                raw_row_count=int(raw_row_count),
+                canonical_row_count=int(len(dataframe.index)),
+                issues=adapter_result.issues,
+                rejected_rows=adapter_result.rejected_rows,
+                warnings=adapter_result.warnings,
             )
         except Exception as exc:
             return SourceProcessingResult(
@@ -194,43 +196,19 @@ class PipelineEngine:
     def _execute_adapter(adapter: Any, assets: tuple[Any, ...], *, source_spec: Any) -> AdapterResult:
         try:
             if hasattr(adapter, "process"):
-                result = adapter.process(list(assets), source_spec=source_spec)
+                output = adapter.process(list(assets), source_spec=source_spec)
             elif len(assets) == 1 and hasattr(adapter, "adapt"):
-                result = adapter.adapt(assets[0], source_spec=source_spec)
+                output = adapter.adapt(assets[0], source_spec=source_spec)
             else:
-                result = adapter.to_standardized_dataframe()
+                output = adapter.to_standardized_dataframe()
         except Exception as exc:
             raise AdapterExecutionError(str(exc)) from exc
 
-        if isinstance(result, pd.DataFrame):
-            return AdapterResult(dataframe=result.copy(deep=True), raw_row_count=int(len(result.index)))
-        if isinstance(result, AdapterResult):
-            return AdapterResult(
-                dataframe=result.dataframe.copy(deep=True),
-                raw_row_count=result.raw_row_count,
-                issues=list(result.issues),
-                warnings=list(result.warnings),
-            )
-        dataframe = getattr(result, "dataframe", None)
-        if isinstance(dataframe, pd.DataFrame):
-            return AdapterResult(
-                dataframe=dataframe.copy(deep=True),
-                raw_row_count=int(getattr(result, "raw_row_count", len(dataframe.index))),
-                issues=list(getattr(result, "issues", [])),
-                warnings=list(getattr(result, "warnings", [])),
-            )
-        raise AdapterExecutionError("adapter did not return a pandas DataFrame or AdapterResult")
+        return _coerce_adapter_output(output)
 
     @staticmethod
     def _merge_frames(frames: list[pd.DataFrame]) -> pd.DataFrame:
         merged = pd.concat(frames, ignore_index=True)
-        duplicate_mask = merged.duplicated(subset=list(PRIMARY_KEY_COLUMNS), keep=False)
-        if duplicate_mask.any():
-            duplicates = merged.loc[duplicate_mask, list(PRIMARY_KEY_COLUMNS)]
-            raise CanonicalValidationError(
-                "duplicate canonical primary-key rows detected after merge: "
-                f"{duplicates.to_dict(orient='records')}"
-            )
         ordered_columns = [column for column in ALL_COLUMNS if column in merged.columns]
         remaining_columns = [column for column in merged.columns if column not in ordered_columns]
         return merged.loc[:, [*ordered_columns, *remaining_columns]].copy(deep=True)
@@ -240,17 +218,28 @@ class PipelineEngine:
         dataframe: pd.DataFrame,
         *,
         request: ProcessingRequest,
-        issues: list[RowIssue],
+        source_results: list[SourceProcessingResult],
     ) -> tuple[ValidationReport, pd.DataFrame, Any | None]:
         errors: list[str] = []
         warnings: list[str] = []
+        issues: list[RowIssue] = []
         config_checked = False
         metric_dataset: Any | None = None
 
         try:
             validated_dataframe, metric_dataset = self._prepare_dataframe_for_storage(dataframe)
         except Exception as exc:
-            errors.append(str(exc))
+            normalized_message = _normalize_validation_error_message(str(exc))
+            errors.append(normalized_message)
+            issues.append(
+                RowIssue(
+                    severity="error",
+                    code="canonical_validation_failed",
+                    message=normalized_message,
+                    action="run_failed",
+                    stage="validation",
+                )
+            )
             validated_dataframe = dataframe.copy(deep=True)
 
         if not errors and request.validate_against_config:
@@ -267,14 +256,25 @@ class PipelineEngine:
                     validate_metrics_against_dataframe(metrics_config, validated_dataframe)
                 except Exception as exc:
                     errors.append(str(exc))
+                    issues.append(
+                        RowIssue(
+                            severity="error",
+                            code="config_validation_failed",
+                            message=str(exc),
+                            action="run_failed",
+                            stage="validation",
+                        )
+                    )
 
         report = ValidationReport(
             ok=not errors,
             error_messages=errors,
             warning_messages=warnings,
-            issues=list(issues),
+            issues=issues,
             validated_row_count=int(len(validated_dataframe.index)),
             config_checked=config_checked,
+            source_issue_count=sum(item.issue_count for item in source_results),
+            rejected_row_count=sum(item.rejected_row_count for item in source_results),
         )
         return report, validated_dataframe, metric_dataset
 
@@ -306,6 +306,99 @@ class PipelineEngine:
             _fallback_validate_dataframe(candidate)
 
         return candidate, dataset
+
+    @staticmethod
+    def _finalize_run_metadata(
+        run_metadata: RunMetadata,
+        *,
+        source_results: list[SourceProcessingResult],
+        validation_report: ValidationReport,
+        canonical_dataframe: pd.DataFrame | None,
+        warnings: list[str],
+        error: str | None,
+    ) -> RunMetadata:
+        issue_count = sum(item.issue_count for item in source_results) + validation_report.issue_count
+        warning_count = len(warnings) + len(validation_report.warning_messages)
+        error_count = sum(item.error_count for item in source_results) + len(validation_report.error_messages)
+        if error:
+            error_count += 1
+        return replace(
+            run_metadata,
+            finished_at=datetime.now(tz=timezone.utc),
+            successful_source_count=sum(1 for item in source_results if item.ok),
+            failed_source_count=sum(1 for item in source_results if not item.ok),
+            canonical_row_count=0 if canonical_dataframe is None else int(len(canonical_dataframe.index)),
+            rejected_row_count=sum(item.rejected_row_count for item in source_results),
+            issue_count=issue_count,
+            warning_count=warning_count,
+            error_count=error_count,
+        )
+
+    @staticmethod
+    def _attach_audit_report(result: ProcessingResult, *, request: ProcessingRequest) -> ProcessingResult:
+        if not request.write_audit_artifacts:
+            return result
+
+        artifact_paths = write_audit_artifacts(result, request=request)
+        output_dir = request.output_dir
+        if output_dir is None:
+            output_dir = Path(next(iter(artifact_paths.values()))).parent if artifact_paths else None
+        result.audit_report = AuditReport(
+            written=True,
+            output_dir=Path(output_dir) if output_dir is not None else None,
+            artifact_paths=artifact_paths,
+        )
+        return result
+
+
+def _coerce_adapter_output(output: Any) -> AdapterResult:
+    if isinstance(output, pd.DataFrame):
+        return AdapterResult(dataframe=output.copy(deep=True), raw_row_count=int(len(output.index)))
+
+    dataframe = getattr(output, "dataframe", None)
+    if not isinstance(dataframe, pd.DataFrame):
+        raise AdapterExecutionError("adapter did not return a pandas DataFrame")
+
+    raw_row_count = getattr(output, "raw_row_count", None)
+    issues = _coerce_issues(getattr(output, "issues", []))
+    rejected_rows = _coerce_rejected_rows(getattr(output, "rejected_rows", []))
+    warnings = [str(item) for item in getattr(output, "warnings", [])]
+
+    return AdapterResult(
+        dataframe=dataframe.copy(deep=True),
+        raw_row_count=raw_row_count,
+        issues=issues,
+        rejected_rows=rejected_rows,
+        warnings=warnings,
+    )
+
+
+def _coerce_issues(values: Any) -> list[RowIssue]:
+    issues: list[RowIssue] = []
+    for value in values or []:
+        if isinstance(value, RowIssue):
+            issues.append(value)
+            continue
+        if isinstance(value, dict):
+            issues.append(RowIssue(**value))
+            continue
+        raise AdapterExecutionError("adapter issues must contain RowIssue objects or mappings")
+    return issues
+
+
+def _coerce_rejected_rows(values: Any) -> list[RejectedRow]:
+    rejected_rows: list[RejectedRow] = []
+    for value in values or []:
+        if isinstance(value, RejectedRow):
+            rejected_rows.append(value)
+            continue
+        if isinstance(value, dict):
+            rejected_rows.append(RejectedRow(**value))
+            continue
+        raise AdapterExecutionError(
+            "adapter rejected_rows must contain RejectedRow objects or mappings"
+        )
+    return rejected_rows
 
 
 def _extract_dataframe(result: Any) -> pd.DataFrame | None:
@@ -359,7 +452,23 @@ def _fallback_validate_dataframe(dataframe: pd.DataFrame) -> None:
     country_codes = dataframe["country_code"].astype("string").str.upper()
     invalid_country_codes = country_codes[country_codes.str.len() != 3]
     if not invalid_country_codes.empty:
-        raise CanonicalValidationError("country_code must contain ISO alpha-3 codes")
+        raise CanonicalValidationError(
+            "country_code must contain ISO alpha-3 codes"
+        )
+
+
+
+def _normalize_validation_error_message(message: str) -> str:
+    lowered = message.lower()
+    if "duplicate canonical primary-key rows detected after merge" in lowered:
+        return message
+    if (
+        "duplicate canonical primary-key rows" in lowered
+        or "duplicate rows found for primary key" in lowered
+        or "[duplicates]" in lowered
+    ):
+        return f"duplicate canonical primary-key rows detected after merge: {message}"
+    return message
 
 
 def run_processing_pipeline(request: ProcessingRequest) -> ProcessingResult:

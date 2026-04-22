@@ -28,6 +28,7 @@ def publish_dataframe(
         row_count=int(len(dataframe.index)),
         target_backend=str(target_backend) if target_backend is not None else None,
         target_path=target_path,
+        wrote_metric_dataset=write_metric_dataset,
     )
 
     try:

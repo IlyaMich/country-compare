@@ -2,24 +2,24 @@ from __future__ import annotations
 
 
 class PipelineError(RuntimeError):
-    """Base error for processing-pipeline failures."""
+    """Base error raised by the processing pipeline."""
 
 
 class SourceNotFoundError(PipelineError):
-    """Raised when a source file cannot be found."""
+    """Raised when a configured source file cannot be located."""
 
 
 class UnsupportedFormatError(PipelineError):
-    """Raised when a source file format is unsupported."""
+    """Raised when an acquired asset has an unsupported format."""
 
 
 class AdapterExecutionError(PipelineError):
-    """Raised when an adapter fails to transform an acquired asset."""
+    """Raised when a source adapter cannot produce a canonical dataframe."""
 
 
 class CanonicalValidationError(PipelineError):
-    """Raised when canonical validation fails."""
+    """Raised when canonical validation fails before publication."""
 
 
 class PublicationError(PipelineError):
-    """Raised when publication to the data layer fails."""
+    """Raised when the validated dataset cannot be published."""

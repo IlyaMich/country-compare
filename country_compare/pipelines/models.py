@@ -19,20 +19,24 @@ class SourceSpec:
     format_hint: str | None = None
     sheet_name: str | int | None = None
     read_options: dict[str, Any] = field(default_factory=dict)
+
     source_name: str | None = None
     source_url: str | None = None
     dataset_version: str | None = None
-    mapping_overrides: dict[str, Any] = field(default_factory=dict)
-    enabled: bool = True
-    metadata: dict[str, Any] = field(default_factory=dict)
-    country_name_column: str | None = None
-    country_code_column: str | None = None
-    year_columns: list[str] | None = None
+
     metric_id: str | None = None
     metric_name: str | None = None
     unit: str | None = None
     category: str | None = None
-    higher_is_better: bool | None = None
+    higher_is_better: bool | str | int | None = None
+
+    country_name_column: str | None = None
+    country_code_column: str | None = None
+    year_columns: list[str] | tuple[str, ...] | None = None
+
+    mapping_overrides: dict[str, Any] = field(default_factory=dict)
+    enabled: bool = True
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.source_id = str(self.source_id).strip()
@@ -69,8 +73,30 @@ class RowIssue:
     source_id: str | None = None
     adapter_id: str | None = None
     row_identifier: str | None = None
+    raw_row_number: int | None = None
     columns: tuple[str, ...] = ()
     action: str | None = None
+    stage: str | None = None
+
+
+@dataclass(slots=True)
+class RejectedRow:
+    reason: str
+    source_id: str | None = None
+    adapter_id: str | None = None
+    row_identifier: str | None = None
+    raw_row_number: int | None = None
+    columns: tuple[str, ...] = ()
+    payload: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class AdapterResult:
+    dataframe: pd.DataFrame
+    raw_row_count: int | None = None
+    issues: list[RowIssue] = field(default_factory=list)
+    rejected_rows: list[RejectedRow] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -81,6 +107,12 @@ class ValidationReport:
     issues: list[RowIssue] = field(default_factory=list)
     validated_row_count: int = 0
     config_checked: bool = False
+    source_issue_count: int = 0
+    rejected_row_count: int = 0
+
+    @property
+    def issue_count(self) -> int:
+        return len(self.issues)
 
 
 @dataclass(slots=True)
@@ -90,6 +122,7 @@ class PublicationReport:
     row_count: int = 0
     target_backend: str | None = None
     target_path: str | None = None
+    wrote_metric_dataset: bool = False
     error: str | None = None
 
 
@@ -103,8 +136,36 @@ class SourceProcessingResult:
     raw_row_count: int = 0
     canonical_row_count: int = 0
     issues: list[RowIssue] = field(default_factory=list)
+    rejected_rows: list[RejectedRow] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
+
+    @property
+    def rejected_row_count(self) -> int:
+        return len(self.rejected_rows)
+
+    @property
+    def issue_count(self) -> int:
+        return len(self.issues)
+
+    @property
+    def warning_count(self) -> int:
+        return len(self.warnings) + sum(1 for issue in self.issues if issue.severity == "warning")
+
+    @property
+    def error_count(self) -> int:
+        return (1 if self.error else 0) + sum(1 for issue in self.issues if issue.severity == "error")
+
+    @property
+    def accepted_row_count(self) -> int:
+        return self.canonical_row_count
+
+
+@dataclass(slots=True)
+class AuditReport:
+    written: bool = False
+    output_dir: Path | None = None
+    artifact_paths: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -115,6 +176,11 @@ class RunMetadata:
     source_count: int = 0
     successful_source_count: int = 0
     failed_source_count: int = 0
+    canonical_row_count: int = 0
+    rejected_row_count: int = 0
+    issue_count: int = 0
+    warning_count: int = 0
+    error_count: int = 0
 
     @property
     def duration_seconds(self) -> float | None:
@@ -133,10 +199,15 @@ class ProcessingRequest:
     metrics_config: Any | None = None
     store: Any | None = None
     stop_on_source_error: bool = False
+    write_audit_artifacts: bool = False
+    output_dir: str | Path | None = None
+    canonical_preview_rows: int = 10
 
     def __post_init__(self) -> None:
         if self.raw_root is not None:
             self.raw_root = Path(self.raw_root)
+        if self.output_dir is not None:
+            self.output_dir = Path(self.output_dir)
 
 
 @dataclass(slots=True)
@@ -147,8 +218,8 @@ class ProcessingResult:
     validation_report: ValidationReport | None = None
     publication_report: PublicationReport | None = None
     run_metadata: RunMetadata | None = None
+    audit_report: AuditReport | None = None
     warnings: list[str] = field(default_factory=list)
-    issues: list[RowIssue] = field(default_factory=list)
     error: str | None = None
 
     @property
