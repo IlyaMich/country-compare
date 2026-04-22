@@ -6,12 +6,13 @@ import pandas as pd
 import pytest
 
 from country_compare.pipelines.engine import PipelineEngine
+from country_compare.pipelines.manifests import load_source_manifest, manifest_to_processing_request
 from country_compare.pipelines.models import ProcessingRequest, SourceSpec
 
 
 class InMemoryStore:
     def __init__(self) -> None:
-        self.backend_name = "memory"
+        self.backend_name = 'memory'
         self.path = None
         self.written: pd.DataFrame | None = None
 
@@ -263,3 +264,48 @@ def test_pipeline_fails_when_merged_sources_create_duplicate_primary_keys(tmp_pa
     assert result.ok is False
     assert result.error is not None
     assert "duplicate canonical primary-key rows detected after merge" in result.error
+
+
+def test_pipeline_reports_source_aware_merge_conflicts(tmp_path: Path, canonical_dataframe: pd.DataFrame) -> None:
+    first_path = tmp_path / 'first.csv'
+    second_path = tmp_path / 'second.csv'
+    canonical_dataframe.iloc[[0]].to_csv(first_path, index=False)
+    canonical_dataframe.iloc[[0]].to_csv(second_path, index=False)
+    request = ProcessingRequest(
+        sources=[
+            SourceSpec(
+                source_id='source_a',
+                adapter_id='canonical_tabular_passthrough',
+                path=first_path.name
+            ),
+            SourceSpec(
+                source_id='source_b',
+                adapter_id='canonical_tabular_passthrough',
+                path=second_path.name
+            )
+        ],
+        raw_root=tmp_path
+    )
+    result = PipelineEngine().run(request)
+    assert result.ok is False
+    assert result.merge_report is not None
+    assert result.merge_report.ok is False
+    assert result.merge_report.duplicate_key_conflict_count == 1
+    assert result.merge_report.conflict_dataframe is not None
+    assert set(result.merge_report.conflict_dataframe['_source_id'].tolist()) == {'source_a', 'source_b'}
+    assert 'duplicate canonical primary-key rows detected after merge' in (result.error or '')
+
+
+def test_manifest_loader_applies_defaults_and_builds_request(tmp_path: Path) -> None:
+    manifest_path = tmp_path / 'sources.yaml'
+    manifest_path.write_text('\n'.join(['name: demo_manifest', f'raw_root: {tmp_path.as_posix()}', 'processing:', '  write_audit_artifacts: true', 'defaults:', '  adapter_id: wide_year_metric_csv', '  source_name: Example Source', '  source_url: https://example.org/source', '  unit: USD', '  category: economy', '  metric_id: gdp_per_capita', '  metric_name: GDP per capita', '  higher_is_better: true', '  tags: [baseline]', 'sources:', '  - source_id: wb_gdp', '    path: wb.csv', '    tags: [world_bank]']), encoding='utf-8')
+    manifest = load_source_manifest(manifest_path)
+    request = manifest_to_processing_request(manifest)
+    
+    assert manifest.name == 'demo_manifest'
+    assert request.write_audit_artifacts is True
+    assert len(request.sources) == 1
+    source = request.sources[0]
+    assert source.adapter_id == 'wide_year_metric_csv'
+    assert source.source_name == 'Example Source'
+    assert source.tags == ('baseline', 'world_bank')
