@@ -17,12 +17,12 @@ def test_dataset_service_returns_summary_for_valid_dataset(tmp_path: Path) -> No
     summary = service.get_dataset_summary()
 
     assert summary.exists is True
-    assert summary.row_count == 12
-    assert summary.country_count == 3
-    assert summary.metric_count == 3
+    assert summary.row_count == 50
+    assert summary.country_count == 5
+    assert summary.metric_count == 5
     assert summary.year_min == 2022
     assert summary.year_max == 2023
-    assert {item.name for item in summary.categories} == {"economy", "governance"}
+    assert {item.name for item in summary.categories} == {"economy", "governance", "health"}
 
 
 def test_dataset_service_handles_missing_dataset_gracefully(tmp_path: Path) -> None:

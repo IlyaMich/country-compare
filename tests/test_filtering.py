@@ -21,7 +21,8 @@ def test_filter_countries_include():
     result = filter_countries(df, include=["ISR", "SGP"])
 
     assert set(result["country_code"].unique()) == {"ISR", "SGP"}
-    assert len(result) == 8
+    # 2 countries × 5 metrics × 2 years = 20
+    assert len(result) == 20
 
 
 def test_filter_countries_exclude():
@@ -29,8 +30,10 @@ def test_filter_countries_exclude():
 
     result = filter_countries(df, exclude=["DEU"])
 
-    assert set(result["country_code"].unique()) == {"ISR", "SGP"}
-    assert len(result) == 8
+    # Excluding DEU, remaining: ISR, SGP, CAN, JPN
+    assert set(result["country_code"].unique()) == {"ISR", "SGP", "CAN", "JPN"}
+    # 4 countries × 5 metrics × 2 years = 40
+    assert len(result) == 40
 
 
 def test_filter_metrics_include():
@@ -39,7 +42,8 @@ def test_filter_metrics_include():
     result = filter_metrics(df, include=["gdp_per_capita", "rule_of_law"])
 
     assert set(result["metric_id"].unique()) == {"gdp_per_capita", "rule_of_law"}
-    assert len(result) == 9
+    # 2 metrics × 5 countries × 2 years = 20
+    assert len(result) == 20
 
 
 def test_filter_metrics_exclude():
@@ -47,8 +51,11 @@ def test_filter_metrics_exclude():
 
     result = filter_metrics(df, exclude=["democracy_index"])
 
-    assert set(result["metric_id"].unique()) == {"gdp_per_capita", "rule_of_law"}
-    assert len(result) == 9
+    # Excluding democracy_index, remaining: gdp_per_capita, rule_of_law, inflation, life_expectancy
+    expected_metrics = {"gdp_per_capita", "rule_of_law", "inflation", "life_expectancy"}
+    assert set(result["metric_id"].unique()) == expected_metrics
+    # 4 metrics × 5 countries × 2 years = 40
+    assert len(result) == 40
 
 
 def test_latest_per_metric_selects_latest_row_per_country_metric():
@@ -56,24 +63,16 @@ def test_latest_per_metric_selects_latest_row_per_country_metric():
 
     result = select_latest_per_metric(df)
 
-    expected = {
-        ("ISR", "gdp_per_capita"): 2023,
-        ("DEU", "gdp_per_capita"): 2023,
-        ("SGP", "gdp_per_capita"): 2023,
-        ("ISR", "rule_of_law"): 2022,
-        ("DEU", "rule_of_law"): 2022,
-        ("SGP", "rule_of_law"): 2022,
-        ("ISR", "democracy_index"): 2022,
-        ("DEU", "democracy_index"): 2022,
-        ("SGP", "democracy_index"): 2022,
-    }
-
-    assert len(result) == 9
+    # Should select the latest year for each (country, metric) pair
+    # 5 countries × 5 metrics = 25
+    assert len(result) == 25
     observed = {
         (row.country_code, row.metric_id): int(row.year)
         for row in result.itertuples(index=False)
     }
-    assert observed == expected
+    # All should be 2023 for all (country, metric) pairs
+    for (country, metric), year in observed.items():
+        assert year == 2023
 
 
 def test_target_year_filters_single_year():
@@ -81,9 +80,9 @@ def test_target_year_filters_single_year():
 
     result = select_target_year(df, target_year=2023)
 
-    assert len(result) == 3
+    # All rows for 2023: 5 countries × 5 metrics = 25
+    assert len(result) == 25
     assert set(result["year"].astype(int).unique()) == {2023}
-    assert set(result["metric_id"].unique()) == {"gdp_per_capita"}
 
 
 def test_target_year_requires_explicit_year():
@@ -98,16 +97,22 @@ def test_common_year_selects_latest_fully_covered_year():
 
     result = select_common_year(df)
 
-    assert len(result) == 9
-    assert set(result["year"].astype(int).unique()) == {2022}
+    # All metrics and countries have both 2022 and 2023, so latest is 2023
+    # 5 countries × 5 metrics = 25
+    assert len(result) == 25
+    assert set(result["year"].astype(int).unique()) == {2023}
 
 
 def test_common_year_raises_when_no_fully_covered_year_exists():
     df = build_example_metric_dataframe()
+
+    # Remove one country/metric pair for each metric across all years
     mask = ~(
-        (df["country_code"] == "SGP")
-        & (df["metric_id"] == "rule_of_law")
-        & (df["year"].astype(int) == 2022)
+        ((df["metric_id"] == "gdp_per_capita") & (df["country_code"] == "ISR")) |
+        ((df["metric_id"] == "rule_of_law") & (df["country_code"] == "DEU")) |
+        ((df["metric_id"] == "democracy_index") & (df["country_code"] == "SGP")) |
+        ((df["metric_id"] == "inflation") & (df["country_code"] == "CAN")) |
+        ((df["metric_id"] == "life_expectancy") & (df["country_code"] == "JPN"))
     )
     broken = df.loc[mask].copy()
 

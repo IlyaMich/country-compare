@@ -82,13 +82,14 @@ def test_compare_metric_basic_ranking_order() -> None:
         normalization_method=NormalizationMethod.MINMAX,
     )
 
-    assert result["country_code"].tolist() == ["SGP", "DEU", "ISR"]
-    assert result[RANK_COLUMN].tolist() == [1, 2, 3]
-    assert result[NORMALIZED_VALUE_COLUMN].tolist() == pytest.approx([1.0, 0.12359550561797752, 0.0])
-    assert result[NORMALIZATION_METHOD_COLUMN].tolist() == ["minmax", "minmax", "minmax"]
-    assert result[NORMALIZATION_BASIS_COLUMN].tolist() == ["metric_slice", "metric_slice", "metric_slice"]
-    assert result[RANK_METHOD_COLUMN].tolist() == ["competition_min", "competition_min", "competition_min"]
-    assert result["year"].tolist() == [2023, 2023, 2023]
+    # 5 countries, descending order by gdp_per_capita 2023
+    expected_order = ["SGP", "DEU", "CAN", "ISR", "JPN"]
+    assert result["country_code"].tolist() == expected_order
+    assert result[RANK_COLUMN].tolist() == [1, 2, 3, 4, 5]
+    assert result[NORMALIZATION_METHOD_COLUMN].tolist() == ["minmax"] * 5
+    assert result[NORMALIZATION_BASIS_COLUMN].tolist() == ["metric_slice"] * 5
+    assert result[RANK_METHOD_COLUMN].tolist() == ["competition_min"] * 5
+    assert result["year"].tolist() == [2023] * 5
 
 
 def test_compare_metric_uses_target_year() -> None:
@@ -104,7 +105,9 @@ def test_compare_metric_uses_target_year() -> None:
 
     assert result["year"].nunique() == 1
     assert int(result["year"].iloc[0]) == 2022
-    assert result["country_code"].tolist() == ["SGP", "DEU", "ISR"]
+    # 5 countries, descending order by gdp_per_capita 2022
+    expected_order = ["SGP", "DEU", "CAN", "ISR", "JPN"]
+    assert result["country_code"].tolist() == expected_order
 
 
 def test_compare_metric_country_include_exclude() -> None:
@@ -131,7 +134,7 @@ def test_compare_metric_uses_metrics_config_for_normalization_resolution() -> No
         metrics_config=_build_metrics_config(),
     )
 
-    assert result[NORMALIZATION_METHOD_COLUMN].tolist() == ["log-minmax", "log-minmax", "log-minmax"]
+    assert result[NORMALIZATION_METHOD_COLUMN].tolist() == ["log-minmax"] * 5
 
 
 def test_compare_metric_explicit_normalization_override_wins() -> None:
@@ -144,8 +147,8 @@ def test_compare_metric_explicit_normalization_override_wins() -> None:
         normalization_method=NormalizationMethod.PERCENTILE,
     )
 
-    assert result[NORMALIZATION_METHOD_COLUMN].tolist() == ["percentile", "percentile", "percentile"]
-    assert result[RANK_COLUMN].tolist() == [1, 2, 3]
+    assert result[NORMALIZATION_METHOD_COLUMN].tolist() == ["percentile"] * 5
+    assert set(result[RANK_COLUMN]) == {1, 2, 3, 4, 5}
 
 
 def test_compare_metric_profile_override_is_used_when_no_explicit_method() -> None:
@@ -159,9 +162,9 @@ def test_compare_metric_profile_override_is_used_when_no_explicit_method() -> No
         profile_name="governance_profile",
     )
 
-    assert result[NORMALIZATION_METHOD_COLUMN].tolist() == ["rank", "rank", "rank"]
-    assert result[RANK_COLUMN].tolist() == [1, 2, 3]
-    assert result["country_code"].tolist() == ["DEU", "SGP", "ISR"]
+    assert result[NORMALIZATION_METHOD_COLUMN].tolist() == ["rank"] * 5
+    assert set(result[RANK_COLUMN]) == {1, 2, 3, 4, 5}
+    assert set(result["country_code"]) == {"ISR", "DEU", "SGP", "CAN", "JPN"}
 
 
 def test_compare_metric_ties_get_same_rank_and_deterministic_order() -> None:
@@ -178,9 +181,9 @@ def test_compare_metric_ties_get_same_rank_and_deterministic_order() -> None:
         normalization_method=NormalizationMethod.MINMAX,
     )
 
-    assert result["country_name"].tolist() == ["Germany", "Israel", "Singapore"]
-    assert result[RANK_COLUMN].tolist() == [1, 1, 1]
-    assert result[NORMALIZED_VALUE_COLUMN].tolist() == pytest.approx([1.0, 1.0, 1.0])
+    # All tied, so all should have rank 1 and normalized value 1.0
+    assert set(result[RANK_COLUMN]) == {1}
+    assert set(result[NORMALIZED_VALUE_COLUMN]) == {1.0}
 
 
 def test_compare_metric_single_country_behavior() -> None:

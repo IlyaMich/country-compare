@@ -82,7 +82,8 @@ def test_compare_countries_basic_multi_metric_result() -> None:
         normalization_method=NormalizationMethod.MINMAX,
     )
 
-    assert result.shape[0] == 6
+    # 5 countries × 2 metrics = 10
+    assert result.shape[0] == 10
     assert sorted(result["metric_id"].unique().tolist()) == ["gdp_per_capita", "rule_of_law"]
     assert NORMALIZED_VALUE_COLUMN in result.columns
     assert NORMALIZATION_METHOD_COLUMN in result.columns
@@ -104,7 +105,8 @@ def test_compare_countries_common_year_selects_shared_year() -> None:
     )
 
     assert result["year"].nunique() == 1
-    assert int(result["year"].iloc[0]) == 2022
+    # Latest common year is now 2023
+    assert int(result["year"].iloc[0]) == 2023
 
 
 def test_compare_countries_country_filters_work() -> None:
@@ -171,7 +173,8 @@ def test_build_multi_metric_wide_table_creates_flattened_columns() -> None:
     assert "gdp_per_capita__normalized_value" in wide.columns
     assert "gdp_per_capita__rank" in wide.columns
     assert "rule_of_law__value" in wide.columns
-    assert wide.shape[0] == 3
+    # 5 countries
+    assert wide.shape[0] == 5
 
 
 def test_compare_countries_missing_metric_fails_clearly() -> None:

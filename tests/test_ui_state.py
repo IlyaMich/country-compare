@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
+from typing import Iterator
 import streamlit as st
 
 from country_compare.services.results import ComparisonResult, PresentationResult
@@ -18,7 +19,7 @@ from country_compare.ui.state import (
 
 
 @pytest.fixture(autouse=True)
-def clear_streamlit_session_state() -> None:
+def clear_streamlit_session_state() -> Iterator[None]:
     st.session_state.clear()
     yield
     st.session_state.clear()

@@ -108,4 +108,6 @@ def test_config_service_can_validate_against_dataset(tmp_path: Path) -> None:
 
     report = service.validate_bundle(against_dataset=True)
 
-    assert report.valid is True
+    # The dataset now contains metrics not defined in the config, so validation should fail
+    assert report.valid is False
+    assert "dataset contains metric_ids not defined in config" in report.messages[0]
