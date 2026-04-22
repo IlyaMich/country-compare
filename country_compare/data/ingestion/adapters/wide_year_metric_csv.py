@@ -5,7 +5,7 @@ from typing import Any
 import pandas as pd
 
 from country_compare.data.contract import REQUIRED_COLUMNS
-from country_compare.data.ingestion.base import AdapterResult, SourceAdapter
+from country_compare.data.ingestion.base import SourceAdapter
 from country_compare.data.ingestion.registry import register_source_adapter
 from country_compare.data.ingestion.transforms.canonical import add_optional_columns, order_canonical_columns
 from country_compare.data.ingestion.transforms.columns import apply_column_mapping, find_column, normalize_columns
@@ -17,7 +17,7 @@ from country_compare.data.ingestion.transforms.values import (
     parse_year_label,
 )
 from country_compare.pipelines.acquisition.tabular_readers import read_acquired_asset
-from country_compare.pipelines.models import RowIssue
+from country_compare.pipelines.models import AdapterResult, RejectedRow, RowIssue
 
 WIDE_YEAR_METRIC_CSV_ADAPTER_ID = "wide_year_metric_csv"
 
@@ -52,6 +52,7 @@ class WideYearMetricCsvAdapter(SourceAdapter):
     def _adapt_dataframe(self, dataframe: pd.DataFrame, *, source_spec: Any | None) -> AdapterResult:
         raw_row_count = int(len(dataframe.index))
         issues: list[RowIssue] = []
+        rejected_rows: list[RejectedRow] = []
         warnings: list[str] = []
 
         normalized = normalize_columns(dataframe)
@@ -124,6 +125,15 @@ class WideYearMetricCsvAdapter(SourceAdapter):
                     severity="warning",
                 )
             )
+            rejected_rows.append(
+                self._rejected_row(
+                    source_spec,
+                    reason="blank_country_row_dropped",
+                    row_identifier=str(idx),
+                    columns=(country_name_column, country_code_column),
+                    payload=long_df.loc[idx].to_dict(),
+                )
+            )
         long_df = long_df.loc[~blank_both_mask].copy()
 
         long_df[country_name_column] = long_df[country_name_column].astype("string").str.strip()
@@ -141,6 +151,15 @@ class WideYearMetricCsvAdapter(SourceAdapter):
                     severity="error",
                 )
             )
+            rejected_rows.append(
+                self._rejected_row(
+                    source_spec,
+                    reason="missing_country_code_dropped",
+                    row_identifier=str(idx),
+                    columns=(country_code_column,),
+                    payload=long_df.loc[idx].to_dict(),
+                )
+            )
         long_df = long_df.loc[~missing_country_code_mask].copy()
 
         long_df["year"] = long_df["year_label"].map(parse_year_label)
@@ -154,6 +173,15 @@ class WideYearMetricCsvAdapter(SourceAdapter):
                     row_identifier=str(idx),
                     columns=("year_label",),
                     severity="warning",
+                )
+            )
+            rejected_rows.append(
+                self._rejected_row(
+                    source_spec,
+                    reason="invalid_year_label_dropped",
+                    row_identifier=str(idx),
+                    columns=("year_label",),
+                    payload=long_df.loc[idx].to_dict(),
                 )
             )
         long_df = long_df.loc[~invalid_year_mask].copy()
@@ -172,6 +200,15 @@ class WideYearMetricCsvAdapter(SourceAdapter):
                     severity="warning",
                 )
             )
+            rejected_rows.append(
+                self._rejected_row(
+                    source_spec,
+                    reason="blank_value_dropped",
+                    row_identifier=str(idx),
+                    columns=("value",),
+                    payload=long_df.loc[idx].to_dict(),
+                )
+            )
         for idx in long_df.index[invalid_numeric_mask].tolist():
             issues.append(
                 self._issue(
@@ -181,6 +218,15 @@ class WideYearMetricCsvAdapter(SourceAdapter):
                     row_identifier=str(idx),
                     columns=("value",),
                     severity="warning",
+                )
+            )
+            rejected_rows.append(
+                self._rejected_row(
+                    source_spec,
+                    reason="non_numeric_value_dropped",
+                    row_identifier=str(idx),
+                    columns=("value",),
+                    payload=long_df.loc[idx].to_dict(),
                 )
             )
         keep_mask = ~(blank_value_mask | invalid_numeric_mask)
@@ -246,6 +292,7 @@ class WideYearMetricCsvAdapter(SourceAdapter):
             dataframe=result,
             raw_row_count=raw_row_count,
             issues=issues,
+            rejected_rows=rejected_rows,
             warnings=warnings,
         )
 
@@ -268,6 +315,24 @@ class WideYearMetricCsvAdapter(SourceAdapter):
             row_identifier=row_identifier,
             columns=columns,
             action="dropped",
+        )
+
+    @staticmethod
+    def _rejected_row(
+        source_spec: Any | None,
+        *,
+        reason: str,
+        row_identifier: str,
+        columns: tuple[str, ...],
+        payload: dict[str, Any],
+    ) -> RejectedRow:
+        return RejectedRow(
+            reason=reason,
+            source_id=getattr(source_spec, "source_id", None),
+            adapter_id=getattr(source_spec, "adapter_id", WIDE_YEAR_METRIC_CSV_ADAPTER_ID),
+            row_identifier=row_identifier,
+            columns=columns,
+            payload={str(key): value for key, value in payload.items()},
         )
 
 

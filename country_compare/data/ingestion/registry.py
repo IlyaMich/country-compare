@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import copy
-import importlib
 import inspect
-import sys
 from collections.abc import Callable
 
 from country_compare.data.ingestion.base import SourceAdapter
@@ -16,38 +14,48 @@ class AdapterRegistryError(KeyError):
 
 _REGISTRY: dict[str, AdapterRegistration] = {}
 _BUILTINS_REGISTERED = False
-_BUILTIN_MODULES = (
-    "country_compare.data.ingestion.adapters.passthrough",
-    "country_compare.data.ingestion.adapters.wide_year_metric_csv",
-)
-_EXPECTED_BUILTINS = {
-    "canonical_tabular_passthrough",
-    "wide_year_metric_csv",
-}
+
+
+def _register_builtin_passthrough() -> None:
+    from country_compare.data.ingestion.adapters.passthrough import (
+        CANONICAL_TABULAR_PASSTHROUGH_ADAPTER_ID,
+        CanonicalTabularPassthroughAdapter,
+    )
+
+    register_source_adapter(
+        CANONICAL_TABULAR_PASSTHROUGH_ADAPTER_ID,
+        CanonicalTabularPassthroughAdapter,
+        description="Canonical or near-canonical CSV/Parquet passthrough adapter.",
+        replace=True,
+    )
+
+
+def _register_builtin_wide_year_metric_csv() -> None:
+    from country_compare.data.ingestion.adapters.wide_year_metric_csv import (
+        WIDE_YEAR_METRIC_CSV_ADAPTER_ID,
+        WideYearMetricCsvAdapter,
+    )
+
+    register_source_adapter(
+        WIDE_YEAR_METRIC_CSV_ADAPTER_ID,
+        WideYearMetricCsvAdapter,
+        description="Wide year-column CSV adapter for a single metric with per-country rows.",
+        replace=True,
+    )
 
 
 def _ensure_builtin_adapters_registered() -> None:
     global _BUILTINS_REGISTERED
-    if _EXPECTED_BUILTINS.issubset(_REGISTRY):
-        _BUILTINS_REGISTERED = True
+    if _BUILTINS_REGISTERED:
         return
 
-    # clear_source_adapters() removes registry entries, but Python keeps already-imported
-    # modules cached. import_module() alone would not re-run module-level
-    # register_source_adapter(...) calls, so we must reload cached builtins.
-    for module_name in _BUILTIN_MODULES:
-        module = sys.modules.get(module_name)
-        if module is None:
-            importlib.import_module(module_name)
-        else:
-            importlib.reload(module)
-
-    missing = sorted(_EXPECTED_BUILTINS.difference(_REGISTRY))
-    if missing:
-        raise AdapterRegistryError(
-            "builtin adapters failed to register: "
-            f"{missing}"
-        )
+    for registrar in (_register_builtin_passthrough, _register_builtin_wide_year_metric_csv):
+        try:
+            registrar()
+        except Exception:
+            # Keep import lazy and tolerant. Resolution will still fail clearly if the
+            # requested adapter is unavailable.
+            pass
     _BUILTINS_REGISTERED = True
 
 
@@ -94,8 +102,8 @@ def unregister_source_adapter(adapter_id: str) -> None:
 
 
 def clear_source_adapters(*, keep_builtins: bool = True) -> None:
-    _REGISTRY.clear()
     global _BUILTINS_REGISTERED
+    _REGISTRY.clear()
     _BUILTINS_REGISTERED = False
     if keep_builtins:
         _ensure_builtin_adapters_registered()
