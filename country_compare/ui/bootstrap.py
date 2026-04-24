@@ -6,6 +6,7 @@ import streamlit as st
 
 from country_compare.services import AppContext, AppFacade
 from country_compare.ui import state
+from country_compare.services.prediction_service import PredictionService
 
 
 def build_app_context(
@@ -41,6 +42,7 @@ def _build_ui_services_cached(context: AppContext) -> dict[str, object]:
         "config_service": facade.config,
         "comparison_service": facade.comparison,
         "presentation_service": facade.presentation,
+        "prediction_service": facade.prediction,
     }
 
 
