@@ -5,6 +5,8 @@ from country_compare.prediction.comparison_bridge import (
 )
 from country_compare.prediction.errors import PredictionErrorCode, PredictionException
 from country_compare.prediction.models import (
+    BacktestRequest,
+    BacktestResult,
     ForecastContext,
     ForecastOptions,
     ForecasterInfo,
@@ -17,6 +19,7 @@ from country_compare.prediction.models import (
     PredictionResult,
     SingleMetricPredictionRequest,
 )
+from country_compare.prediction.evaluation import backtest_series
 from country_compare.prediction.multi_metric import (
     predict_metric_country_grid,
     predict_metrics_for_country,
@@ -32,6 +35,8 @@ from country_compare.prediction.visualization import (
 __all__ = [
     "PredictionErrorCode",
     "PredictionException",
+    "BacktestRequest",
+    "BacktestResult",
     "ForecastContext",
     "ForecastOptions",
     "ForecasterInfo",
@@ -44,6 +49,7 @@ __all__ = [
     "PredictionResult",
     "SingleMetricPredictionRequest",
     "predict_single_metric",
+    "backtest_series",
     "predict_single_metric_for_countries",
     "predict_metrics_for_country",
     "predict_metric_country_grid",
