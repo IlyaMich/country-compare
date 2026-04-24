@@ -1,44 +1,167 @@
-default_profile: default_profile
+default_profile: balanced_world_bank
 weight_handling: normalize
 default_year_strategy: latest_per_metric
 default_missing_data_policy: renormalize_weights
 
 profiles:
-  default_profile:
-    description: Balanced default profile across core development and governance metrics.
+  balanced_world_bank:
+    description: Balanced default profile emphasizing welfare, access, labor, education, health, innovation, and inequality while avoiding over-reliance on absolute totals.
     metrics:
-      - gdp_per_capita
-      - rule_of_law
-      - democracy_index
-      - life_expectancy
-    weights: {}
+      - internet_users_pct
+      - rnd_expenditure_pct_gdp
+      - market_cap_pct_gdp
+      - unemployment_pct
+      - labor_participation_pct
+      - youth_literacy_pct
+      - education_spending_pct_gdp
+      - crude_death_rate
+      - life_expectancy_female
+      - life_expectancy_male
+      - top10_income_share
+    weights:
+      internet_users_pct: 1.0
+      rnd_expenditure_pct_gdp: 0.8
+      market_cap_pct_gdp: 0.6
+      unemployment_pct: 1.0
+      labor_participation_pct: 0.8
+      youth_literacy_pct: 1.0
+      education_spending_pct_gdp: 0.7
+      crude_death_rate: 1.0
+      life_expectancy_female: 1.0
+      life_expectancy_male: 1.0
+      top10_income_share: 1.0
     normalization_overrides: {}
 
-  economic_focus:
-    description: Prioritizes economic performance while still keeping institutional context.
+  human_development:
+    description: Focuses on education, health, access, and inequality outcomes.
     metrics:
-      - gdp_per_capita
-      - inflation
-      - rule_of_law
+      - internet_users_pct
+      - youth_literacy_pct
+      - education_spending_pct_gdp
+      - crude_death_rate
+      - life_expectancy_female
+      - life_expectancy_male
+      - top10_income_share
+      - unemployment_pct
     weights:
-      gdp_per_capita: 2.0
-      inflation: 1.5
-      rule_of_law: 1.0
-    normalization_overrides:
-      inflation: rank
-      gdp_per_capita: log-minmax
-    year_strategy: latest_per_metric
-    missing_data_policy: renormalize_weights
+      internet_users_pct: 0.5
+      youth_literacy_pct: 1.0
+      education_spending_pct_gdp: 0.8
+      crude_death_rate: 1.0
+      life_expectancy_female: 1.0
+      life_expectancy_male: 1.0
+      top10_income_share: 0.9
+      unemployment_pct: 0.7
+    normalization_overrides: {}
 
-  governance_focus:
-    description: Focuses on institutional and democratic quality.
+  innovation_and_digital:
+    description: Emphasizes innovation capacity, digital access, capital markets, and research-oriented development.
     metrics:
-      - rule_of_law
-      - democracy_index
-      - life_expectancy
+      - journal_articles
+      - rnd_expenditure_pct_gdp
+      - internet_users_pct
+      - market_cap_pct_gdp
+      - education_spending_pct_gdp
+      - youth_literacy_pct
+      - exports_growth_pct
     weights:
-      rule_of_law: 2.0
-      democracy_index: 1.5
-    normalization_overrides:
-      rule_of_law: percentile
-    year_strategy: common_year      
+      journal_articles: 0.4
+      rnd_expenditure_pct_gdp: 1.0
+      internet_users_pct: 1.0
+      market_cap_pct_gdp: 0.7
+      education_spending_pct_gdp: 0.5
+      youth_literacy_pct: 0.5
+      exports_growth_pct: 0.4
+    normalization_overrides: {}
+
+  labor_and_inclusion:
+    description: Prioritizes employment conditions, labor participation, literacy, and inequality.
+    metrics:
+      - unemployment_pct
+      - labor_participation_pct
+      - youth_literacy_pct
+      - top10_income_share
+      - internet_users_pct
+      - education_spending_pct_gdp
+      - population_growth_pct
+    weights:
+      unemployment_pct: 1.0
+      labor_participation_pct: 1.0
+      youth_literacy_pct: 0.7
+      top10_income_share: 1.0
+      internet_users_pct: 0.5
+      education_spending_pct_gdp: 0.5
+      population_growth_pct: 0.2
+    normalization_overrides: {}
+
+  macro_finance_exploratory:
+    description: Exploratory macro-finance profile that includes several size-sensitive or context-dependent indicators and should be interpreted cautiously.
+    metrics:
+      - market_cap_pct_gdp
+      - consumer_price_index
+      - exports_growth_pct
+      - imports_growth_pct
+      - external_debt_total
+      - gdp_current_usd
+      - taxes_goods_services_lcu
+      - compensation_employees_lcu
+      - military_exp_pct_gdp
+    weights:
+      market_cap_pct_gdp: 0.9
+      consumer_price_index: 0.8
+      exports_growth_pct: 0.7
+      imports_growth_pct: 0.4
+      external_debt_total: 0.3
+      gdp_current_usd: 0.2
+      taxes_goods_services_lcu: 0.1
+      compensation_employees_lcu: 0.1
+      military_exp_pct_gdp: 0.2
+    normalization_overrides: {}
+
+  full_dataset_exploratory:
+    description: Uses the full downloaded World Bank set, while keeping the most scale-sensitive indicators at low weight.
+    metrics:
+      - compensation_employees_lcu
+      - taxes_goods_services_lcu
+      - external_debt_total
+      - journal_articles
+      - rnd_expenditure_pct_gdp
+      - internet_users_pct
+      - military_exp_pct_gdp
+      - market_cap_pct_gdp
+      - consumer_price_index
+      - imports_growth_pct
+      - exports_growth_pct
+      - gdp_current_usd
+      - unemployment_pct
+      - labor_participation_pct
+      - youth_literacy_pct
+      - education_spending_pct_gdp
+      - crude_death_rate
+      - life_expectancy_female
+      - life_expectancy_male
+      - population_growth_pct
+      - top10_income_share
+    weights:
+      compensation_employees_lcu: 0.1
+      taxes_goods_services_lcu: 0.1
+      external_debt_total: 0.2
+      journal_articles: 0.3
+      rnd_expenditure_pct_gdp: 0.8
+      internet_users_pct: 1.0
+      military_exp_pct_gdp: 0.2
+      market_cap_pct_gdp: 0.6
+      consumer_price_index: 0.4
+      imports_growth_pct: 0.3
+      exports_growth_pct: 0.4
+      gdp_current_usd: 0.2
+      unemployment_pct: 1.0
+      labor_participation_pct: 0.8
+      youth_literacy_pct: 1.0
+      education_spending_pct_gdp: 0.7
+      crude_death_rate: 1.0
+      life_expectancy_female: 1.0
+      life_expectancy_male: 1.0
+      population_growth_pct: 0.2
+      top10_income_share: 1.0
+    normalization_overrides: {}
