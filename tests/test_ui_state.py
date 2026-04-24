@@ -18,6 +18,10 @@ from country_compare.ui.state import (
     initialize_session_state,
     set_compare_error,
     set_compare_presentation,
+    get_latest_prediction_result,
+    get_prediction_error,
+    set_prediction_error,
+    set_prediction_result,
 )
 
 METRICS_DATA = {
@@ -47,11 +51,25 @@ SCORING_DATA = {
 }
 
 
+class _PredictionError:
+    code = "missing_country"
+    mode = "single_forecast"
+
+
+class _PredictionResult:
+    mode = "single_forecast"
+    ok = True
+
+
+def _clear() -> None:
+    st.session_state.clear()
+
+
 @pytest.fixture(autouse=True)
 def clear_streamlit_session_state() -> Iterator[None]:
-    st.session_state.clear()
+    _clear()
     yield
-    st.session_state.clear()
+    _clear()
 
 
 def test_default_selection_state_includes_multi_and_weighted_fields() -> None:
@@ -196,3 +214,49 @@ def test_commit_config_editor_saved_state_clears_dirty(monkeypatch) -> None:
     assert editor_state["loaded_metrics_data"] == updated_metrics
     assert editor_state["draft_metrics_data"] == updated_metrics
     assert editor_state["dirty"] is False
+
+
+def test_default_prediction_selection_state_fields_are_initialized() -> None:
+    initialize_session_state()
+    selection_state = get_selection_state()
+
+    assert DEFAULT_SELECTION_STATE["prediction_active_mode"] == "single_forecast"
+    assert selection_state["prediction_country_codes"] == []
+    assert selection_state["prediction_metric_ids"] == []
+    assert selection_state["prediction_method"] == "linear_trend"
+    assert selection_state["prediction_horizon_years"] == 3
+    assert selection_state["prediction_holdout_years"] == 2
+
+
+def test_default_prediction_result_state_maps_are_initialized() -> None:
+    initialize_session_state()
+
+    assert "latest_prediction_mode" in DEFAULT_RESULT_STATE
+    assert "prediction_results_by_mode" in DEFAULT_RESULT_STATE
+    assert "prediction_errors_by_mode" in DEFAULT_RESULT_STATE
+
+
+def test_set_prediction_result_stores_mode_specific_result() -> None:
+    initialize_session_state()
+    result = _PredictionResult()
+
+    set_prediction_result(result, mode="single_forecast")
+
+    assert get_latest_prediction_result(mode="single_forecast") is result
+    result_state = st.session_state["country_compare.result_state"]
+    assert result_state["latest_prediction_mode"] == "single_forecast"
+    assert result_state["prediction_results_by_mode"]["single_forecast"] is result
+    assert result_state["prediction_errors_by_mode"]["single_forecast"] is None
+
+
+def test_set_prediction_error_stores_mode_specific_error() -> None:
+    initialize_session_state()
+    error = _PredictionError()
+
+    set_prediction_error(error, mode="single_forecast")
+
+    assert get_prediction_error(mode="single_forecast") is error
+    result_state = st.session_state["country_compare.result_state"]
+    assert result_state["latest_prediction_mode"] == "single_forecast"
+    assert result_state["prediction_errors_by_mode"]["single_forecast"] is error
+    assert st.session_state["country_compare.last_error_code"] == "missing_country"

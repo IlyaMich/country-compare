@@ -5,11 +5,12 @@ from dataclasses import dataclass
 import pandas as pd
 from matplotlib.figure import Figure
 
-from country_compare.services.results import AppMessage, ComparisonResult, PresentationResult
+from country_compare.services.results import AppMessage, ComparisonResult, PresentationResult, PredictionServiceResult
 from country_compare.services.serialization import (
     serialize_comparison_result,
     serialize_error,
     serialize_presentation_result,
+    serialize_prediction_service_result,
 )
 
 
@@ -26,6 +27,14 @@ class StubError:
 class StubRequest:
     mode: str = "single_metric"
     countries: list[str] | None = None
+
+
+class _Error:
+    code = "missing_country"
+    title = "Missing country"
+    user_message = "Country not found"
+    technical_detail = "USA"
+    field_errors = {"country_code": "USA"}
 
 
 def test_serialize_error_returns_json_safe_payload() -> None:
@@ -83,3 +92,20 @@ def test_serialize_presentation_result_marks_chart_presence() -> None:
     assert payload["chart"]["present"] is True
     assert payload["table"]["row_count"] == 1
     assert payload["messages"][0]["text"] == "Done"
+
+
+def test_serialize_prediction_service_result_includes_summary_and_error() -> None:
+    result = PredictionServiceResult(
+        mode="single_forecast",
+        request={"country_code": "USA", "metric_id": "gdp_per_capita"},
+        dataframe=pd.DataFrame([{"country_code": "ISR", "value": 30.0}]),
+        summary={"forecast": {"row_count": 1}},
+        error=_Error(),
+    )
+
+    payload = serialize_prediction_service_result(result)
+
+    assert payload["mode"] == "single_forecast"
+    assert payload["summary"]["forecast"]["row_count"] == 1
+    assert payload["dataframe"]["row_count"] == 1
+    assert payload["error"]["code"] == "missing_country"
