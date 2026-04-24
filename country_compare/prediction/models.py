@@ -12,6 +12,7 @@ from country_compare.prediction.errors import PredictionErrorCode
 class PredictionMethod(str, Enum):
     LAST_OBSERVED = "last_observed"
     LINEAR_TREND = "linear_trend"
+    MOVING_AVERAGE = "moving_average"
 
 
 class PredictionDiagnosticStatus(str, Enum):

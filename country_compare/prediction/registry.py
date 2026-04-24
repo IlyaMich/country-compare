@@ -5,7 +5,12 @@ import inspect
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from country_compare.prediction.forecasters import BaseForecaster, LastObservedForecaster, LinearTrendForecaster
+from country_compare.prediction.forecasters import (
+    BaseForecaster,
+    LastObservedForecaster,
+    LinearTrendForecaster,
+    MovingAverageForecaster,
+)
 
 
 class ForecasterRegistryError(KeyError):
@@ -46,6 +51,7 @@ def _ensure_builtin_forecasters_registered() -> None:
         return
     register_forecaster(LastObservedForecaster.method_id, LastObservedForecaster, replace=True)
     register_forecaster(LinearTrendForecaster.method_id, LinearTrendForecaster, replace=True)
+    register_forecaster(MovingAverageForecaster.method_id, MovingAverageForecaster, replace=True)
     _BUILTINS_REGISTERED = True
 
 

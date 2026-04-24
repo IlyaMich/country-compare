@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import replace
 
 import pandas as pd
 
@@ -151,8 +152,10 @@ def predict_single_metric(
 
     if raw_forecast.warnings:
         all_warnings = [*diagnostics.warnings, *raw_forecast.warnings]
-        diagnostics = diagnostics.model_copy(
-            update={"status": PredictionDiagnosticStatus.WARNING, "warnings": all_warnings}
+        diagnostics = replace(
+            diagnostics,
+            status=PredictionDiagnosticStatus.WARNING,
+            warnings=all_warnings,
         )
 
     prediction_run_id = new_prediction_run_id()
