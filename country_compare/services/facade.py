@@ -7,6 +7,7 @@ from country_compare.services.dataset_service import DatasetService
 from country_compare.services.models import OverviewStatus
 from country_compare.services.presentation_service import PresentationService
 from country_compare.services.serialization import serialize_overview_status
+from country_compare.services.prediction_service import PredictionService
 
 
 class AppFacade:
@@ -17,6 +18,11 @@ class AppFacade:
         self.dataset = DatasetService(context)
         self.config = ConfigService(context, dataset_service=self.dataset)
         self.comparison = ComparisonService(
+            context=context,
+            dataset_service=self.dataset,
+            config_service=self.config,
+        )
+        self.prediction = PredictionService(
             context=context,
             dataset_service=self.dataset,
             config_service=self.config,
@@ -60,3 +66,24 @@ class AppFacade:
     def compare_weighted_score(self, request):
         result = self.comparison.run_weighted_score(request)
         return result, self.presentation.build_weighted_score_presentation(result)
+    
+    def predict_single_metric(self, **kwargs):
+        return self.prediction.run_single_metric_prediction(**kwargs)
+
+    def predict_single_metric_for_countries(self, **kwargs):
+        return self.prediction.run_single_metric_prediction_for_countries(**kwargs)
+
+    def predict_metric_country_grid(self, **kwargs):
+        return self.prediction.run_metric_country_grid_prediction(**kwargs)
+
+    def compare_predicted_single_metric(self, **kwargs):
+        return self.prediction.run_predicted_single_metric_comparison(**kwargs)
+
+    def compare_predicted_multi_metric(self, **kwargs):
+        return self.prediction.run_predicted_multi_metric_comparison(**kwargs)
+
+    def compare_predicted_profile(self, **kwargs):
+        return self.prediction.run_predicted_profile_comparison(**kwargs)
+
+    def backtest_prediction(self, **kwargs):
+        return self.prediction.run_backtest(**kwargs)

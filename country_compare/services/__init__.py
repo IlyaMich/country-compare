@@ -24,7 +24,12 @@ from country_compare.services.requests import (
     SingleMetricRequest,
     WeightedScoreRequest,
 )
-from country_compare.services.results import AppMessage, ComparisonResult, PresentationResult
+from country_compare.services.results import (
+    AppMessage,
+    ComparisonResult,
+    PredictionServiceResult,
+    PresentationResult,
+)
 from country_compare.services.serialization import (
     serialize_comparison_result,
     serialize_config_status,
@@ -35,7 +40,9 @@ from country_compare.services.serialization import (
     serialize_request,
     serialize_validation_report,
     to_jsonable,
+    serialize_prediction_service_result
 )
+from country_compare.services.prediction_service import PredictionService
 
 __all__ = [
     "AppContext",
@@ -72,4 +79,7 @@ __all__ = [
     "serialize_comparison_result",
     "serialize_presentation_result",
     "to_jsonable",
+    "PredictionService",
+    "PredictionServiceResult",
+    "serialize_prediction_service_result",
 ]

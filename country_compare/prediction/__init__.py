@@ -31,6 +31,18 @@ from country_compare.prediction.visualization import (
     build_forecast_table_dataframe,
     build_line_chart_dataframe,
 )
+from country_compare.prediction.summaries import (
+    build_backtest_result_summary,
+    build_forecaster_info_summary,
+    build_predicted_comparison_result_summary,
+    build_prediction_diagnostic_summary,
+    build_prediction_diagnostics_collection_summary,
+    build_prediction_result_summary,
+    list_available_prediction_methods,
+    list_forecast_horizons,
+    list_forecast_years,
+    prediction_exception_to_dict,
+)
 
 __all__ = [
     "PredictionErrorCode",
@@ -59,4 +71,14 @@ __all__ = [
     "build_line_chart_dataframe",
     "build_actual_vs_predicted_dataframe",
     "build_forecast_table_dataframe",
+    "build_backtest_result_summary",
+    "build_forecaster_info_summary",
+    "build_predicted_comparison_result_summary",
+    "build_prediction_diagnostic_summary",
+    "build_prediction_diagnostics_collection_summary",
+    "build_prediction_result_summary",
+    "list_available_prediction_methods",
+    "list_forecast_horizons",
+    "list_forecast_years",
+    "prediction_exception_to_dict",
 ]
