@@ -27,6 +27,8 @@ def test_demo_product_flow_runs_successfully(tmp_path: Path) -> None:
         "weighted_score.csv",
         "forecast_table.csv",
         "predicted_single_metric_comparison.csv",
+        "diagnostics.json",
+        "summary.md",
     }
 
     for filename in expected_outputs:

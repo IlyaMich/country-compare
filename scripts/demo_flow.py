@@ -10,6 +10,11 @@ from country_compare.comparison.single_metric import compare_metric
 from country_compare.config.loader import load_metrics_config, load_scoring_config
 from country_compare.config.models import YearStrategy
 from country_compare.data.validation import validate_and_parse_dataframe
+from country_compare.exports import (
+    export_diagnostics_json,
+    export_markdown_summary,
+    export_tables_csv,
+)
 from country_compare.prediction.comparison_bridge import compare_predicted_single_metric
 from country_compare.prediction.multi_metric import predict_single_metric_for_countries
 from country_compare.prediction.visualization import build_forecast_table_dataframe
@@ -114,8 +119,32 @@ def main() -> int:
         "predicted_single_metric_comparison.csv": predicted_comparison.comparison_df,
     }
 
-    for filename, dataframe in outputs.items():
-        dataframe.to_csv(output_dir / filename, index=False)
+    exported_tables = export_tables_csv(outputs, output_dir)
+
+    diagnostics_path = export_diagnostics_json(
+        {
+            "input_rows": len(canonical_df),
+            "country_count": int(canonical_df["country_code"].nunique()),
+            "metric_count": int(canonical_df["metric_id"].nunique()),
+            "prediction_diagnostics": prediction_result.diagnostics,
+            "predicted_comparison_metadata": predicted_comparison.metadata,
+        },
+        output_dir / "diagnostics.json",
+    )
+
+    summary_path = export_markdown_summary(
+        output_dir / "summary.md",
+        title="Country Compare Golden Demo Summary",
+        sections={
+            "Dataset": [
+                f"Input rows: {len(canonical_df)}",
+                f"Countries: {canonical_df['country_code'].nunique()}",
+                f"Metrics: {canonical_df['metric_id'].nunique()}",
+            ],
+            "Generated outputs": [str(path) for path in exported_tables.values()],
+            "Diagnostics": [str(diagnostics_path)],
+        },
+    )
 
     print("Golden demo completed successfully.")
     print(f"Input rows: {len(canonical_df)}")
@@ -123,8 +152,11 @@ def main() -> int:
     print(f"Metrics: {canonical_df['metric_id'].nunique()}")
     print(f"Output directory: {output_dir}")
 
-    for filename in outputs:
-        print(f"- {output_dir / filename}")
+    for path in exported_tables.values():
+        print(f"- {path}")
+
+    print(f"- {diagnostics_path}")
+    print(f"- {summary_path}")
 
     return 0
 

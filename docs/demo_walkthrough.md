@@ -8,9 +8,12 @@ This walkthrough verifies the Country Compare product flow without remote downlo
 - `config/demo_metrics.yaml`
 - `config/demo_scoring_profiles.yaml`
 - `scripts/demo_product_flow.py`
+- `diagnostics.json`
+- `summary.md`
 
 ## What the demo proves
-
+The script writes outputs through `country_compare.exports`, so the same export
+helpers can be reused later by CLI commands, services, and UI download flows.
 The demo runs this deterministic flow:
 
 ```text
