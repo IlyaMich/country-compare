@@ -14,30 +14,7 @@ def render_country_selector(
     default: list[str] | None = None,
     key: str = "compare_selected_countries",
 ) -> list[str]:
-    options: list[str] = []
-    labels: dict[str, str] = {}
-
-    for item in countries:
-        if isinstance(item, dict):
-            code = str(item.get("country_code") or item.get("code") or "").upper()
-            name = str(item.get("country_name") or item.get("name") or code)
-        elif hasattr(item, "country_code"):
-            code = str(getattr(item, "country_code")).upper()
-            name = str(getattr(item, "country_name", code))
-        elif hasattr(item, "code"):
-            code = str(getattr(item, "code")).upper()
-            name = str(getattr(item, "name", code))
-        else:
-            code = str(item).upper()
-            name = code
-
-        if not code:
-            continue
-
-        labels[code] = f"{name} ({code})" if name != code else code
-        options.append(code)
-
-    options = list(dict.fromkeys(options))
+    options, labels = _resolve_country_options(countries)
     valid_default = [value for value in (default or []) if value in options]
 
     selected = st.multiselect(
@@ -48,6 +25,32 @@ def render_country_selector(
         key=key,
     )
     return [str(code).upper() for code in selected]
+
+
+def render_country_single_selector(
+    countries: Sequence[Any],
+    *,
+    default: str | None = None,
+    label: str = "Country",
+    key: str = "prediction_country_code",
+) -> str:
+    options, labels = _resolve_country_options(countries)
+    if not options:
+        return ""
+
+    safe_default = str(default).upper() if default is not None else options[0]
+    if safe_default not in options:
+        safe_default = options[0]
+    index = options.index(safe_default)
+
+    selected = st.selectbox(
+        label,
+        options=options,
+        index=index,
+        format_func=lambda code: labels.get(code, code),
+        key=key,
+    )
+    return str(selected).upper() if selected is not None else ""
 
 
 def render_year_strategy_selector(
@@ -117,6 +120,29 @@ def render_target_year_input(
     )
 
 
+def render_positive_integer_input(
+    label: str,
+    *,
+    default: int,
+    min_value: int = 1,
+    max_value: int | None = None,
+    key: str,
+    help: str | None = None,
+) -> int:
+    kwargs: dict[str, Any] = {
+        "label": label,
+        "min_value": int(min_value),
+        "value": int(max(default, min_value)),
+        "step": 1,
+        "key": key,
+    }
+    if max_value is not None:
+        kwargs["max_value"] = int(max_value)
+    if help is not None:
+        kwargs["help"] = help
+    return int(st.number_input(**kwargs))
+
+
 def render_single_metric_selector(
     metrics: Sequence[Any],
     *,
@@ -163,6 +189,55 @@ def render_multi_metric_selector(
     return [str(metric_id).strip() for metric_id in selected]
 
 
+def get_prediction_method_options(methods: Sequence[Any]) -> tuple[list[str], dict[str, str]]:
+    options: list[str] = []
+    labels: dict[str, str] = {}
+
+    for item in methods:
+        if isinstance(item, dict):
+            method_id = str(item.get("method_id") or item.get("id") or "").strip()
+            display_name = str(item.get("display_name") or item.get("name") or method_id).strip()
+            description = str(item.get("description") or "").strip()
+        else:
+            method_id = str(getattr(item, "method_id", getattr(item, "id", ""))).strip()
+            display_name = str(getattr(item, "display_name", getattr(item, "name", method_id))).strip()
+            description = str(getattr(item, "description", "") or "").strip()
+
+        if not method_id:
+            continue
+
+        options.append(method_id)
+        labels[method_id] = f"{display_name} — {description}" if description else display_name or method_id
+
+    return list(dict.fromkeys(options)), labels
+
+
+def render_prediction_method_selector(
+    methods: Sequence[Any],
+    *,
+    default: str | None = None,
+    label: str = "Prediction method",
+    key: str = "prediction_method",
+) -> str:
+    options, labels = get_prediction_method_options(methods)
+    if not options:
+        return ""
+
+    safe_default = str(default).strip() if default is not None else options[0]
+    if safe_default not in options:
+        safe_default = options[0]
+    index = options.index(safe_default)
+
+    selected = st.selectbox(
+        label,
+        options=options,
+        index=index,
+        format_func=lambda value: labels.get(value, value),
+        key=key,
+    )
+    return str(selected).strip() if selected is not None else ""
+
+
 def render_profile_selector(
     profiles: Sequence[Any],
     *,
@@ -204,6 +279,33 @@ def render_profile_selector(
         key=key,
     )
     return str(selected).strip() if selected is not None else ""
+
+
+def _resolve_country_options(countries: Sequence[Any]) -> tuple[list[str], dict[str, str]]:
+    options: list[str] = []
+    labels: dict[str, str] = {}
+
+    for item in countries:
+        if isinstance(item, dict):
+            code = str(item.get("country_code") or item.get("code") or "").upper()
+            name = str(item.get("country_name") or item.get("name") or code)
+        elif hasattr(item, "country_code"):
+            code = str(getattr(item, "country_code")).upper()
+            name = str(getattr(item, "country_name", code))
+        elif hasattr(item, "code"):
+            code = str(getattr(item, "code")).upper()
+            name = str(getattr(item, "name", code))
+        else:
+            code = str(item).upper()
+            name = code
+
+        if not code:
+            continue
+
+        labels[code] = f"{name} ({code})" if name != code else code
+        options.append(code)
+
+    return list(dict.fromkeys(options)), labels
 
 
 def _resolve_metric_options(metrics: Sequence[Any]) -> tuple[list[str], dict[str, str]]:
