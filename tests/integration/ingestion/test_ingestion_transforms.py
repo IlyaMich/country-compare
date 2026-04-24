@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pandas as pd
 
-from country_compare.data.ingestion.transforms.columns import apply_column_mapping, normalize_columns
+from country_compare.data.ingestion.transforms.columns import (
+    apply_column_mapping,
+    normalize_columns,
+)
 from country_compare.data.ingestion.transforms.metadata import stamp_metadata_defaults
 from country_compare.data.ingestion.transforms.values import (
     coerce_boolean_scalar,

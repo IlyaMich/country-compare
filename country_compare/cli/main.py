@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 
 from country_compare.cli.config import validate_config
 from country_compare.cli.data import validate_data
@@ -31,7 +31,9 @@ def build_parser() -> argparse.ArgumentParser:
     data_parser.add_argument("--store-backend", default=None)
     data_parser.add_argument("--store-path", type=Path, default=None)
 
-    update_parser = subparsers.add_parser("update-data", help="Run a manifest-driven data update.")
+    update_parser = subparsers.add_parser(
+        "update-data", help="Run a manifest-driven data update."
+    )
     update_parser.add_argument("--manifest", type=Path, required=True)
 
     subparsers.add_parser("demo", help="Show the current demo command status.")

@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
 import pandas as pd
+import yaml
 
-from country_compare.services.app_context import AppContext
 from country_compare.data.access import save_metric_dataframe
 from country_compare.data.examples import build_example_metric_dataframe
 from country_compare.data.stores.parquet_store import ParquetMetricStore
@@ -45,6 +44,7 @@ MINIMAL_SCORING = {
         }
     },
 }
+
 
 class StubDatasetService:
     def __init__(self, dataframe: pd.DataFrame) -> None:
@@ -111,8 +111,12 @@ def _write_valid_config_files(base_dir: Path) -> tuple[Path, Path]:
         },
     }
 
-    metrics_path.write_text(yaml.safe_dump(metrics_payload, sort_keys=False), encoding="utf-8")
-    scoring_path.write_text(yaml.safe_dump(scoring_payload, sort_keys=False), encoding="utf-8")
+    metrics_path.write_text(
+        yaml.safe_dump(metrics_payload, sort_keys=False), encoding="utf-8"
+    )
+    scoring_path.write_text(
+        yaml.safe_dump(scoring_payload, sort_keys=False), encoding="utf-8"
+    )
     return metrics_path, scoring_path
 
 
@@ -178,9 +182,14 @@ def test_load_bundle_data_returns_editor_friendly_dicts(tmp_path: Path) -> None:
 
     payload = service.load_bundle_data(validate=False)
 
-    assert payload["metrics"]["metrics"]["gdp_per_capita"]["display_name"] == "GDP per capita"
+    assert (
+        payload["metrics"]["metrics"]["gdp_per_capita"]["display_name"]
+        == "GDP per capita"
+    )
     assert payload["scoring"]["default_profile"] == "balanced"
-    assert payload["scoring"]["profiles"]["balanced"]["weights"]["gdp_per_capita"] == 0.5
+    assert (
+        payload["scoring"]["profiles"]["balanced"]["weights"]["gdp_per_capita"] == 0.5
+    )
 
 
 def test_validate_bundle_data_can_check_against_dataset(tmp_path: Path) -> None:
@@ -245,5 +254,11 @@ def test_save_bundle_round_trips_updated_configuration(tmp_path: Path) -> None:
     service.save_bundle(bundle)
 
     reloaded = service.load_bundle_data(validate=False)
-    assert reloaded["metrics"]["metrics"]["gdp_per_capita"]["display_name"] == "GDP per person"
-    assert reloaded["scoring"]["profiles"]["balanced"]["description"] == "Balanced starter profile"
+    assert (
+        reloaded["metrics"]["metrics"]["gdp_per_capita"]["display_name"]
+        == "GDP per person"
+    )
+    assert (
+        reloaded["scoring"]["profiles"]["balanced"]["description"]
+        == "Balanced starter profile"
+    )

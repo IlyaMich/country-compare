@@ -8,7 +8,10 @@ def test_cli_parser_accepts_supported_commands():
 
     assert parser.parse_args(["validate-config"]).command == "validate-config"
     assert parser.parse_args(["validate-data"]).command == "validate-data"
-    assert parser.parse_args(["update-data", "--manifest", "config/source.yaml"]).command == "update-data"
+    assert (
+        parser.parse_args(["update-data", "--manifest", "config/source.yaml"]).command
+        == "update-data"
+    )
 
 
 def test_demo_command_is_explicit_placeholder(capsys):

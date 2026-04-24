@@ -4,9 +4,13 @@ from collections.abc import Iterable, Mapping
 
 import pandas as pd
 
-from country_compare.comparison.multi_metric import ComparisonError as MultiComparisonError
+from country_compare.comparison.multi_metric import (
+    ComparisonError as MultiComparisonError,
+)
 from country_compare.comparison.multi_metric import compare_countries
-from country_compare.comparison.single_metric import ComparisonError as SingleComparisonError
+from country_compare.comparison.single_metric import (
+    ComparisonError as SingleComparisonError,
+)
 from country_compare.comparison.single_metric import compare_metric
 from country_compare.config.models import ScoringConfig, YearStrategy
 from country_compare.prediction.errors import PredictionErrorCode, PredictionException
@@ -209,7 +213,10 @@ def _select_predicted_rows(
         raise PredictionException(
             PredictionErrorCode.INVALID_FORECAST_SELECTION,
             "provide exactly one of forecast_year or forecast_horizon",
-            details={"forecast_year": forecast_year, "forecast_horizon": forecast_horizon},
+            details={
+                "forecast_year": forecast_year,
+                "forecast_horizon": forecast_horizon,
+            },
         )
 
     working = prediction_result.comparison_ready_df.copy(deep=True)
@@ -219,26 +226,41 @@ def _select_predicted_rows(
             "no predicted rows are available for comparison",
             details={"prediction_metadata": prediction_result.metadata},
         )
-    working = working.loc[working[ROW_TYPE_COLUMN].astype("string").eq("predicted")].copy()
+    working = working.loc[
+        working[ROW_TYPE_COLUMN].astype("string").eq("predicted")
+    ].copy()
 
     if forecast_year is None and forecast_horizon is None:
         forecast_horizon = int(horizon_years)
 
     if forecast_year is not None:
         selected_year = int(forecast_year)
-        selected = working.loc[pd.to_numeric(working[YEAR_COLUMN], errors="coerce").eq(selected_year)].copy()
+        selected = working.loc[
+            pd.to_numeric(working[YEAR_COLUMN], errors="coerce").eq(selected_year)
+        ].copy()
         if selected.empty:
             available_years = sorted(
-                pd.to_numeric(working[YEAR_COLUMN], errors="coerce").dropna().astype(int).unique().tolist()
+                pd.to_numeric(working[YEAR_COLUMN], errors="coerce")
+                .dropna()
+                .astype(int)
+                .unique()
+                .tolist()
             )
             raise PredictionException(
                 PredictionErrorCode.INVALID_FORECAST_SELECTION,
                 f"forecast_year {selected_year} is not present in generated predictions",
                 year=selected_year,
-                details={"forecast_year": selected_year, "available_years": available_years},
+                details={
+                    "forecast_year": selected_year,
+                    "available_years": available_years,
+                },
             )
         horizons = sorted(
-            pd.to_numeric(selected[FORECAST_HORIZON_COLUMN], errors="coerce").dropna().astype(int).unique().tolist()
+            pd.to_numeric(selected[FORECAST_HORIZON_COLUMN], errors="coerce")
+            .dropna()
+            .astype(int)
+            .unique()
+            .tolist()
         )
         return selected, {
             "selection_mode": "forecast_year",
@@ -252,7 +274,9 @@ def _select_predicted_rows(
 
     selected_horizon = int(forecast_horizon)
     selected = working.loc[
-        pd.to_numeric(working[FORECAST_HORIZON_COLUMN], errors="coerce").eq(selected_horizon)
+        pd.to_numeric(working[FORECAST_HORIZON_COLUMN], errors="coerce").eq(
+            selected_horizon
+        )
     ].copy()
     if selected.empty:
         available_horizons = sorted(
@@ -265,9 +289,18 @@ def _select_predicted_rows(
         raise PredictionException(
             PredictionErrorCode.INVALID_FORECAST_SELECTION,
             f"forecast_horizon {selected_horizon} is not present in generated predictions",
-            details={"forecast_horizon": selected_horizon, "available_horizons": available_horizons},
+            details={
+                "forecast_horizon": selected_horizon,
+                "available_horizons": available_horizons,
+            },
         )
-    years = sorted(pd.to_numeric(selected[YEAR_COLUMN], errors="coerce").dropna().astype(int).unique().tolist())
+    years = sorted(
+        pd.to_numeric(selected[YEAR_COLUMN], errors="coerce")
+        .dropna()
+        .astype(int)
+        .unique()
+        .tolist()
+    )
     return selected, {
         "selection_mode": "forecast_horizon",
         "selected_forecast_year": years[0] if len(years) == 1 else None,

@@ -5,10 +5,18 @@ from pathlib import Path
 import pandas as pd
 
 from country_compare.data.access import load_metric_dataframe, metric_dataset_exists
-from country_compare.data.stores.registry import create_metric_store, list_registered_backends
+from country_compare.data.stores.registry import (
+    create_metric_store,
+    list_registered_backends,
+)
 from country_compare.services.app_context import AppContext
 from country_compare.services.errors import AppError, error_from_exception
-from country_compare.services.models import CategorySummary, CountryOption, DatasetSummary, MetricOption
+from country_compare.services.models import (
+    CategorySummary,
+    CountryOption,
+    DatasetSummary,
+    MetricOption,
+)
 
 
 class DatasetService:
@@ -46,7 +54,9 @@ class DatasetService:
                 return DatasetSummary(
                     exists=False,
                     backend=self.context.store_backend,
-                    dataset_path=str(dataset_path) if dataset_path is not None else None,
+                    dataset_path=(
+                        str(dataset_path) if dataset_path is not None else None
+                    ),
                     error=AppError(
                         code="resource_not_found",
                         title="Dataset not found",
@@ -68,11 +78,21 @@ class DatasetService:
                 backend=self.context.store_backend,
                 dataset_path=str(dataset_path) if dataset_path is not None else None,
                 row_count=int(len(dataframe.index)),
-                country_count=int(dataframe["country_code"].dropna().nunique()) if "country_code" in dataframe.columns else 0,
-                metric_count=int(dataframe["metric_id"].dropna().nunique()) if "metric_id" in dataframe.columns else 0,
+                country_count=(
+                    int(dataframe["country_code"].dropna().nunique())
+                    if "country_code" in dataframe.columns
+                    else 0
+                ),
+                metric_count=(
+                    int(dataframe["metric_id"].dropna().nunique())
+                    if "metric_id" in dataframe.columns
+                    else 0
+                ),
                 year_min=year_min,
                 year_max=year_max,
-                available_columns=tuple(str(column) for column in dataframe.columns.tolist()),
+                available_columns=tuple(
+                    str(column) for column in dataframe.columns.tolist()
+                ),
                 categories=categories,
             )
         except Exception as exc:
@@ -89,7 +109,11 @@ class DatasetService:
 
     def list_countries(self) -> tuple[CountryOption, ...]:
         dataframe = self.load_dataframe()
-        if dataframe.empty or "country_code" not in dataframe.columns or "country_name" not in dataframe.columns:
+        if (
+            dataframe.empty
+            or "country_code" not in dataframe.columns
+            or "country_name" not in dataframe.columns
+        ):
             return ()
 
         unique_pairs = (
@@ -128,8 +152,16 @@ class DatasetService:
             MetricOption(
                 metric_id=str(row.metric_id),
                 display_name=str(row.metric_name),
-                category=str(row.category) if hasattr(row, "category") and pd.notna(row.category) else None,
-                unit=str(row.unit) if hasattr(row, "unit") and pd.notna(row.unit) else None,
+                category=(
+                    str(row.category)
+                    if hasattr(row, "category") and pd.notna(row.category)
+                    else None
+                ),
+                unit=(
+                    str(row.unit)
+                    if hasattr(row, "unit") and pd.notna(row.unit)
+                    else None
+                ),
             )
             for row in unique_metrics.itertuples(index=False)
         )
@@ -139,14 +171,18 @@ class DatasetService:
         if dataframe.empty or "year" not in dataframe.columns:
             return ()
 
-        year_values = pd.to_numeric(dataframe["year"], errors="coerce").dropna().astype(int)
+        year_values = (
+            pd.to_numeric(dataframe["year"], errors="coerce").dropna().astype(int)
+        )
         return tuple(sorted(year_values.unique().tolist()))
 
     def get_category_breakdown(self) -> tuple[CategorySummary, ...]:
         dataframe = self.load_dataframe()
         return self._build_category_summaries(dataframe)
 
-    def _build_category_summaries(self, dataframe: pd.DataFrame) -> tuple[CategorySummary, ...]:
+    def _build_category_summaries(
+        self, dataframe: pd.DataFrame
+    ) -> tuple[CategorySummary, ...]:
         required_columns = {"category", "country_code", "metric_id"}
         if dataframe.empty or not required_columns.issubset(dataframe.columns):
             return ()
@@ -173,11 +209,15 @@ class DatasetService:
             for row in grouped.itertuples(index=False)
         )
 
-    def _extract_year_range(self, dataframe: pd.DataFrame) -> tuple[int | None, int | None]:
+    def _extract_year_range(
+        self, dataframe: pd.DataFrame
+    ) -> tuple[int | None, int | None]:
         if dataframe.empty or "year" not in dataframe.columns:
             return None, None
 
-        numeric_years = pd.to_numeric(dataframe["year"], errors="coerce").dropna().astype(int)
+        numeric_years = (
+            pd.to_numeric(dataframe["year"], errors="coerce").dropna().astype(int)
+        )
         if numeric_years.empty:
             return None, None
 
@@ -197,12 +237,18 @@ class DatasetService:
             return None
         return Path(raw_path).resolve()
 
+
 def get_country_catalog(self):
     if hasattr(self, "list_countries"):
         return self.list_countries()
-    raise AttributeError("DatasetService must provide list_countries() or get_country_catalog().")
+    raise AttributeError(
+        "DatasetService must provide list_countries() or get_country_catalog()."
+    )
+
 
 def get_metric_catalog(self):
     if hasattr(self, "list_metrics"):
         return self.list_metrics()
-    raise AttributeError("DatasetService must provide list_metrics() or get_metric_catalog().")
+    raise AttributeError(
+        "DatasetService must provide list_metrics() or get_metric_catalog()."
+    )

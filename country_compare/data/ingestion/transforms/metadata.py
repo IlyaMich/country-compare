@@ -21,14 +21,18 @@ def build_source_defaults(source_spec: Any | None) -> dict[str, Any]:
     }
 
 
-def stamp_metadata_defaults(dataframe: pd.DataFrame, *, source_spec: Any | None) -> pd.DataFrame:
+def stamp_metadata_defaults(
+    dataframe: pd.DataFrame, *, source_spec: Any | None
+) -> pd.DataFrame:
     result = dataframe.copy(deep=True)
     defaults = build_source_defaults(source_spec)
     asset_path = None
     if source_spec is not None:
-        asset_path = getattr(getattr(source_spec, "metadata", {}), "get", lambda *_: None)("path")
+        asset_path = getattr(
+            getattr(source_spec, "metadata", {}), "get", lambda *_: None
+        )("path")
         if asset_path is None and getattr(source_spec, "path", None) is not None:
-            asset_path = str(getattr(source_spec, "path"))
+            asset_path = str(source_spec.path)
     notes_default = None
     if asset_path is not None:
         notes_default = f"ingested_from={Path(str(asset_path)).name}"

@@ -1,25 +1,25 @@
 from __future__ import annotations
 
-import pandas as pd
-import pytest
-from typing import Iterator
-import streamlit as st
+from collections.abc import Iterator
 from copy import deepcopy
 
-from country_compare.ui import state
+import pandas as pd
+import pytest
+import streamlit as st
 
 from country_compare.services.results import ComparisonResult, PresentationResult
+from country_compare.ui import state
 from country_compare.ui.state import (
     DEFAULT_RESULT_STATE,
     DEFAULT_SELECTION_STATE,
     get_compare_error,
     get_latest_compare_presentation,
+    get_latest_prediction_result,
+    get_prediction_error,
     get_selection_state,
     initialize_session_state,
     set_compare_error,
     set_compare_presentation,
-    get_latest_prediction_result,
-    get_prediction_error,
     set_prediction_error,
     set_prediction_result,
 )
@@ -142,6 +142,7 @@ def test_set_compare_error_stores_mode_specific_error() -> None:
     assert result_state["latest_mode"] == "weighted_score"
     assert result_state["compare_errors_by_mode"]["weighted_score"] is error
     assert st.session_state["country_compare.last_error_code"] == "selection_invalid"
+
 
 def _patch_session_state(monkeypatch):
     store = {}

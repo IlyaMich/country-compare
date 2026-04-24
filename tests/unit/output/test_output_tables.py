@@ -32,12 +32,18 @@ def _single_metric_df() -> pd.DataFrame:
     )
 
 
-
 def _multi_metric_long_df() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "country_code": ["ISR", "DEU", "SGP", "ISR", "DEU", "SGP"],
-            "country_name": ["Israel", "Germany", "Singapore", "Israel", "Germany", "Singapore"],
+            "country_name": [
+                "Israel",
+                "Germany",
+                "Singapore",
+                "Israel",
+                "Germany",
+                "Singapore",
+            ],
             "metric_id": [
                 "gdp_per_capita",
                 "gdp_per_capita",
@@ -59,13 +65,19 @@ def _multi_metric_long_df() -> pd.DataFrame:
             "rank": [3, 2, 1, 3, 1, 2],
             "year": [2023, 2023, 2023, 2022, 2022, 2022],
             "unit": ["USD", "USD", "USD", "index", "index", "index"],
-            "category": ["economy", "economy", "economy", "governance", "governance", "governance"],
+            "category": [
+                "economy",
+                "economy",
+                "economy",
+                "governance",
+                "governance",
+                "governance",
+            ],
             "normalization_method": ["minmax"] * 6,
             "normalization_basis": ["metric_slice"] * 6,
             "rank_method": ["min"] * 6,
         }
     )
-
 
 
 def _multi_metric_wide_df() -> pd.DataFrame:
@@ -83,7 +95,6 @@ def _multi_metric_wide_df() -> pd.DataFrame:
             "rule_of_law__year": [2022, 2022, 2022],
         }
     )
-
 
 
 def _weighted_score_df() -> pd.DataFrame:
@@ -104,7 +115,6 @@ def _weighted_score_df() -> pd.DataFrame:
             "year_strategy": ["latest_per_metric"] * 3,
         }
     )
-
 
 
 def test_make_single_metric_table_formats_and_sorts() -> None:
@@ -128,7 +138,6 @@ def test_make_single_metric_table_formats_and_sorts() -> None:
     assert result["normalized_value"].tolist() == [1.0, 0.13]
 
 
-
 def test_make_multi_metric_long_table_formats_and_filters_columns() -> None:
     source = _multi_metric_long_df()
 
@@ -139,14 +148,18 @@ def test_make_multi_metric_long_table_formats_and_filters_columns() -> None:
         round_ndigits=3,
     )
 
-    assert list(result.columns) == ["metric_name", "country_name", "normalized_value", "rank"]
+    assert list(result.columns) == [
+        "metric_name",
+        "country_name",
+        "normalized_value",
+        "rank",
+    ]
     assert result.iloc[0].to_dict() == {
         "metric_name": "GDP per capita",
         "country_name": "Singapore",
         "normalized_value": 1.0,
         "rank": 1,
     }
-
 
 
 def test_make_multi_metric_wide_table_orders_identifier_columns_first() -> None:
@@ -160,7 +173,6 @@ def test_make_multi_metric_wide_table_orders_identifier_columns_first() -> None:
     assert result["rule_of_law__normalized_value"].tolist() == [1.0, 0.0, 0.94]
 
 
-
 def test_make_weighted_score_table_formats_and_limits_rows() -> None:
     source = _weighted_score_df()
 
@@ -171,19 +183,24 @@ def test_make_weighted_score_table_formats_and_limits_rows() -> None:
         top_n=2,
     )
 
-    assert list(result.columns) == ["country", "weighted_score", "score_rank", "profile_name"]
+    assert list(result.columns) == [
+        "country",
+        "weighted_score",
+        "score_rank",
+        "profile_name",
+    ]
     assert result["country"].tolist() == ["Germany", "Singapore"]
-
 
 
 def test_table_helpers_do_not_mutate_inputs() -> None:
     source = _single_metric_df()
     original = source.copy(deep=True)
 
-    _ = make_single_metric_table(source, rename_columns={"country_name": "country"}, round_ndigits=2)
+    _ = make_single_metric_table(
+        source, rename_columns={"country_name": "country"}, round_ndigits=2
+    )
 
     assert_frame_equal(source, original)
-
 
 
 def test_single_metric_table_raises_for_missing_columns() -> None:
@@ -193,13 +210,11 @@ def test_single_metric_table_raises_for_missing_columns() -> None:
         make_single_metric_table(source)
 
 
-
 def test_multi_metric_wide_table_raises_without_identifier_columns() -> None:
     source = _multi_metric_wide_df().drop(columns=["country_code", "country_name"])
 
     with pytest.raises(ValueError, match="requires at least one"):
         make_multi_metric_wide_table(source)
-
 
 
 def test_weighted_score_table_raises_for_missing_sort_column() -> None:

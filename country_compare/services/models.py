@@ -70,7 +70,9 @@ class ConfigStatus:
     default_profile: str | None = None
     profiles: tuple[ProfileOption, ...] = ()
     bundle_loaded: bool = False
-    validation: ValidationReport = field(default_factory=lambda: ValidationReport(valid=False))
+    validation: ValidationReport = field(
+        default_factory=lambda: ValidationReport(valid=False)
+    )
     error: AppError | None = None
 
 

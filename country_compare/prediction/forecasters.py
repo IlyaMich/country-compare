@@ -7,9 +7,9 @@ import pandas as pd
 from country_compare.prediction.errors import PredictionErrorCode, PredictionException
 from country_compare.prediction.models import (
     ForecastContext,
+    ForecasterInfo,
     ForecastOptions,
     ForecastPoint,
-    ForecasterInfo,
     RawForecastResult,
 )
 
@@ -63,7 +63,8 @@ class BaseForecaster(ABC):
             return
         raise PredictionException(
             PredictionErrorCode.INSUFFICIENT_HISTORY,
-            "; ".join(reasons) or f"forecaster {self.method_id!r} does not support this series",
+            "; ".join(reasons)
+            or f"forecaster {self.method_id!r} does not support this series",
             country_code=context.country_code,
             metric_id=context.metric_id,
             details={"method": self.method_id, "reasons": reasons},
@@ -95,7 +96,9 @@ class LastObservedForecaster(BaseForecaster):
         options: ForecastOptions,
     ) -> RawForecastResult:
         self._require_supported(series, context=context, options=options)
-        latest_value = float(pd.to_numeric(series[VALUE_COLUMN], errors="coerce").iloc[-1])
+        latest_value = float(
+            pd.to_numeric(series[VALUE_COLUMN], errors="coerce").iloc[-1]
+        )
         points = [
             ForecastPoint(year=int(year), value=latest_value, horizon=index + 1)
             for index, year in enumerate(future_years)
@@ -106,10 +109,13 @@ class LastObservedForecaster(BaseForecaster):
             forecaster_info=self.info(metadata={"latest_observed_value": latest_value}),
         )
 
+
 class MovingAverageForecaster(BaseForecaster):
     method_id = "moving_average"
     display_name = "Moving average"
-    description = "Repeats the mean of the most recent observations for every forecast year."
+    description = (
+        "Repeats the mean of the most recent observations for every forecast year."
+    )
     default_window_size = 3
     minimum_observations = 2
 
@@ -125,7 +131,9 @@ class MovingAverageForecaster(BaseForecaster):
         if len(series.index) < self.minimum_observations:
             reasons.append("moving_average requires at least two observations")
         if len(values.index) < len(series.index):
-            reasons.append("moving_average requires numeric values for every observation")
+            reasons.append(
+                "moving_average requires numeric values for every observation"
+            )
         return len(reasons) == 0, reasons
 
     def forecast(
@@ -139,8 +147,12 @@ class MovingAverageForecaster(BaseForecaster):
         self._require_supported(series, context=context, options=options)
 
         sorted_series = series.copy(deep=True)
-        sorted_series[YEAR_COLUMN] = pd.to_numeric(sorted_series[YEAR_COLUMN], errors="coerce")
-        sorted_series[VALUE_COLUMN] = pd.to_numeric(sorted_series[VALUE_COLUMN], errors="coerce")
+        sorted_series[YEAR_COLUMN] = pd.to_numeric(
+            sorted_series[YEAR_COLUMN], errors="coerce"
+        )
+        sorted_series[VALUE_COLUMN] = pd.to_numeric(
+            sorted_series[VALUE_COLUMN], errors="coerce"
+        )
         sorted_series = sorted_series.sort_values(by=YEAR_COLUMN, kind="mergesort")
 
         effective_window_size = min(self.default_window_size, len(sorted_series.index))
@@ -176,7 +188,8 @@ class MovingAverageForecaster(BaseForecaster):
             diagnostics_metadata=metadata,
             warnings=warnings,
         )
-    
+
+
 class LinearTrendForecaster(BaseForecaster):
     method_id = "linear_trend"
     display_name = "Linear trend"
@@ -236,6 +249,8 @@ class LinearTrendForecaster(BaseForecaster):
         return RawForecastResult(
             method_id=self.method_id,
             points=points,
-            forecaster_info=self.info(metadata={"slope": slope, "intercept": intercept}),
+            forecaster_info=self.info(
+                metadata={"slope": slope, "intercept": intercept}
+            ),
             diagnostics_metadata={"slope": slope, "intercept": intercept},
         )

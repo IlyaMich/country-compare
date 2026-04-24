@@ -5,12 +5,17 @@ from dataclasses import dataclass
 import pandas as pd
 from matplotlib.figure import Figure
 
-from country_compare.services.results import AppMessage, ComparisonResult, PresentationResult, PredictionServiceResult
+from country_compare.services.results import (
+    AppMessage,
+    ComparisonResult,
+    PredictionServiceResult,
+    PresentationResult,
+)
 from country_compare.services.serialization import (
     serialize_comparison_result,
     serialize_error,
-    serialize_presentation_result,
     serialize_prediction_service_result,
+    serialize_presentation_result,
 )
 
 

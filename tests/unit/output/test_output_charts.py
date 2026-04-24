@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
-from pandas.testing import assert_frame_equal
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from pandas.testing import assert_frame_equal
 
 from country_compare.output.charts import (
     plot_multi_metric_heatmap,
@@ -28,11 +29,17 @@ def _single_metric_df() -> pd.DataFrame:
     )
 
 
-
 def _multi_metric_long_df() -> pd.DataFrame:
     return pd.DataFrame(
         {
-            "country_name": ["Israel", "Germany", "Singapore", "Israel", "Germany", "Singapore"],
+            "country_name": [
+                "Israel",
+                "Germany",
+                "Singapore",
+                "Israel",
+                "Germany",
+                "Singapore",
+            ],
             "metric_name": [
                 "GDP per capita",
                 "GDP per capita",
@@ -46,7 +53,6 @@ def _multi_metric_long_df() -> pd.DataFrame:
     )
 
 
-
 def _weighted_score_df() -> pd.DataFrame:
     return pd.DataFrame(
         {
@@ -57,7 +63,6 @@ def _weighted_score_df() -> pd.DataFrame:
     )
 
 
-
 def test_plot_single_metric_ranking_returns_figure_and_axes() -> None:
     fig, ax = plot_single_metric_ranking(_single_metric_df())
 
@@ -65,7 +70,6 @@ def test_plot_single_metric_ranking_returns_figure_and_axes() -> None:
     assert isinstance(ax, Axes)
     assert len(ax.patches) == 3
     plt.close(fig)
-
 
 
 def test_plot_multi_metric_heatmap_returns_figure_and_axes() -> None:
@@ -78,7 +82,6 @@ def test_plot_multi_metric_heatmap_returns_figure_and_axes() -> None:
     plt.close(fig)
 
 
-
 def test_plot_weighted_scores_returns_figure_and_axes() -> None:
     fig, ax = plot_weighted_scores(_weighted_score_df())
 
@@ -86,7 +89,6 @@ def test_plot_weighted_scores_returns_figure_and_axes() -> None:
     assert isinstance(ax, Axes)
     assert len(ax.patches) == 3
     plt.close(fig)
-
 
 
 def test_chart_helpers_do_not_mutate_inputs() -> None:
@@ -99,13 +101,13 @@ def test_chart_helpers_do_not_mutate_inputs() -> None:
     assert_frame_equal(source, original)
 
 
-
 def test_single_metric_chart_raises_for_missing_columns() -> None:
     source = _single_metric_df().drop(columns=["rank"])
 
-    with pytest.raises(ValueError, match="single metric ranking chart requires columns"):
+    with pytest.raises(
+        ValueError, match="single metric ranking chart requires columns"
+    ):
         plot_single_metric_ranking(source)
-
 
 
 def test_multi_metric_heatmap_raises_for_missing_columns() -> None:
@@ -115,13 +117,11 @@ def test_multi_metric_heatmap_raises_for_missing_columns() -> None:
         plot_multi_metric_heatmap(source)
 
 
-
 def test_weighted_score_chart_raises_for_missing_columns() -> None:
     source = _weighted_score_df().drop(columns=["weighted_score"])
 
     with pytest.raises(ValueError, match="weighted score chart requires columns"):
         plot_weighted_scores(source)
-
 
 
 def test_chart_helpers_can_draw_on_supplied_axes() -> None:

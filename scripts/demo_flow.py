@@ -15,7 +15,6 @@ from country_compare.prediction.multi_metric import predict_single_metric_for_co
 from country_compare.prediction.visualization import build_forecast_table_dataframe
 from country_compare.scoring.weighted_score import score_countries
 
-
 COUNTRIES = ["ISR", "FRA", "DEU", "SGP"]
 SINGLE_METRIC_ID = "gdp_per_capita"
 PROFILE_NAME = "balanced_demo"

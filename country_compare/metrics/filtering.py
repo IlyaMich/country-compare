@@ -1,8 +1,6 @@
-
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any
 
 import pandas as pd
 
@@ -58,7 +56,12 @@ def filter_countries(
         result = result.loc[country_series.isin(include_codes)].copy()
 
     if exclude_codes is not None:
-        result = result.loc[~result[COUNTRY_CODE_COLUMN].astype("string").str.upper().isin(exclude_codes)].copy()
+        result = result.loc[
+            ~result[COUNTRY_CODE_COLUMN]
+            .astype("string")
+            .str.upper()
+            .isin(exclude_codes)
+        ].copy()
 
     return result
 
@@ -108,7 +111,9 @@ def filter_metrics(
         result = result.loc[metric_series.isin(include_metrics)].copy()
 
     if exclude_metrics is not None:
-        result = result.loc[~result[METRIC_ID_COLUMN].astype("string").isin(exclude_metrics)].copy()
+        result = result.loc[
+            ~result[METRIC_ID_COLUMN].astype("string").isin(exclude_metrics)
+        ].copy()
 
     return result
 
@@ -189,7 +194,9 @@ def select_target_year(
     _require_columns(df, [YEAR_COLUMN])
 
     if target_year is None:
-        raise ValueError("target_year must be provided when using YearStrategy.TARGET_YEAR")
+        raise ValueError(
+            "target_year must be provided when using YearStrategy.TARGET_YEAR"
+        )
 
     year_numeric = pd.to_numeric(df[YEAR_COLUMN], errors="coerce")
     return df.loc[year_numeric.eq(int(target_year))].copy()
@@ -232,7 +239,9 @@ def select_common_year(df: pd.DataFrame) -> pd.DataFrame:
     valid_years = pair_counts_by_year.loc[pair_counts_by_year.eq(expected_pair_count)]
 
     if valid_years.empty:
-        countries = sorted(df[COUNTRY_CODE_COLUMN].dropna().astype(str).unique().tolist())
+        countries = sorted(
+            df[COUNTRY_CODE_COLUMN].dropna().astype(str).unique().tolist()
+        )
         metrics = sorted(df[METRIC_ID_COLUMN].dropna().astype(str).unique().tolist())
         raise ValueError(
             "no common year provides full coverage for the current dataset slice; "
@@ -316,4 +325,6 @@ def _normalize_string_filters(
 def _require_columns(df: pd.DataFrame, columns: list[str]) -> None:
     missing = [column for column in columns if column not in df.columns]
     if missing:
-        raise ValueError(f"dataframe is missing required columns for filtering: {missing}")
+        raise ValueError(
+            f"dataframe is missing required columns for filtering: {missing}"
+        )

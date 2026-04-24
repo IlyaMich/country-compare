@@ -38,8 +38,12 @@ class AppContext:
             debug=self.debug,
         )
         object.__setattr__(self, "settings", settings)
-        object.__setattr__(self, "metrics_config_path", settings.paths.metrics_config_path)
-        object.__setattr__(self, "scoring_config_path", settings.paths.scoring_config_path)
+        object.__setattr__(
+            self, "metrics_config_path", settings.paths.metrics_config_path
+        )
+        object.__setattr__(
+            self, "scoring_config_path", settings.paths.scoring_config_path
+        )
         object.__setattr__(self, "store_backend", settings.paths.store_backend)
         object.__setattr__(self, "store_path", settings.paths.store_path)
         object.__setattr__(self, "audit_dir", settings.paths.audit_dir)

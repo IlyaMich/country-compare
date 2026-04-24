@@ -5,9 +5,9 @@ from collections.abc import Iterable, Mapping, Sequence
 import pandas as pd
 
 from country_compare.comparison.single_metric import (
-    ComparisonError,
     RANK_COLUMN,
     RANK_METHOD_COLUMN,
+    ComparisonError,
     rank_metric,
 )
 from country_compare.config.models import (
@@ -70,7 +70,9 @@ def prepare_multi_metric_slice(
         dataframe[METRIC_ID_COLUMN].dropna().astype("string").unique().tolist()
     )
     missing_metric_ids = [
-        metric_id for metric_id in resolved_metric_ids if metric_id not in available_metric_ids
+        metric_id
+        for metric_id in resolved_metric_ids
+        if metric_id not in available_metric_ids
     ]
     if missing_metric_ids:
         raise ComparisonError(
@@ -91,7 +93,9 @@ def prepare_multi_metric_slice(
         raise ComparisonError(str(exc)) from exc
 
     if prepared.empty:
-        raise ComparisonError("no rows remain after applying metric/country/year filters")
+        raise ComparisonError(
+            "no rows remain after applying metric/country/year filters"
+        )
 
     _validate_multi_metric_slice(prepared)
     return prepared.copy(deep=True)
@@ -135,7 +139,9 @@ def compare_countries(
     year_strategy: YearStrategy | str = YearStrategy.LATEST_PER_METRIC,
     target_year: int | None = None,
     normalization_method: NormalizationMethod | str | None = None,
-    normalization_method_overrides: Mapping[str, NormalizationMethod | str] | None = None,
+    normalization_method_overrides: (
+        Mapping[str, NormalizationMethod | str] | None
+    ) = None,
     metrics_config: MetricsConfig | None = None,
     scoring_config: ScoringConfig | None = None,
     profile_name: str | None = None,
@@ -243,7 +249,11 @@ def build_multi_metric_wide_table(
         result = base.copy()
 
     result = result.reset_index()
-    sort_columns = [column for column in [COUNTRY_NAME_COLUMN, COUNTRY_CODE_COLUMN] if column in result.columns]
+    sort_columns = [
+        column
+        for column in [COUNTRY_NAME_COLUMN, COUNTRY_CODE_COLUMN]
+        if column in result.columns
+    ]
     if sort_columns:
         result = result.sort_values(
             by=sort_columns,
@@ -274,7 +284,9 @@ def _resolve_metric_ids(
         resolved = _normalize_string_list(scoring_config.profiles[profile_name].metrics)
 
     if not resolved:
-        raise ComparisonError("at least one metric_id must be provided for multi-metric comparison")
+        raise ComparisonError(
+            "at least one metric_id must be provided for multi-metric comparison"
+        )
 
     return resolved
 
@@ -284,7 +296,11 @@ def _resolve_country_columns(
     country_columns: Sequence[str] | None,
 ) -> list[str]:
     if country_columns is None:
-        return [column for column in DEFAULT_WIDE_COUNTRY_COLUMNS if column in dataframe.columns]
+        return [
+            column
+            for column in DEFAULT_WIDE_COUNTRY_COLUMNS
+            if column in dataframe.columns
+        ]
 
     _require_columns(dataframe, country_columns)
     return list(country_columns)

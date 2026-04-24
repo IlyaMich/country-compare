@@ -1,5 +1,5 @@
-from country_compare.data.examples import build_example_metric_dataframe
 from country_compare.data.access import save_metric_dataframe
+from country_compare.data.examples import build_example_metric_dataframe
 from country_compare.data.stores.registry import create_metric_store
 
 df = build_example_metric_dataframe()

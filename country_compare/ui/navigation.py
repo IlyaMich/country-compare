@@ -20,4 +20,8 @@ def page_index(selected_page: str) -> int:
     try:
         return AVAILABLE_PAGES.index(selected_page)
     except ValueError:
-        return AVAILABLE_PAGES.index(DEFAULT_PAGE) if DEFAULT_PAGE in AVAILABLE_PAGES else 0
+        return (
+            AVAILABLE_PAGES.index(DEFAULT_PAGE)
+            if DEFAULT_PAGE in AVAILABLE_PAGES
+            else 0
+        )

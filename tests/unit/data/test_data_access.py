@@ -11,7 +11,10 @@ from country_compare.data.access import (
     save_metric_dataframe,
     save_metric_dataset,
 )
-from country_compare.data.examples import build_example_metric_dataframe, build_example_metric_dataset
+from country_compare.data.examples import (
+    build_example_metric_dataframe,
+    build_example_metric_dataset,
+)
 from country_compare.data.stores.parquet_store import ParquetMetricStore
 from country_compare.data.stores.registry import (
     create_metric_store,
@@ -27,7 +30,9 @@ def test_parquet_store_read_write_roundtrip(tmp_path) -> None:
     store.write(df)
     loaded = store.read()
 
-    pd.testing.assert_frame_equal(loaded.reset_index(drop=True), df.reset_index(drop=True), check_dtype=False)
+    pd.testing.assert_frame_equal(
+        loaded.reset_index(drop=True), df.reset_index(drop=True), check_dtype=False
+    )
 
 
 def test_parquet_store_validates_before_write(tmp_path) -> None:

@@ -1,4 +1,3 @@
-
 import pandas as pd
 import pytest
 
@@ -71,8 +70,7 @@ def test_latest_per_metric_selects_latest_row_per_country_metric():
         for row in result.itertuples(index=False)
     }
     # All should be 2025 for all (country, metric) pairs
-    for (country, metric), year in observed.items():
-        assert year == 2025
+    assert set(observed.values()) == {2025}
 
 
 def test_target_year_filters_single_year():
@@ -108,11 +106,11 @@ def test_common_year_raises_when_no_fully_covered_year_exists():
 
     # Remove one country/metric pair for each metric across all years
     mask = ~(
-        ((df["metric_id"] == "gdp_per_capita") & (df["country_code"] == "ISR")) |
-        ((df["metric_id"] == "rule_of_law") & (df["country_code"] == "DEU")) |
-        ((df["metric_id"] == "democracy_index") & (df["country_code"] == "SGP")) |
-        ((df["metric_id"] == "inflation") & (df["country_code"] == "CAN")) |
-        ((df["metric_id"] == "life_expectancy") & (df["country_code"] == "JPN"))
+        ((df["metric_id"] == "gdp_per_capita") & (df["country_code"] == "ISR"))
+        | ((df["metric_id"] == "rule_of_law") & (df["country_code"] == "DEU"))
+        | ((df["metric_id"] == "democracy_index") & (df["country_code"] == "SGP"))
+        | ((df["metric_id"] == "inflation") & (df["country_code"] == "CAN"))
+        | ((df["metric_id"] == "life_expectancy") & (df["country_code"] == "JPN"))
     )
     broken = df.loc[mask].copy()
 

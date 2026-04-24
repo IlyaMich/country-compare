@@ -5,7 +5,11 @@ from collections.abc import Mapping
 import numpy as np
 import pandas as pd
 
-from country_compare.config.models import MetricsConfig, NormalizationMethod, ScoringConfig
+from country_compare.config.models import (
+    MetricsConfig,
+    NormalizationMethod,
+    ScoringConfig,
+)
 from country_compare.data.validation import validate_required_columns
 
 METRIC_ID_COLUMN = "metric_id"
@@ -42,12 +46,14 @@ def resolve_normalization_methods(
 
     metric_ids = [
         str(metric_id)
-        for metric_id in df[METRIC_ID_COLUMN].dropna().astype("string").unique().tolist()
+        for metric_id in df[METRIC_ID_COLUMN]
+        .dropna()
+        .astype("string")
+        .unique()
+        .tolist()
     ]
 
-    resolved_global_method = (
-        NormalizationMethod(method) if method is not None else None
-    )
+    resolved_global_method = NormalizationMethod(method) if method is not None else None
     resolved_overrides = {
         str(metric_id): NormalizationMethod(value)
         for metric_id, value in (method_overrides or {}).items()
@@ -82,8 +88,7 @@ def resolve_normalization_methods(
     if missing_methods:
         missing = ", ".join(sorted(missing_methods))
         raise NormalizationError(
-            "normalization method could not be resolved for metric_id(s): "
-            f"{missing}"
+            "normalization method could not be resolved for metric_id(s): " f"{missing}"
         )
 
     return resolved
@@ -187,8 +192,12 @@ def normalize_dataframe(
         result.loc[metric_df.index, NORMALIZATION_METHOD_COLUMN] = resolved_method.value
         result.loc[metric_df.index, NORMALIZATION_BASIS_COLUMN] = "metric_slice"
 
-    result[NORMALIZATION_METHOD_COLUMN] = result[NORMALIZATION_METHOD_COLUMN].astype("string")
-    result[NORMALIZATION_BASIS_COLUMN] = result[NORMALIZATION_BASIS_COLUMN].astype("string")
+    result[NORMALIZATION_METHOD_COLUMN] = result[NORMALIZATION_METHOD_COLUMN].astype(
+        "string"
+    )
+    result[NORMALIZATION_BASIS_COLUMN] = result[NORMALIZATION_BASIS_COLUMN].astype(
+        "string"
+    )
     return result
 
 
@@ -253,9 +262,7 @@ def _rank_normalize(values: pd.Series) -> pd.Series:
 
 def _log_minmax_normalize(values: pd.Series) -> pd.Series:
     if (values <= 0).any():
-        raise ValueError(
-            "log-minmax normalization requires strictly positive values"
-        )
+        raise ValueError("log-minmax normalization requires strictly positive values")
 
     logged = pd.Series(np.log(values.to_numpy(dtype="float64")), index=values.index)
     return _minmax_normalize(logged)

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 import pandas as pd
 import pytest
 
@@ -55,14 +53,22 @@ def _request(**overrides) -> SingleMetricPredictionRequest:
 
 
 def test_successful_linear_trend_forecast() -> None:
-    result = predict_single_metric(_canonical_df(), _request(method=PredictionMethod.LINEAR_TREND))
+    result = predict_single_metric(
+        _canonical_df(), _request(method=PredictionMethod.LINEAR_TREND)
+    )
 
     assert result.diagnostics[0].status == PredictionDiagnosticStatus.OK
     assert result.diagnostics[0].method_used == "linear_trend"
     assert result.forecast_df["year"].tolist() == [2023, 2024]
     assert result.forecast_df["forecast_horizon"].tolist() == [1, 2]
     assert result.forecast_df["value"].tolist() == pytest.approx([25.0, 30.0])
-    assert result.combined_df["row_type"].tolist() == ["actual", "actual", "actual", "predicted", "predicted"]
+    assert result.combined_df["row_type"].tolist() == [
+        "actual",
+        "actual",
+        "actual",
+        "predicted",
+        "predicted",
+    ]
 
 
 def test_successful_last_observed_forecast() -> None:
@@ -112,7 +118,10 @@ def test_missing_metric() -> None:
 
 
 def test_duplicate_year_rows() -> None:
-    dataframe = pd.concat([_canonical_df(), _canonical_df(years=(2021,), values=(16.0,))], ignore_index=True)
+    dataframe = pd.concat(
+        [_canonical_df(), _canonical_df(years=(2021,), values=(16.0,))],
+        ignore_index=True,
+    )
 
     with pytest.raises(PredictionException) as exc_info:
         predict_single_metric(dataframe, _request())
@@ -133,7 +142,9 @@ def test_sparse_missing_year_warning() -> None:
     assert "missing internal years" in diagnostic.warnings[0]
 
 
-def test_output_columns_include_canonical_required_columns_plus_prediction_metadata() -> None:
+def test_output_columns_include_canonical_required_columns_plus_prediction_metadata() -> (
+    None
+):
     result = predict_single_metric(_canonical_df(), _request(horizon_years=1))
 
     for column in REQUIRED_COLUMNS:
@@ -154,7 +165,10 @@ def test_comparison_ready_output_preserves_canonical_like_shape() -> None:
     comparison_ready = result.comparison_ready_df
 
     assert set(REQUIRED_COLUMNS).issubset(comparison_ready.columns)
-    assert comparison_ready.duplicated(subset=["country_code", "metric_id", "year"]).sum() == 0
+    assert (
+        comparison_ready.duplicated(subset=["country_code", "metric_id", "year"]).sum()
+        == 0
+    )
     assert comparison_ready["row_type"].eq("predicted").all()
 
     ranked = compare_metric(

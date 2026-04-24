@@ -6,7 +6,10 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from country_compare.prediction import build_forecast_table_dataframe, build_line_chart_dataframe
+from country_compare.prediction import (
+    build_forecast_table_dataframe,
+    build_line_chart_dataframe,
+)
 from country_compare.ui.components.messages import render_app_error
 
 
@@ -37,7 +40,9 @@ def render_prediction_service_result(
         return
 
     if getattr(result, "predicted_comparison_result", None) is not None:
-        _render_predicted_comparison_body(result, mode=mode, summary=summary, debug=debug)
+        _render_predicted_comparison_body(
+            result, mode=mode, summary=summary, debug=debug
+        )
         return
 
     if getattr(result, "backtest_result", None) is not None:
@@ -51,7 +56,9 @@ def render_prediction_service_result(
     _render_summary_json(summary=summary, debug=debug)
 
 
-def render_prediction_catalog_summary(methods: list[dict[str, Any]], *, debug: bool = False) -> None:
+def render_prediction_catalog_summary(
+    methods: list[dict[str, Any]], *, debug: bool = False
+) -> None:
     if not methods:
         st.info("No prediction methods are currently available.")
         return
@@ -69,7 +76,9 @@ def render_prediction_catalog_summary(methods: list[dict[str, Any]], *, debug: b
 
 
 def build_streamlit_line_chart_table(dataframe: pd.DataFrame) -> pd.DataFrame:
-    if dataframe.empty or not {"year", "series_label", "value"}.issubset(dataframe.columns):
+    if dataframe.empty or not {"year", "series_label", "value"}.issubset(
+        dataframe.columns
+    ):
         return pd.DataFrame()
 
     chart_df = dataframe.copy(deep=True)
@@ -88,13 +97,17 @@ def build_streamlit_line_chart_table(dataframe: pd.DataFrame) -> pd.DataFrame:
     return pivot.copy(deep=True)
 
 
-def _render_prediction_result_body(result: Any, *, mode: str, summary: Mapping[str, Any], debug: bool) -> None:
+def _render_prediction_result_body(
+    result: Any, *, mode: str, summary: Mapping[str, Any], debug: bool
+) -> None:
     prediction_result = result.prediction_result
     forecast_table_df = build_forecast_table_dataframe(prediction_result)
     line_chart_df = build_line_chart_dataframe(prediction_result)
     line_chart_table = build_streamlit_line_chart_table(line_chart_df)
 
-    _render_prediction_metrics(mode=mode, summary=summary, metadata=getattr(prediction_result, "metadata", {}))
+    _render_prediction_metrics(
+        mode=mode, summary=summary, metadata=getattr(prediction_result, "metadata", {})
+    )
 
     if not forecast_table_df.empty:
         st.markdown("### Forecast table")
@@ -120,7 +133,9 @@ def _render_prediction_result_body(result: Any, *, mode: str, summary: Mapping[s
     )
 
 
-def _render_predicted_comparison_body(result: Any, *, mode: str, summary: Mapping[str, Any], debug: bool) -> None:
+def _render_predicted_comparison_body(
+    result: Any, *, mode: str, summary: Mapping[str, Any], debug: bool
+) -> None:
     comparison_result = result.predicted_comparison_result
     dataframe = getattr(result, "dataframe", None)
     selected_year = summary.get("selected_forecast_year")
@@ -129,7 +144,9 @@ def _render_predicted_comparison_body(result: Any, *, mode: str, summary: Mappin
     prediction_result = getattr(comparison_result, "prediction_result", None)
     failed_series_count = None
     if prediction_result is not None:
-        failed_series_count = getattr(prediction_result, "metadata", {}).get("failed_series_count")
+        failed_series_count = getattr(prediction_result, "metadata", {}).get(
+            "failed_series_count"
+        )
     if failed_series_count is None:
         failed_series_count = summary.get("failed_series_count")
 
@@ -159,9 +176,13 @@ def _render_predicted_comparison_body(result: Any, *, mode: str, summary: Mappin
     )
 
 
-def _render_backtest_body(result: Any, *, mode: str, summary: Mapping[str, Any], debug: bool) -> None:
+def _render_backtest_body(
+    result: Any, *, mode: str, summary: Mapping[str, Any], debug: bool
+) -> None:
     backtest_result = result.backtest_result
-    metrics = dict(summary.get("metrics") or getattr(backtest_result, "metrics", {}) or {})
+    metrics = dict(
+        summary.get("metrics") or getattr(backtest_result, "metrics", {}) or {}
+    )
 
     cols = st.columns(4)
     cols[0].metric("Method used", _metric_value(metrics.get("method_used")))
@@ -170,10 +191,18 @@ def _render_backtest_body(result: Any, *, mode: str, summary: Mapping[str, Any],
     cols[3].metric("MAPE", _metric_value(metrics.get("mape")))
 
     secondary_cols = st.columns(4)
-    secondary_cols[0].metric("Train years", _year_range_text(metrics, "train_start_year", "train_end_year"))
-    secondary_cols[1].metric("Test years", _year_range_text(metrics, "test_start_year", "test_end_year"))
-    secondary_cols[2].metric("Train observations", _metric_value(metrics.get("n_train_observations")))
-    secondary_cols[3].metric("Test observations", _metric_value(metrics.get("n_test_observations")))
+    secondary_cols[0].metric(
+        "Train years", _year_range_text(metrics, "train_start_year", "train_end_year")
+    )
+    secondary_cols[1].metric(
+        "Test years", _year_range_text(metrics, "test_start_year", "test_end_year")
+    )
+    secondary_cols[2].metric(
+        "Train observations", _metric_value(metrics.get("n_train_observations"))
+    )
+    secondary_cols[3].metric(
+        "Test observations", _metric_value(metrics.get("n_test_observations"))
+    )
 
     actual_vs_predicted_df = getattr(backtest_result, "actual_vs_predicted_df", None)
     if isinstance(actual_vs_predicted_df, pd.DataFrame):
@@ -187,7 +216,9 @@ def _render_backtest_body(result: Any, *, mode: str, summary: Mapping[str, Any],
     )
 
 
-def _render_prediction_metrics(*, mode: str, summary: Mapping[str, Any], metadata: Mapping[str, Any]) -> None:
+def _render_prediction_metrics(
+    *, mode: str, summary: Mapping[str, Any], metadata: Mapping[str, Any]
+) -> None:
     forecast_summary = dict(summary.get("forecast") or {})
     diagnostics_summary = dict(summary.get("diagnostics") or {})
     status_counts = dict(diagnostics_summary.get("status_counts") or {})
@@ -201,15 +232,27 @@ def _render_prediction_metrics(*, mode: str, summary: Mapping[str, Any], metadat
     cols = st.columns(4)
     cols[0].metric("Forecast rows", _metric_value(forecast_summary.get("row_count")))
     cols[1].metric("Method", _metric_value(method_used))
-    cols[2].metric("Successful series", _metric_value(metadata.get("successful_series_count", forecast_summary.get("series_count"))))
-    cols[3].metric("Failed series", _metric_value(metadata.get("failed_series_count", status_counts.get("failed"))))
+    cols[2].metric(
+        "Successful series",
+        _metric_value(
+            metadata.get(
+                "successful_series_count", forecast_summary.get("series_count")
+            )
+        ),
+    )
+    cols[3].metric(
+        "Failed series",
+        _metric_value(metadata.get("failed_series_count", status_counts.get("failed"))),
+    )
 
     forecast_years = summary.get("forecast_years") or []
     if forecast_years:
         st.caption("Forecast years: " + ", ".join(str(year) for year in forecast_years))
 
 
-def _render_diagnostics(*, diagnostics: list[Any], summary: Mapping[str, Any], debug: bool) -> None:
+def _render_diagnostics(
+    *, diagnostics: list[Any], summary: Mapping[str, Any], debug: bool
+) -> None:
     diagnostics_summary = summary.get("diagnostics")
     has_diagnostics = bool(diagnostics) or bool(diagnostics_summary)
     if not has_diagnostics:
@@ -221,26 +264,36 @@ def _render_diagnostics(*, diagnostics: list[Any], summary: Mapping[str, Any], d
             st.json(diagnostics_summary)
         if diagnostics:
             st.write("**Per-series diagnostics**")
-            st.json([
-                {
-                    "status": getattr(item, "status", None).value if getattr(item, "status", None) is not None else None,
-                    "country_code": getattr(item, "country_code", None),
-                    "metric_id": getattr(item, "metric_id", None),
-                    "method_requested": getattr(item, "method_requested", None),
-                    "method_used": getattr(item, "method_used", None),
-                    "fallback_used": getattr(item, "fallback_used", None),
-                    "warnings": list(getattr(item, "warnings", []) or []),
-                    "errors": [
-                        {
-                            "code": getattr(error, "code", None).value if getattr(error, "code", None) is not None else None,
-                            "message": getattr(error, "message", None),
-                            "details": getattr(error, "details", None),
-                        }
-                        for error in list(getattr(item, "errors", []) or [])
-                    ],
-                }
-                for item in diagnostics
-            ])
+            st.json(
+                [
+                    {
+                        "status": (
+                            getattr(item, "status", None).value
+                            if getattr(item, "status", None) is not None
+                            else None
+                        ),
+                        "country_code": getattr(item, "country_code", None),
+                        "metric_id": getattr(item, "metric_id", None),
+                        "method_requested": getattr(item, "method_requested", None),
+                        "method_used": getattr(item, "method_used", None),
+                        "fallback_used": getattr(item, "fallback_used", None),
+                        "warnings": list(getattr(item, "warnings", []) or []),
+                        "errors": [
+                            {
+                                "code": (
+                                    getattr(error, "code", None).value
+                                    if getattr(error, "code", None) is not None
+                                    else None
+                                ),
+                                "message": getattr(error, "message", None),
+                                "details": getattr(error, "details", None),
+                            }
+                            for error in list(getattr(item, "errors", []) or [])
+                        ],
+                    }
+                    for item in diagnostics
+                ]
+            )
         elif debug:
             st.json(summary)
 

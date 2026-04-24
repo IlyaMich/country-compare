@@ -14,7 +14,7 @@ from country_compare.pipelines.runners import (
 
 @dataclass
 class InMemoryStore:
-    backend_name: str = 'memory'
+    backend_name: str = "memory"
     path: str | None = None
     written: pd.DataFrame | None = None
 
@@ -38,39 +38,41 @@ class InMemoryStore:
 def _make_valid_dataframe() -> pd.DataFrame:
     return pd.DataFrame(
         {
-            'country_code': ['ISR', 'DEU'],
-            'country_name': ['Israel', 'Germany'],
-            'metric_id': ['gdp_per_capita', 'gdp_per_capita'],
-            'metric_name': ['GDP per capita', 'GDP per capita'],
-            'value': [54000.0, 65000.0],
-            'year': [2023, 2023],
-            'unit': ['USD', 'USD'],
-            'source_name': ['Example Source', 'Example Source'],
-            'source_url': ['https://example.org/gdp', 'https://example.org/gdp'],
-            'higher_is_better': [True, True],
-            'category': ['economy', 'economy'],
+            "country_code": ["ISR", "DEU"],
+            "country_name": ["Israel", "Germany"],
+            "metric_id": ["gdp_per_capita", "gdp_per_capita"],
+            "metric_name": ["GDP per capita", "GDP per capita"],
+            "value": [54000.0, 65000.0],
+            "year": [2023, 2023],
+            "unit": ["USD", "USD"],
+            "source_name": ["Example Source", "Example Source"],
+            "source_url": ["https://example.org/gdp", "https://example.org/gdp"],
+            "higher_is_better": [True, True],
+            "category": ["economy", "economy"],
         }
     )
 
 
-def test_load_processing_request_from_manifest_path_supports_overrides(tmp_path: Path) -> None:
-    csv_path = tmp_path / 'canonical.csv'
+def test_load_processing_request_from_manifest_path_supports_overrides(
+    tmp_path: Path,
+) -> None:
+    csv_path = tmp_path / "canonical.csv"
     _make_valid_dataframe().to_csv(csv_path, index=False)
-    manifest_path = tmp_path / 'sources.yaml'
+    manifest_path = tmp_path / "sources.yaml"
     manifest_path.write_text(
         yaml.safe_dump(
             {
-                'raw_root': str(tmp_path),
-                'processing': {'publish': False},
-                'defaults': {
-                    'adapter_id': 'canonical_tabular_passthrough',
-                    'source_name': 'Example Source',
-                    'source_url': 'https://example.org/gdp',
+                "raw_root": str(tmp_path),
+                "processing": {"publish": False},
+                "defaults": {
+                    "adapter_id": "canonical_tabular_passthrough",
+                    "source_name": "Example Source",
+                    "source_url": "https://example.org/gdp",
                 },
-                'sources': [{'source_id': 'canonical_source', 'path': csv_path.name}],
+                "sources": [{"source_id": "canonical_source", "path": csv_path.name}],
             }
         ),
-        encoding='utf-8',
+        encoding="utf-8",
     )
 
     request = load_processing_request_from_manifest(manifest_path, publish=True)
@@ -78,29 +80,31 @@ def test_load_processing_request_from_manifest_path_supports_overrides(tmp_path:
     assert request.raw_root == tmp_path
     assert request.publish is True
     assert len(request.sources) == 1
-    assert request.sources[0].source_id == 'canonical_source'
+    assert request.sources[0].source_id == "canonical_source"
 
 
-def test_run_processing_manifest_path_succeeds_and_propagates_source_metadata(tmp_path: Path) -> None:
-    csv_path = tmp_path / 'canonical.csv'
+def test_run_processing_manifest_path_succeeds_and_propagates_source_metadata(
+    tmp_path: Path,
+) -> None:
+    csv_path = tmp_path / "canonical.csv"
     _make_valid_dataframe().to_csv(csv_path, index=False)
-    manifest_path = tmp_path / 'sources.yaml'
+    manifest_path = tmp_path / "sources.yaml"
     manifest_path.write_text(
         yaml.safe_dump(
             {
-                'raw_root': str(tmp_path),
-                'tags': ['batch', 'manifest'],
-                'labels': {'owner': 'qa'},
-                'processing': {'publish': False},
-                'defaults': {
-                    'adapter_id': 'canonical_tabular_passthrough',
-                    'source_name': 'Example Source',
-                    'source_url': 'https://example.org/gdp',
+                "raw_root": str(tmp_path),
+                "tags": ["batch", "manifest"],
+                "labels": {"owner": "qa"},
+                "processing": {"publish": False},
+                "defaults": {
+                    "adapter_id": "canonical_tabular_passthrough",
+                    "source_name": "Example Source",
+                    "source_url": "https://example.org/gdp",
                 },
-                'sources': [{'source_id': 'canonical_source', 'path': csv_path.name}],
+                "sources": [{"source_id": "canonical_source", "path": csv_path.name}],
             }
         ),
-        encoding='utf-8',
+        encoding="utf-8",
     )
 
     result = run_processing_manifest(manifest_path)
@@ -110,67 +114,71 @@ def test_run_processing_manifest_path_succeeds_and_propagates_source_metadata(tm
     assert result.merge_report is not None and result.merge_report.ok is True
     assert result.canonical_dataframe is not None
     assert len(result.source_results) == 1
-    assert result.source_results[0].tags == ('batch', 'manifest')
-    assert result.source_results[0].labels == {'owner': 'qa'}
+    assert result.source_results[0].tags == ("batch", "manifest")
+    assert result.source_results[0].labels == {"owner": "qa"}
 
 
 def test_run_processing_manifest_allows_publish_override(tmp_path: Path) -> None:
-    csv_path = tmp_path / 'canonical.csv'
+    csv_path = tmp_path / "canonical.csv"
     _make_valid_dataframe().to_csv(csv_path, index=False)
-    manifest_path = tmp_path / 'sources.yaml'
+    manifest_path = tmp_path / "sources.yaml"
     manifest_path.write_text(
         yaml.safe_dump(
             {
-                'raw_root': str(tmp_path),
-                'processing': {'publish': False},
-                'defaults': {
-                    'adapter_id': 'canonical_tabular_passthrough',
-                    'source_name': 'Example Source',
-                    'source_url': 'https://example.org/gdp',
+                "raw_root": str(tmp_path),
+                "processing": {"publish": False},
+                "defaults": {
+                    "adapter_id": "canonical_tabular_passthrough",
+                    "source_name": "Example Source",
+                    "source_url": "https://example.org/gdp",
                 },
-                'sources': [{'source_id': 'canonical_source', 'path': csv_path.name}],
+                "sources": [{"source_id": "canonical_source", "path": csv_path.name}],
             }
         ),
-        encoding='utf-8',
+        encoding="utf-8",
     )
     store = InMemoryStore()
 
     result = run_processing_manifest(manifest_path, publish=True, store=store)
 
     assert result.ok is True
-    assert result.publication_report is not None and result.publication_report.ok is True
+    assert (
+        result.publication_report is not None and result.publication_report.ok is True
+    )
     assert store.written is not None
     assert len(store.written.index) == 2
 
 
 def test_run_processing_manifest_supports_remote_url_source(tmp_path: Path) -> None:
-    csv_path = tmp_path / 'canonical.csv'
+    csv_path = tmp_path / "canonical.csv"
     _make_valid_dataframe().to_csv(csv_path, index=False)
-    manifest_path = tmp_path / 'sources.yaml'
+    manifest_path = tmp_path / "sources.yaml"
     manifest_path.write_text(
         yaml.safe_dump(
             {
-                'raw_root': str(tmp_path),
-                'processing': {'publish': False},
-                'defaults': {
-                    'adapter_id': 'canonical_tabular_passthrough',
-                    'source_name': 'Example Source',
-                    'source_url': 'https://example.org/gdp',
+                "raw_root": str(tmp_path),
+                "processing": {"publish": False},
+                "defaults": {
+                    "adapter_id": "canonical_tabular_passthrough",
+                    "source_name": "Example Source",
+                    "source_url": "https://example.org/gdp",
                 },
-                'sources': [
+                "sources": [
                     {
-                        'source_id': 'remote_source',
-                        'remote_url': csv_path.resolve().as_uri(),
-                        'download_filename': 'downloaded.csv',
+                        "source_id": "remote_source",
+                        "remote_url": csv_path.resolve().as_uri(),
+                        "download_filename": "downloaded.csv",
                     }
                 ],
             }
         ),
-        encoding='utf-8',
+        encoding="utf-8",
     )
 
     result = run_processing_manifest(manifest_path)
 
     assert result.ok is True
-    assert result.source_results[0].assets[0].local_path.name == 'downloaded.csv'
-    assert result.source_results[0].assets[0].metadata['acquisition_mode'] == 'remote_pull'
+    assert result.source_results[0].assets[0].local_path.name == "downloaded.csv"
+    assert (
+        result.source_results[0].assets[0].metadata["acquisition_mode"] == "remote_pull"
+    )

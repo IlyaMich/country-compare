@@ -68,7 +68,11 @@ def test_build_single_metric_presentation_uses_result_dataframe() -> None:
 
     assert presentation.ok is True
     assert presentation.summary["top_country"] == "Germany"
-    assert list(presentation.table.columns)[:3] == ["rank", "country_code", "country_name"]
+    assert list(presentation.table.columns)[:3] == [
+        "rank",
+        "country_code",
+        "country_name",
+    ]
     assert "Selection" in presentation.metadata
 
 
@@ -93,7 +97,9 @@ def test_build_single_metric_presentation_returns_error_passthrough() -> None:
     assert presentation.error.title == "Comparison failed"
 
 
-def test_build_multi_metric_presentation_builds_long_and_wide_tables(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_multi_metric_presentation_builds_long_and_wide_tables(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     dataframe = pd.DataFrame(
         [
             {
@@ -151,7 +157,9 @@ def test_build_multi_metric_presentation_builds_long_and_wide_tables(monkeypatch
         ]
     )
     long_table = pd.DataFrame([{"metric_id": "gdp_per_capita"}])
-    raw_wide_table = pd.DataFrame([{"country_code": "DEU", "gdp_per_capita__value": 67000.0}])
+    raw_wide_table = pd.DataFrame(
+        [{"country_code": "DEU", "gdp_per_capita__value": 67000.0}]
+    )
     formatted_wide_table = pd.DataFrame([{"country_code": "DEU", "GDP": 67000.0}])
     chart = Figure()
 
@@ -159,10 +167,24 @@ def test_build_multi_metric_presentation_builds_long_and_wide_tables(monkeypatch
     import country_compare.output.charts as output_charts
     import country_compare.output.tables as output_tables
 
-    monkeypatch.setattr(output_tables, "make_multi_metric_long_table", lambda *args, **kwargs: long_table)
-    monkeypatch.setattr(comparison_multi_metric, "build_multi_metric_wide_table", lambda *args, **kwargs: raw_wide_table)
-    monkeypatch.setattr(output_tables, "make_multi_metric_wide_table", lambda *args, **kwargs: formatted_wide_table)
-    monkeypatch.setattr(output_charts, "plot_multi_metric_heatmap", lambda *args, **kwargs: chart)
+    monkeypatch.setattr(
+        output_tables,
+        "make_multi_metric_long_table",
+        lambda *args, **kwargs: long_table,
+    )
+    monkeypatch.setattr(
+        comparison_multi_metric,
+        "build_multi_metric_wide_table",
+        lambda *args, **kwargs: raw_wide_table,
+    )
+    monkeypatch.setattr(
+        output_tables,
+        "make_multi_metric_wide_table",
+        lambda *args, **kwargs: formatted_wide_table,
+    )
+    monkeypatch.setattr(
+        output_charts, "plot_multi_metric_heatmap", lambda *args, **kwargs: chart
+    )
 
     result = ComparisonResult(
         mode="multi_metric",
@@ -222,7 +244,9 @@ def test_build_multi_metric_presentation_returns_error_passthrough() -> None:
     assert presentation.error.title == "Comparison failed"
 
 
-def test_build_weighted_score_presentation_builds_table_and_chart(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_weighted_score_presentation_builds_table_and_chart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     dataframe = pd.DataFrame(
         [
             {
@@ -263,8 +287,12 @@ def test_build_weighted_score_presentation_builds_table_and_chart(monkeypatch: p
     import country_compare.output.charts as output_charts
     import country_compare.output.tables as output_tables
 
-    monkeypatch.setattr(output_tables, "make_weighted_score_table", lambda *args, **kwargs: table)
-    monkeypatch.setattr(output_charts, "plot_weighted_scores", lambda *args, **kwargs: chart)
+    monkeypatch.setattr(
+        output_tables, "make_weighted_score_table", lambda *args, **kwargs: table
+    )
+    monkeypatch.setattr(
+        output_charts, "plot_weighted_scores", lambda *args, **kwargs: chart
+    )
 
     result = ComparisonResult(
         mode="weighted_score",
@@ -287,7 +315,10 @@ def test_build_weighted_score_presentation_builds_table_and_chart(monkeypatch: p
             "countries_returned": ["DEU", "ISR"],
         },
         warnings=[
-            "Some weighted scores were computed with missing metrics. Review the diagnostics and missing-data columns in the result table.",
+            (
+                "Some weighted scores were computed with missing metrics. "
+                "Review the diagnostics and missing-data columns in the result table."
+            ),
         ],
     )
 

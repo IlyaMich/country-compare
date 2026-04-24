@@ -7,9 +7,18 @@ import pandas as pd
 from country_compare.data.contract import REQUIRED_COLUMNS
 from country_compare.data.ingestion.base import SourceAdapter
 from country_compare.data.ingestion.registry import register_source_adapter
-from country_compare.data.ingestion.transforms.canonical import add_optional_columns, order_canonical_columns
-from country_compare.data.ingestion.transforms.columns import apply_column_mapping, find_column, normalize_columns
-from country_compare.data.ingestion.transforms.geographies import resolve_allowed_country_codes
+from country_compare.data.ingestion.transforms.canonical import (
+    add_optional_columns,
+    order_canonical_columns,
+)
+from country_compare.data.ingestion.transforms.columns import (
+    apply_column_mapping,
+    find_column,
+    normalize_columns,
+)
+from country_compare.data.ingestion.transforms.geographies import (
+    resolve_allowed_country_codes,
+)
 from country_compare.data.ingestion.transforms.metadata import stamp_metadata_defaults
 from country_compare.data.ingestion.transforms.values import (
     coerce_boolean_scalar,
@@ -25,16 +34,27 @@ WORLD_BANK_INDICATOR_CSV_ADAPTER_ID = "world_bank_indicator_csv"
 
 class WorldBankIndicatorCsvAdapter(SourceAdapter):
     COUNTRY_NAME_ALIASES = ("country_name", "country", "name")
-    COUNTRY_CODE_ALIASES = ("country_code", "country_code_iso3", "iso3", "iso_3", "code")
+    COUNTRY_CODE_ALIASES = (
+        "country_code",
+        "country_code_iso3",
+        "iso3",
+        "iso_3",
+        "code",
+    )
     INDICATOR_NAME_ALIASES = ("indicator_name",)
     INDICATOR_CODE_ALIASES = ("indicator_code",)
 
-    def process(self, assets: list[Any], *, source_spec: Any | None = None) -> AdapterResult:
+    def process(
+        self, assets: list[Any], *, source_spec: Any | None = None
+    ) -> AdapterResult:
         if not assets:
-            raise ValueError("world_bank_indicator_csv adapter received no acquired assets")
+            raise ValueError(
+                "world_bank_indicator_csv adapter received no acquired assets"
+            )
         if len(assets) != 1:
             raise ValueError(
-                f"world_bank_indicator_csv adapter expects exactly one asset, received {len(assets)}"
+                f"world_bank_indicator_csv adapter expects exactly one asset, "
+                f"received {len(assets)}"
             )
         asset = assets[0]
         self.prepare(asset, source_spec=source_spec)
@@ -45,11 +65,17 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
 
     def to_standardized_dataframe(self) -> AdapterResult:
         if self.current_asset is None:
-            raise ValueError("no current asset was prepared for the world_bank_indicator_csv adapter")
-        dataframe = read_acquired_asset(self.current_asset, read_options={"skiprows": 4})
+            raise ValueError(
+                "no current asset was prepared for the world_bank_indicator_csv adapter"
+            )
+        dataframe = read_acquired_asset(
+            self.current_asset, read_options={"skiprows": 4}
+        )
         return self._adapt_dataframe(dataframe, source_spec=self.current_source_spec)
 
-    def _adapt_dataframe(self, dataframe: pd.DataFrame, *, source_spec: Any | None) -> AdapterResult:
+    def _adapt_dataframe(
+        self, dataframe: pd.DataFrame, *, source_spec: Any | None
+    ) -> AdapterResult:
         raw_row_count = int(len(dataframe.index))
         issues: list[RowIssue] = []
         rejected_rows: list[RejectedRow] = []
@@ -91,11 +117,16 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
             missing.append("indicator_code")
         if missing:
             raise ValueError(
-                f"world_bank_indicator_csv adapter could not resolve required raw columns: {missing}"
+                f"world_bank_indicator_csv adapter could not resolve required raw columns: "
+                f"{missing}"
             )
 
-        frame[country_code_column] = frame[country_code_column].astype("string").str.strip().str.upper()
-        frame[country_name_column] = frame[country_name_column].astype("string").str.strip()
+        frame[country_code_column] = (
+            frame[country_code_column].astype("string").str.strip().str.upper()
+        )
+        frame[country_name_column] = (
+            frame[country_name_column].astype("string").str.strip()
+        )
 
         observed_indicator_codes = sorted(
             {
@@ -105,7 +136,9 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
             }
         )
         if not observed_indicator_codes:
-            raise ValueError("world_bank_indicator_csv adapter found no non-blank indicator_code values")
+            raise ValueError(
+                "world_bank_indicator_csv adapter found no non-blank indicator_code values"
+            )
         if len(observed_indicator_codes) != 1:
             raise ValueError(
                 "world_bank_indicator_csv adapter expected exactly one indicator_code value, "
@@ -113,17 +146,26 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
             )
 
         expected_indicator_code = getattr(source_spec, "expected_indicator_code", None)
-        if expected_indicator_code is not None and observed_indicator_codes[0] != str(expected_indicator_code).strip():
+        if (
+            expected_indicator_code is not None
+            and observed_indicator_codes[0] != str(expected_indicator_code).strip()
+        ):
             raise ValueError(
                 "world_bank_indicator_csv adapter indicator_code mismatch: "
                 f"expected {expected_indicator_code!r}, observed {observed_indicator_codes[0]!r}"
             )
 
-        filter_to_allowed = getattr(source_spec, "filter_to_allowed_country_codes", True)
+        filter_to_allowed = getattr(
+            source_spec, "filter_to_allowed_country_codes", True
+        )
         if filter_to_allowed:
             allowed_codes = resolve_allowed_country_codes(
-                allowed_country_codes=getattr(source_spec, "allowed_country_codes", None),
-                extra_allowed_country_codes=getattr(source_spec, "extra_allowed_country_codes", None),
+                allowed_country_codes=getattr(
+                    source_spec, "allowed_country_codes", None
+                ),
+                extra_allowed_country_codes=getattr(
+                    source_spec, "extra_allowed_country_codes", None
+                ),
             )
             supported_mask = frame[country_code_column].isin(allowed_codes)
             for idx in frame.index[~supported_mask].tolist():
@@ -136,7 +178,11 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                             "country-code universe"
                         ),
                         source_id=getattr(source_spec, "source_id", None),
-                        adapter_id=getattr(source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID),
+                        adapter_id=getattr(
+                            source_spec,
+                            "adapter_id",
+                            WORLD_BANK_INDICATOR_CSV_ADAPTER_ID,
+                        ),
                         row_identifier=str(idx),
                         columns=(country_name_column, country_code_column),
                         action="dropped",
@@ -146,7 +192,11 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                     RejectedRow(
                         reason="unsupported_country_code_dropped",
                         source_id=getattr(source_spec, "source_id", None),
-                        adapter_id=getattr(source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID),
+                        adapter_id=getattr(
+                            source_spec,
+                            "adapter_id",
+                            WORLD_BANK_INDICATOR_CSV_ADAPTER_ID,
+                        ),
                         row_identifier=str(idx),
                         columns=(country_name_column, country_code_column),
                         payload=frame.loc[idx].to_dict(),
@@ -156,27 +206,45 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
 
         explicit_year_columns = getattr(source_spec, "year_columns", None)
         if explicit_year_columns:
-            normalized_explicit = [str(value).strip().lower().replace(" ", "_") for value in explicit_year_columns]
-            year_columns = [value for value in normalized_explicit if value in frame.columns]
-            missing_explicit = [value for value in normalized_explicit if value not in frame.columns]
+            normalized_explicit = [
+                str(value).strip().lower().replace(" ", "_")
+                for value in explicit_year_columns
+            ]
+            year_columns = [
+                value for value in normalized_explicit if value in frame.columns
+            ]
+            missing_explicit = [
+                value for value in normalized_explicit if value not in frame.columns
+            ]
             if missing_explicit:
-                warnings.append(f"ignored missing explicit year columns: {missing_explicit}")
+                warnings.append(
+                    f"ignored missing explicit year columns: {missing_explicit}"
+                )
         else:
             year_columns = detect_year_columns(list(frame.columns))
 
         if not year_columns:
-            raise ValueError("world_bank_indicator_csv adapter could not detect any year columns")
+            raise ValueError(
+                "world_bank_indicator_csv adapter could not detect any year columns"
+            )
 
-        long_df = frame.loc[:, [country_name_column, country_code_column, *year_columns]].melt(
+        long_df = frame.loc[
+            :, [country_name_column, country_code_column, *year_columns]
+        ].melt(
             id_vars=[country_name_column, country_code_column],
             value_vars=year_columns,
             var_name="year_label",
             value_name="value",
         )
 
-        blank_country_mask = (
-            long_df[country_name_column].astype("string").str.strip().fillna("").eq("")
-            & long_df[country_code_column].astype("string").str.strip().fillna("").eq("")
+        blank_country_mask = long_df[country_name_column].astype(
+            "string"
+        ).str.strip().fillna("").eq("") & long_df[country_code_column].astype(
+            "string"
+        ).str.strip().fillna(
+            ""
+        ).eq(
+            ""
         )
         for idx in long_df.index[blank_country_mask].tolist():
             issues.append(
@@ -185,7 +253,9 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                     code="blank_country_row_dropped",
                     message="row had blank country_name and country_code",
                     source_id=getattr(source_spec, "source_id", None),
-                    adapter_id=getattr(source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID),
+                    adapter_id=getattr(
+                        source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID
+                    ),
                     row_identifier=str(idx),
                     columns=(country_name_column, country_code_column),
                     action="dropped",
@@ -195,7 +265,9 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                 RejectedRow(
                     reason="blank_country_row_dropped",
                     source_id=getattr(source_spec, "source_id", None),
-                    adapter_id=getattr(source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID),
+                    adapter_id=getattr(
+                        source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID
+                    ),
                     row_identifier=str(idx),
                     columns=(country_name_column, country_code_column),
                     payload=long_df.loc[idx].to_dict(),
@@ -211,7 +283,9 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                     code="missing_country_code_dropped",
                     message="row was dropped because country_code was blank",
                     source_id=getattr(source_spec, "source_id", None),
-                    adapter_id=getattr(source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID),
+                    adapter_id=getattr(
+                        source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID
+                    ),
                     row_identifier=str(idx),
                     columns=(country_code_column,),
                     action="dropped",
@@ -221,7 +295,9 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                 RejectedRow(
                     reason="missing_country_code_dropped",
                     source_id=getattr(source_spec, "source_id", None),
-                    adapter_id=getattr(source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID),
+                    adapter_id=getattr(
+                        source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID
+                    ),
                     row_identifier=str(idx),
                     columns=(country_code_column,),
                     payload=long_df.loc[idx].to_dict(),
@@ -241,7 +317,9 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                         f"{long_df.at[idx, 'year_label']!r}"
                     ),
                     source_id=getattr(source_spec, "source_id", None),
-                    adapter_id=getattr(source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID),
+                    adapter_id=getattr(
+                        source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID
+                    ),
                     row_identifier=str(idx),
                     columns=("year_label",),
                     action="dropped",
@@ -251,7 +329,9 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                 RejectedRow(
                     reason="invalid_year_label_dropped",
                     source_id=getattr(source_spec, "source_id", None),
-                    adapter_id=getattr(source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID),
+                    adapter_id=getattr(
+                        source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID
+                    ),
                     row_identifier=str(idx),
                     columns=("year_label",),
                     payload=long_df.loc[idx].to_dict(),
@@ -260,7 +340,9 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
         long_df = long_df.loc[~invalid_year_mask].copy()
 
         numeric_values = coerce_numeric_series(long_df["value"])
-        blank_value_mask = long_df["value"].isna() | long_df["value"].astype("string").str.strip().fillna("").eq("")
+        blank_value_mask = long_df["value"].isna() | long_df["value"].astype(
+            "string"
+        ).str.strip().fillna("").eq("")
         invalid_numeric_mask = numeric_values.isna() & ~blank_value_mask
 
         for idx in long_df.index[blank_value_mask].tolist():
@@ -270,7 +352,9 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                     code="blank_value_dropped",
                     message="row was dropped because value was blank",
                     source_id=getattr(source_spec, "source_id", None),
-                    adapter_id=getattr(source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID),
+                    adapter_id=getattr(
+                        source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID
+                    ),
                     row_identifier=str(idx),
                     columns=("value",),
                     action="dropped",
@@ -280,7 +364,9 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                 RejectedRow(
                     reason="blank_value_dropped",
                     source_id=getattr(source_spec, "source_id", None),
-                    adapter_id=getattr(source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID),
+                    adapter_id=getattr(
+                        source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID
+                    ),
                     row_identifier=str(idx),
                     columns=("value",),
                     payload=long_df.loc[idx].to_dict(),
@@ -292,9 +378,14 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                 RowIssue(
                     severity="warning",
                     code="non_numeric_value_dropped",
-                    message=f"row was dropped because value was not numeric: {long_df.at[idx, 'value']!r}",
+                    message=(
+                        f"row was dropped because value was not numeric: "
+                        f"{long_df.at[idx, 'value']!r}"
+                    ),
                     source_id=getattr(source_spec, "source_id", None),
-                    adapter_id=getattr(source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID),
+                    adapter_id=getattr(
+                        source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID
+                    ),
                     row_identifier=str(idx),
                     columns=("value",),
                     action="dropped",
@@ -304,7 +395,9 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                 RejectedRow(
                     reason="non_numeric_value_dropped",
                     source_id=getattr(source_spec, "source_id", None),
-                    adapter_id=getattr(source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID),
+                    adapter_id=getattr(
+                        source_spec, "adapter_id", WORLD_BANK_INDICATOR_CSV_ADAPTER_ID
+                    ),
                     row_identifier=str(idx),
                     columns=("value",),
                     payload=long_df.loc[idx].to_dict(),
@@ -315,7 +408,12 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
         long_df = long_df.loc[keep_mask].copy()
         numeric_values = numeric_values.loc[keep_mask]
 
-        long_df = long_df.rename(columns={country_name_column: "country_name", country_code_column: "country_code"})
+        long_df = long_df.rename(
+            columns={
+                country_name_column: "country_name",
+                country_code_column: "country_code",
+            }
+        )
         long_df["value"] = numeric_values.astype("float64")
         long_df["year"] = long_df["year"].astype("Int64")
 
@@ -326,10 +424,14 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
         if higher_is_better_value is not None:
             resolved = coerce_boolean_scalar(higher_is_better_value)
             if resolved is None:
-                raise ValueError("source_spec.higher_is_better could not be interpreted as boolean")
+                raise ValueError(
+                    "source_spec.higher_is_better could not be interpreted as boolean"
+                )
             long_df["higher_is_better"] = resolved
 
-        missing_required = [column for column in REQUIRED_COLUMNS if column not in long_df.columns]
+        missing_required = [
+            column for column in REQUIRED_COLUMNS if column not in long_df.columns
+        ]
         if missing_required:
             raise ValueError(
                 "world_bank_indicator_csv adapter could not produce required canonical columns: "

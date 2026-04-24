@@ -84,7 +84,10 @@ def test_compare_countries_basic_multi_metric_result() -> None:
 
     # 5 countries × 2 metrics = 10
     assert result.shape[0] == 10
-    assert sorted(result["metric_id"].unique().tolist()) == ["gdp_per_capita", "rule_of_law"]
+    assert sorted(result["metric_id"].unique().tolist()) == [
+        "gdp_per_capita",
+        "rule_of_law",
+    ]
     assert NORMALIZED_VALUE_COLUMN in result.columns
     assert NORMALIZATION_METHOD_COLUMN in result.columns
     assert NORMALIZATION_BASIS_COLUMN in result.columns
@@ -134,7 +137,9 @@ def test_compare_countries_uses_metrics_config_and_overrides() -> None:
         normalization_method_overrides={"rule_of_law": NormalizationMethod.MINMAX},
     )
 
-    methods_by_metric = result.groupby("metric_id")[NORMALIZATION_METHOD_COLUMN].first().to_dict()
+    methods_by_metric = (
+        result.groupby("metric_id")[NORMALIZATION_METHOD_COLUMN].first().to_dict()
+    )
     assert methods_by_metric == {
         "gdp_per_capita": "log-minmax",
         "rule_of_law": "minmax",
@@ -151,8 +156,13 @@ def test_compare_countries_can_resolve_metrics_from_profile() -> None:
         metrics_config=_build_metrics_config(),
     )
 
-    assert sorted(result["metric_id"].unique().tolist()) == ["democracy_index", "rule_of_law"]
-    methods_by_metric = result.groupby("metric_id")[NORMALIZATION_METHOD_COLUMN].first().to_dict()
+    assert sorted(result["metric_id"].unique().tolist()) == [
+        "democracy_index",
+        "rule_of_law",
+    ]
+    methods_by_metric = (
+        result.groupby("metric_id")[NORMALIZATION_METHOD_COLUMN].first().to_dict()
+    )
     assert methods_by_metric == {
         "democracy_index": "percentile",
         "rule_of_law": "rank",
@@ -180,7 +190,9 @@ def test_build_multi_metric_wide_table_creates_flattened_columns() -> None:
 def test_compare_countries_missing_metric_fails_clearly() -> None:
     df = build_example_metric_dataframe()
 
-    with pytest.raises(ComparisonError, match="requested metric_id values were not found"):
+    with pytest.raises(
+        ComparisonError, match="requested metric_id values were not found"
+    ):
         compare_countries(
             df,
             metric_ids=["gdp_per_capita", "not_real"],
@@ -191,7 +203,9 @@ def test_compare_countries_missing_metric_fails_clearly() -> None:
 def test_compare_countries_duplicate_rows_fail_clearly() -> None:
     df = build_example_metric_dataframe()
     duplicate_row = df.loc[
-        (df["metric_id"] == "gdp_per_capita") & (df["country_code"] == "ISR") & (df["year"] == 2025)
+        (df["metric_id"] == "gdp_per_capita")
+        & (df["country_code"] == "ISR")
+        & (df["year"] == 2025)
     ].copy()
     duplicate_df = pd.concat([df, duplicate_row], ignore_index=True)
 

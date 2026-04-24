@@ -42,16 +42,24 @@ def _make_factory(
     if callable(forecaster):
         return forecaster
 
-    raise TypeError("forecaster must be a BaseForecaster subclass, instance, or factory")
+    raise TypeError(
+        "forecaster must be a BaseForecaster subclass, instance, or factory"
+    )
 
 
 def _ensure_builtin_forecasters_registered() -> None:
     global _BUILTINS_REGISTERED
     if _BUILTINS_REGISTERED:
         return
-    register_forecaster(LastObservedForecaster.method_id, LastObservedForecaster, replace=True)
-    register_forecaster(LinearTrendForecaster.method_id, LinearTrendForecaster, replace=True)
-    register_forecaster(MovingAverageForecaster.method_id, MovingAverageForecaster, replace=True)
+    register_forecaster(
+        LastObservedForecaster.method_id, LastObservedForecaster, replace=True
+    )
+    register_forecaster(
+        LinearTrendForecaster.method_id, LinearTrendForecaster, replace=True
+    )
+    register_forecaster(
+        MovingAverageForecaster.method_id, MovingAverageForecaster, replace=True
+    )
     _BUILTINS_REGISTERED = True
 
 

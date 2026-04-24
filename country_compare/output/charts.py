@@ -36,13 +36,23 @@ def plot_single_metric_ranking(
     )
 
     working = (
-        df[[label_column, value_column, rank_column, *([raw_value_column] if raw_value_column in df.columns else [])]]
+        df[
+            [
+                label_column,
+                value_column,
+                rank_column,
+                *([raw_value_column] if raw_value_column in df.columns else []),
+            ]
+        ]
         .copy(deep=True)
         .sort_values(by=rank_column, ascending=True, kind="stable")
     )
 
     figure, axes = _resolve_figure_and_axes(ax=ax, figsize=figsize)
-    axes.barh(working[label_column].astype(str), pd.to_numeric(working[value_column], errors="coerce"))
+    axes.barh(
+        working[label_column].astype(str),
+        pd.to_numeric(working[value_column], errors="coerce"),
+    )
     axes.invert_yaxis()
     axes.set_xlabel(value_column)
     axes.set_ylabel(label_column)
@@ -52,18 +62,23 @@ def plot_single_metric_ranking(
         axes.set_xlim(0.0, 1.05)
 
     if annotate:
-        values = pd.to_numeric(working[value_column], errors="coerce").to_numpy(dtype=float)
-        ranks = pd.to_numeric(working[rank_column], errors="coerce").to_numpy(dtype=float)
+        values = pd.to_numeric(working[value_column], errors="coerce").to_numpy(
+            dtype=float
+        )
+        ranks = pd.to_numeric(working[rank_column], errors="coerce").to_numpy(
+            dtype=float
+        )
         offset = _annotation_offset(values)
         for ypos, (value, rank) in enumerate(zip(values, ranks, strict=False)):
             if np.isnan(value):
                 continue
-            text = f"#{int(rank)} | {value:.3f}" if not np.isnan(rank) else f"{value:.3f}"
+            text = (
+                f"#{int(rank)} | {value:.3f}" if not np.isnan(rank) else f"{value:.3f}"
+            )
             axes.text(value + offset, ypos, text, va="center")
 
     figure.tight_layout()
     return figure, axes
-
 
 
 def plot_multi_metric_heatmap(
@@ -88,7 +103,9 @@ def plot_multi_metric_heatmap(
         context="multi metric heatmap",
     )
 
-    working = df[[resolved_country_column, resolved_metric_column, value_column]].copy(deep=True)
+    working = df[[resolved_country_column, resolved_metric_column, value_column]].copy(
+        deep=True
+    )
     working[value_column] = pd.to_numeric(working[value_column], errors="coerce")
 
     pivoted = working.pivot_table(
@@ -99,7 +116,9 @@ def plot_multi_metric_heatmap(
     )
 
     if pivoted.empty:
-        raise ValueError("multi metric heatmap cannot be created from an empty pivot table")
+        raise ValueError(
+            "multi metric heatmap cannot be created from an empty pivot table"
+        )
 
     pivoted = pivoted.sort_index(axis=0).sort_index(axis=1)
 
@@ -108,12 +127,22 @@ def plot_multi_metric_heatmap(
         pivoted.to_numpy(dtype=float),
         aspect="auto",
         interpolation="nearest",
-        vmin=0.0 if _looks_like_unit_interval(pivoted.to_numpy(dtype=float).ravel()) else None,
-        vmax=1.0 if _looks_like_unit_interval(pivoted.to_numpy(dtype=float).ravel()) else None,
+        vmin=(
+            0.0
+            if _looks_like_unit_interval(pivoted.to_numpy(dtype=float).ravel())
+            else None
+        ),
+        vmax=(
+            1.0
+            if _looks_like_unit_interval(pivoted.to_numpy(dtype=float).ravel())
+            else None
+        ),
     )
 
     axes.set_xticks(np.arange(len(pivoted.columns)))
-    axes.set_xticklabels([str(value) for value in pivoted.columns], rotation=45, ha="right")
+    axes.set_xticklabels(
+        [str(value) for value in pivoted.columns], rotation=45, ha="right"
+    )
     axes.set_yticks(np.arange(len(pivoted.index)))
     axes.set_yticklabels([str(value) for value in pivoted.index])
     axes.set_xlabel(resolved_metric_column)
@@ -132,7 +161,6 @@ def plot_multi_metric_heatmap(
 
     figure.tight_layout()
     return figure, axes
-
 
 
 def plot_weighted_scores(
@@ -163,7 +191,10 @@ def plot_weighted_scores(
     )
 
     figure, axes = _resolve_figure_and_axes(ax=ax, figsize=figsize)
-    axes.barh(working[label_column].astype(str), pd.to_numeric(working[value_column], errors="coerce"))
+    axes.barh(
+        working[label_column].astype(str),
+        pd.to_numeric(working[value_column], errors="coerce"),
+    )
     axes.invert_yaxis()
     axes.set_xlabel(value_column)
     axes.set_ylabel(label_column)
@@ -173,18 +204,23 @@ def plot_weighted_scores(
         axes.set_xlim(0.0, 1.05)
 
     if annotate:
-        values = pd.to_numeric(working[value_column], errors="coerce").to_numpy(dtype=float)
-        ranks = pd.to_numeric(working[rank_column], errors="coerce").to_numpy(dtype=float)
+        values = pd.to_numeric(working[value_column], errors="coerce").to_numpy(
+            dtype=float
+        )
+        ranks = pd.to_numeric(working[rank_column], errors="coerce").to_numpy(
+            dtype=float
+        )
         offset = _annotation_offset(values)
         for ypos, (value, rank) in enumerate(zip(values, ranks, strict=False)):
             if np.isnan(value):
                 continue
-            text = f"#{int(rank)} | {value:.3f}" if not np.isnan(rank) else f"{value:.3f}"
+            text = (
+                f"#{int(rank)} | {value:.3f}" if not np.isnan(rank) else f"{value:.3f}"
+            )
             axes.text(value + offset, ypos, text, va="center")
 
     figure.tight_layout()
     return figure, axes
-
 
 
 def _resolve_figure_and_axes(
@@ -196,7 +232,6 @@ def _resolve_figure_and_axes(
         return ax.figure, ax
     figure, axes = plt.subplots(figsize=figsize)
     return figure, axes
-
 
 
 def _resolve_label_column(df: pd.DataFrame, *, preferred: str | None) -> str:
@@ -212,7 +247,6 @@ def _resolve_label_column(df: pd.DataFrame, *, preferred: str | None) -> str:
     )
 
 
-
 def _resolve_metric_label_column(df: pd.DataFrame, *, preferred: str | None) -> str:
     if preferred is not None:
         return preferred
@@ -226,12 +260,10 @@ def _resolve_metric_label_column(df: pd.DataFrame, *, preferred: str | None) -> 
     )
 
 
-
 def _require_columns(df: pd.DataFrame, columns: Sequence[str], *, context: str) -> None:
     missing = [column for column in columns if column not in df.columns]
     if missing:
         raise ValueError(f"{context} requires columns that are missing: {missing}")
-
 
 
 def _annotation_offset(values: Sequence[float]) -> float:
@@ -247,7 +279,6 @@ def _annotation_offset(values: Sequence[float]) -> float:
     if maximum == 0:
         return 0.01
     return maximum * 0.02
-
 
 
 def _looks_like_unit_interval(values: Sequence[float] | np.ndarray | pd.Series) -> bool:

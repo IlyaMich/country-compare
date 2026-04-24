@@ -36,7 +36,9 @@ class BaseComparisonRequest:
                 raise ValueError("top_n must be positive when provided")
         if self.year_strategy == YearStrategy.TARGET_YEAR:
             if self.target_year is None:
-                raise ValueError("target_year is required when year_strategy='target_year'")
+                raise ValueError(
+                    "target_year is required when year_strategy='target_year'"
+                )
             self.target_year = int(self.target_year)
         elif self.target_year is not None:
             self.target_year = int(self.target_year)

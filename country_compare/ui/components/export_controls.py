@@ -23,7 +23,13 @@ def render_presentation_exports(
     diagnostics = getattr(presentation, "diagnostics", {}) or {}
     metadata = getattr(presentation, "metadata", {}) or {}
 
-    has_exports = isinstance(table, pd.DataFrame) or bool(extra_tables) or chart is not None or metadata or diagnostics
+    has_exports = (
+        isinstance(table, pd.DataFrame)
+        or bool(extra_tables)
+        or chart is not None
+        or metadata
+        or diagnostics
+    )
     if not has_exports:
         return
 
@@ -58,7 +64,9 @@ def render_presentation_exports(
 
         st.download_button(
             "Download presentation bundle JSON",
-            data=presentation_service.export_presentation_bundle_json_bytes(presentation),
+            data=presentation_service.export_presentation_bundle_json_bytes(
+                presentation
+            ),
             file_name=f"{_slugify(getattr(presentation, 'mode', 'comparison'))}_bundle.json",
             mime="application/json",
             key=f"{key_prefix}_bundle_json",
@@ -77,11 +85,12 @@ def render_presentation_exports(
             st.download_button(
                 "Download diagnostics JSON",
                 data=presentation_service.export_diagnostics_json_bytes(diagnostics),
-                file_name=f"{_slugify(getattr(presentation, 'mode', 'comparison'))}_diagnostics.json",
+                file_name=(
+                    f"{_slugify(getattr(presentation, 'mode', 'comparison'))}_diagnostics.json"
+                ),
                 mime="application/json",
                 key=f"{key_prefix}_diagnostics_json",
             )
-
 
 
 def _slugify(text: str) -> str:

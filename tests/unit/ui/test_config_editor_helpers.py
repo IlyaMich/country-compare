@@ -56,8 +56,20 @@ def test_apply_metric_changes_renames_profile_references() -> None:
 def test_delete_metric_from_draft_prunes_profile_references() -> None:
     metrics_data = {
         "metrics": {
-            "gdp_per_capita": {"display_name": "GDP", "category": "Economy", "higher_is_better": True, "default_weight": 1.0, "normalization_method": "minmax"},
-            "life_expectancy": {"display_name": "Life expectancy", "category": "Health", "higher_is_better": True, "default_weight": 1.0, "normalization_method": "minmax"},
+            "gdp_per_capita": {
+                "display_name": "GDP",
+                "category": "Economy",
+                "higher_is_better": True,
+                "default_weight": 1.0,
+                "normalization_method": "minmax",
+            },
+            "life_expectancy": {
+                "display_name": "Life expectancy",
+                "category": "Health",
+                "higher_is_better": True,
+                "default_weight": 1.0,
+                "normalization_method": "minmax",
+            },
         }
     }
     scoring_data = {

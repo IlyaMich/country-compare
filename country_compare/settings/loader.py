@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import os
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from country_compare.settings.defaults import DEFAULT_APP_CONFIG_PATH
-from country_compare.settings.models import AppSettings, PathSettings, PredictionSettings, UISettings
+from country_compare.settings.models import (
+    AppSettings,
+    PathSettings,
+    PredictionSettings,
+    UISettings,
+)
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 _FALSE_VALUES = {"0", "false", "no", "off"}
@@ -53,7 +58,8 @@ def load_app_settings(
     """Load runtime/product settings.
 
     Precedence, highest to lowest:
-    explicit function arguments -> environment variables -> optional config/app.yaml -> code defaults.
+    explicit function arguments -> environment variables -> optional config/app.yaml -> \
+    code defaults.
     """
 
     config_path = _resolve_app_config_path(app_config_path)
@@ -144,7 +150,9 @@ def _environment_overrides() -> dict[str, Any]:
     }
 
 
-def _apply_flat_overrides(settings: AppSettings, overrides: dict[str, Any]) -> AppSettings:
+def _apply_flat_overrides(
+    settings: AppSettings, overrides: dict[str, Any]
+) -> AppSettings:
     clean = {key: value for key, value in overrides.items() if value is not None}
     if not clean:
         return settings

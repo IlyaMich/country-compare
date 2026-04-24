@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import yaml
 
@@ -25,7 +26,9 @@ class SourceManifest:
             self.raw_root = Path(self.raw_root)
         self.defaults = dict(self.defaults or {})
         self.processing = dict(self.processing or {})
-        self.tags = tuple(str(value).strip() for value in (self.tags or ()) if str(value).strip())
+        self.tags = tuple(
+            str(value).strip() for value in (self.tags or ()) if str(value).strip()
+        )
         self.labels = {
             str(key).strip(): str(value).strip()
             for key, value in (self.labels or {}).items()
@@ -45,10 +48,10 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     for key, value in override.items():
         if isinstance(merged.get(key), dict) and isinstance(value, dict):
             merged[key] = _deep_merge(dict(merged[key]), value)
-        elif key == 'tags':
+        elif key == "tags":
             seen: set[str] = set()
             values = []
-            for item in [*(merged.get('tags', ()) or ()), *(value or ())]:
+            for item in [*(merged.get("tags", ()) or ()), *(value or ())]:
                 text = str(item).strip()
                 if not text or text in seen:
                     continue
@@ -74,9 +77,9 @@ def _source_defaults_with_manifest_metadata(
 ) -> dict[str, Any]:
     source_defaults = dict(defaults or {})
     if tags:
-        source_defaults = _deep_merge(source_defaults, {'tags': tuple(tags)})
+        source_defaults = _deep_merge(source_defaults, {"tags": tuple(tags)})
     if labels:
-        source_defaults = _deep_merge(source_defaults, {'labels': dict(labels)})
+        source_defaults = _deep_merge(source_defaults, {"labels": dict(labels)})
     return source_defaults
 
 
@@ -98,40 +101,46 @@ def _apply_manifest_defaults_to_sources(
     ]
 
 
-def build_source_spec(source_data: dict[str, Any], *, defaults: dict[str, Any] | None = None) -> SourceSpec:
+def build_source_spec(
+    source_data: dict[str, Any], *, defaults: dict[str, Any] | None = None
+) -> SourceSpec:
     return SourceSpec(**_deep_merge(dict(defaults or {}), dict(source_data)))
 
 
-def build_source_specs(sources: list[dict[str, Any]], *, defaults: dict[str, Any] | None = None) -> list[SourceSpec]:
+def build_source_specs(
+    sources: list[dict[str, Any]], *, defaults: dict[str, Any] | None = None
+) -> list[SourceSpec]:
     return [build_source_spec(source, defaults=defaults) for source in sources]
 
 
 def load_source_manifest(path: str | Path) -> SourceManifest:
     manifest_path = Path(path)
-    raw = yaml.safe_load(manifest_path.read_text(encoding='utf-8')) or {}
+    raw = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
     if isinstance(raw, list):
-        raw = {'sources': raw}
+        raw = {"sources": raw}
     if not isinstance(raw, dict):
-        raise ValueError('source manifest must be a mapping or list')
-    sources_raw = raw.get('sources') or []
+        raise ValueError("source manifest must be a mapping or list")
+    sources_raw = raw.get("sources") or []
     if not isinstance(sources_raw, list):
         raise ValueError("source manifest field 'sources' must be a list")
     return SourceManifest(
-        name=raw.get('name'),
-        raw_root=raw.get('raw_root'),
-        defaults=dict(raw.get('defaults') or {}),
-        processing=dict(raw.get('processing') or {}),
-        tags=tuple(raw.get('tags') or ()),
-        labels=dict(raw.get('labels') or {}),
-        metadata=dict(raw.get('metadata') or {}),
+        name=raw.get("name"),
+        raw_root=raw.get("raw_root"),
+        defaults=dict(raw.get("defaults") or {}),
+        processing=dict(raw.get("processing") or {}),
+        tags=tuple(raw.get("tags") or ()),
+        labels=dict(raw.get("labels") or {}),
+        metadata=dict(raw.get("metadata") or {}),
         sources=[dict(source) for source in sources_raw],
     )
 
 
-def manifest_to_processing_request(manifest: SourceManifest, **overrides: Any) -> ProcessingRequest:
+def manifest_to_processing_request(
+    manifest: SourceManifest, **overrides: Any
+) -> ProcessingRequest:
     payload = dict(manifest.processing)
-    if manifest.raw_root is not None and 'raw_root' not in payload:
-        payload['raw_root'] = manifest.raw_root
-    payload['sources'] = list(manifest.sources)
+    if manifest.raw_root is not None and "raw_root" not in payload:
+        payload["raw_root"] = manifest.raw_root
+    payload["sources"] = list(manifest.sources)
     payload.update(overrides)
     return ProcessingRequest(**payload)

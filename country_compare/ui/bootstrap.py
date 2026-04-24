@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from doctest import debug
 from pathlib import Path
 
 import streamlit as st
@@ -9,8 +8,8 @@ from country_compare.services import AppContext, AppFacade
 from country_compare.services.comparison_service import ComparisonService
 from country_compare.services.config_service import ConfigService
 from country_compare.services.dataset_service import DatasetService
-from country_compare.services.presentation_service import PresentationService
 from country_compare.services.prediction_service import PredictionService
+from country_compare.services.presentation_service import PresentationService
 from country_compare.settings import AppSettings, load_app_settings
 from country_compare.ui import state
 
@@ -24,23 +23,23 @@ def build_app_context(
     store_path: str | Path | None = None,
     debug: bool | None = None,
 ) -> AppContext:
- base = settings or load_app_settings(
-  metrics_config_path=metrics_config_path,
-  scoring_config_path=scoring_config_path,
-  store_backend=store_backend,
-  store_path=store_path,
-  debug=debug,
- )
- return AppContext(
-  metrics_config_path=base.paths.metrics_config_path,
-  scoring_config_path=base.paths.scoring_config_path,
-  store_backend=base.paths.store_backend,
-  store_path=base.paths.store_path,
-  audit_dir=base.paths.audit_dir,
-  export_dir=base.paths.export_dir,
-  debug=base.debug,
-  settings=base,
-)
+    base = settings or load_app_settings(
+        metrics_config_path=metrics_config_path,
+        scoring_config_path=scoring_config_path,
+        store_backend=store_backend,
+        store_path=store_path,
+        debug=debug,
+    )
+    return AppContext(
+        metrics_config_path=base.paths.metrics_config_path,
+        scoring_config_path=base.paths.scoring_config_path,
+        store_backend=base.paths.store_backend,
+        store_path=base.paths.store_path,
+        audit_dir=base.paths.audit_dir,
+        export_dir=base.paths.export_dir,
+        debug=base.debug,
+        settings=base,
+    )
 
 
 @st.cache_resource(show_spinner=False)

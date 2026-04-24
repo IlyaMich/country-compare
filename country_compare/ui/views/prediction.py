@@ -32,14 +32,15 @@ from country_compare.ui.state import (
     set_selection_state,
 )
 
-
 MAX_FORECAST_HORIZON = 10
 MAX_HOLDOUT_YEARS = 10
 
 
 def render_prediction_view(context: AppContext) -> None:
     st.title("Prediction")
-    st.caption("Run forecast, predicted comparison, and backtest workflows through the service layer.")
+    st.caption(
+        "Run forecast, predicted comparison, and backtest workflows through the service layer."
+    )
 
     services = get_ui_services(context)
     dataset_service = services["dataset_service"]
@@ -49,7 +50,9 @@ def render_prediction_view(context: AppContext) -> None:
     dataset_error = _get_dataset_availability_error(dataset_service)
     if dataset_error is not None:
         render_app_error(dataset_error, debug=get_debug_mode())
-        st.info("Prediction features become available once the canonical dataset can be loaded.")
+        st.info(
+            "Prediction features become available once the canonical dataset can be loaded."
+        )
         return
 
     countries_catalog = (
@@ -95,7 +98,12 @@ def render_prediction_view(context: AppContext) -> None:
     _render_prediction_page_header(catalog_state)
 
     single_tab, multi_tab, comparison_tab, backtest_tab = st.tabs(
-        ["Single Forecast", "Multi-Country Forecast", "Predicted Comparison", "Backtest"]
+        [
+            "Single Forecast",
+            "Multi-Country Forecast",
+            "Predicted Comparison",
+            "Backtest",
+        ]
     )
 
     with single_tab:
@@ -130,7 +138,9 @@ def _render_prediction_page_header(catalog_state: dict[str, Any]) -> None:
         render_prediction_catalog_summary(methods, debug=get_debug_mode())
 
 
-def _render_single_forecast_tab(catalog_state: dict[str, Any], prediction_service) -> None:
+def _render_single_forecast_tab(
+    catalog_state: dict[str, Any], prediction_service
+) -> None:
     selection_state = get_selection_state()
 
     with st.container(border=True):
@@ -162,7 +172,9 @@ def _render_single_forecast_tab(catalog_state: dict[str, Any], prediction_servic
                 "prediction_active_mode": "single_forecast",
                 "prediction_country_code": country_code or None,
                 "prediction_metric_id": metric_id or None,
-                "prediction_method": method_id or selection_state.get("prediction_method") or "linear_trend",
+                "prediction_method": method_id
+                or selection_state.get("prediction_method")
+                or "linear_trend",
                 "prediction_horizon_years": horizon_years,
             }
         )
@@ -187,7 +199,9 @@ def _render_single_forecast_tab(catalog_state: dict[str, Any], prediction_servic
     )
 
 
-def _render_multi_country_forecast_tab(catalog_state: dict[str, Any], prediction_service) -> None:
+def _render_multi_country_forecast_tab(
+    catalog_state: dict[str, Any], prediction_service
+) -> None:
     selection_state = get_selection_state()
 
     with st.container(border=True):
@@ -219,12 +233,18 @@ def _render_multi_country_forecast_tab(catalog_state: dict[str, Any], prediction
                 "prediction_active_mode": "multi_country_forecast",
                 "prediction_country_codes": list(country_codes),
                 "prediction_metric_id": metric_id or None,
-                "prediction_method": method_id or selection_state.get("prediction_method") or "linear_trend",
+                "prediction_method": method_id
+                or selection_state.get("prediction_method")
+                or "linear_trend",
                 "prediction_horizon_years": horizon_years,
             }
         )
 
-        if st.button("Run multi-country forecast", type="primary", key="run_multi_country_forecast"):
+        if st.button(
+            "Run multi-country forecast",
+            type="primary",
+            key="run_multi_country_forecast",
+        ):
             _run_multi_country_forecast(
                 prediction_service=prediction_service,
                 country_codes=country_codes,
@@ -244,7 +264,9 @@ def _render_multi_country_forecast_tab(catalog_state: dict[str, Any], prediction
     )
 
 
-def _render_predicted_comparison_tab(catalog_state: dict[str, Any], prediction_service) -> None:
+def _render_predicted_comparison_tab(
+    catalog_state: dict[str, Any], prediction_service
+) -> None:
     selection_state = get_selection_state()
     comparison_modes = [
         ("Single Metric", "predicted_single_metric_comparison"),
@@ -311,7 +333,9 @@ def _render_predicted_comparison_tab(catalog_state: dict[str, Any], prediction_s
             latest_year = int(max(years)) if years else 2000
             forecast_year = render_positive_integer_input(
                 "Forecast year to compare",
-                default=int(selection_state.get("prediction_forecast_year") or latest_year + 1),
+                default=int(
+                    selection_state.get("prediction_forecast_year") or latest_year + 1
+                ),
                 min_value=latest_year + 1 if years else 1,
                 max_value=latest_year + horizon_years if years else None,
                 key="prediction_compare_forecast_year",
@@ -343,17 +367,22 @@ def _render_predicted_comparison_tab(catalog_state: dict[str, Any], prediction_s
             {
                 "prediction_active_mode": selected_mode,
                 "prediction_country_codes": list(country_codes),
-                "prediction_metric_id": metric_id or selection_state.get("prediction_metric_id"),
+                "prediction_metric_id": metric_id
+                or selection_state.get("prediction_metric_id"),
                 "prediction_metric_ids": list(metric_ids),
                 "prediction_profile_name": profile_name or None,
-                "prediction_method": method_id or selection_state.get("prediction_method") or "linear_trend",
+                "prediction_method": method_id
+                or selection_state.get("prediction_method")
+                or "linear_trend",
                 "prediction_horizon_years": horizon_years,
                 "prediction_forecast_horizon": forecast_horizon,
                 "prediction_forecast_year": forecast_year,
             }
         )
 
-        if st.button("Run predicted comparison", type="primary", key="run_predicted_comparison"):
+        if st.button(
+            "Run predicted comparison", type="primary", key="run_predicted_comparison"
+        ):
             _run_predicted_comparison(
                 prediction_service=prediction_service,
                 mode=selected_mode,
@@ -367,12 +396,16 @@ def _render_predicted_comparison_tab(catalog_state: dict[str, Any], prediction_s
                 forecast_year=forecast_year,
             )
 
-    error = get_prediction_error(mode=get_selection_state().get("prediction_active_mode"))
+    error = get_prediction_error(
+        mode=get_selection_state().get("prediction_active_mode")
+    )
     if error is not None:
         render_app_error(error, debug=get_debug_mode())
 
     render_prediction_service_result(
-        get_latest_prediction_result(mode=get_selection_state().get("prediction_active_mode")),
+        get_latest_prediction_result(
+            mode=get_selection_state().get("prediction_active_mode")
+        ),
         debug=get_debug_mode(),
         empty_message="Run a predicted comparison to see ranking output here.",
     )
@@ -410,7 +443,9 @@ def _render_backtest_tab(catalog_state: dict[str, Any], prediction_service) -> N
                 "prediction_active_mode": "backtest",
                 "prediction_country_code": country_code or None,
                 "prediction_metric_id": metric_id or None,
-                "prediction_method": method_id or selection_state.get("prediction_method") or "linear_trend",
+                "prediction_method": method_id
+                or selection_state.get("prediction_method")
+                or "linear_trend",
                 "prediction_holdout_years": holdout_years,
             }
         )
@@ -435,7 +470,14 @@ def _render_backtest_tab(catalog_state: dict[str, Any], prediction_service) -> N
     )
 
 
-def _run_single_forecast(*, prediction_service, country_code: str, metric_id: str, method_id: str, horizon_years: int) -> None:
+def _run_single_forecast(
+    *,
+    prediction_service,
+    country_code: str,
+    metric_id: str,
+    method_id: str,
+    horizon_years: int,
+) -> None:
     result = prediction_service.run_single_metric_prediction(
         country_code=country_code,
         metric_id=metric_id,
@@ -506,7 +548,14 @@ def _run_predicted_comparison(
     _store_prediction_service_result(result, mode=mode)
 
 
-def _run_backtest(*, prediction_service, country_code: str, metric_id: str, method_id: str, holdout_years: int) -> None:
+def _run_backtest(
+    *,
+    prediction_service,
+    country_code: str,
+    metric_id: str,
+    method_id: str,
+    holdout_years: int,
+) -> None:
     result = prediction_service.run_backtest(
         country_code=country_code,
         metric_id=metric_id,

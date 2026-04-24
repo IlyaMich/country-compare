@@ -24,7 +24,6 @@ from country_compare.prediction import (
     predict_single_metric,
     predict_single_metric_for_countries,
 )
-from country_compare.prediction.models import PredictionResult
 from country_compare.prediction.summaries import (
     build_backtest_result_summary,
     build_predicted_comparison_result_summary,
@@ -398,7 +397,9 @@ class PredictionService:
             ),
         )
 
-    def translate_prediction_exception(self, exc: PredictionException) -> dict[str, Any]:
+    def translate_prediction_exception(
+        self, exc: PredictionException
+    ) -> dict[str, Any]:
         return prediction_exception_to_dict(exc)
 
     def prediction_exception_to_app_error(self, exc: PredictionException) -> AppError:
@@ -516,12 +517,13 @@ class PredictionService:
         )
 
     def _load_dataframe(self) -> pd.DataFrame:
-        if self.dataset_service is not None and hasattr(self.dataset_service, "load_dataframe"):
+        if self.dataset_service is not None and hasattr(
+            self.dataset_service, "load_dataframe"
+        ):
             return self.dataset_service.load_dataframe()
 
         store = self._create_store_from_context()
         return load_metric_dataframe(store=store)
-
 
     def _resolve_predicted_comparison_options(
         self,
@@ -539,7 +541,9 @@ class PredictionService:
         return resolved_options
 
     def _load_configuration_bundle(self) -> Any:
-        if self.config_service is not None and hasattr(self.config_service, "load_bundle"):
+        if self.config_service is not None and hasattr(
+            self.config_service, "load_bundle"
+        ):
             return self.config_service.load_bundle()
 
         return load_configuration_bundle(
@@ -550,7 +554,6 @@ class PredictionService:
 
     def _load_scoring_config(self) -> ScoringConfig:
         return self._load_configuration_bundle().scoring
-
 
     def _create_store_from_context(self) -> Any:
         kwargs: dict[str, Any] = {}

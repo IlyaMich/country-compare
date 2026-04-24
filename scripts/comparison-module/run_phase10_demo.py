@@ -3,6 +3,8 @@ from __future__ import annotations
 import inspect
 from pathlib import Path
 
+# These imports assume your Phase 7 and Phase 9 modules already exist in the repo.
+from country_compare.comparison.single_metric import compare_metric
 from country_compare.config.models import (
     MetricConfig,
     MetricsConfig,
@@ -20,15 +22,10 @@ from country_compare.output import (
     plot_single_metric_ranking,
     plot_weighted_scores,
 )
-
-# These imports assume your Phase 7 and Phase 9 modules already exist in the repo.
-from country_compare.comparison.single_metric import compare_metric
 from country_compare.scoring.weighted_score import score_countries
-
 
 OUTPUT_DIR = Path("phase10_output_examples")
 OUTPUT_DIR.mkdir(exist_ok=True)
-
 
 
 def build_example_configs() -> tuple[MetricsConfig, ScoringConfig]:
@@ -83,7 +80,6 @@ def build_example_configs() -> tuple[MetricsConfig, ScoringConfig]:
     return metrics_config, scoring_config
 
 
-
 def invoke_with_supported_kwargs(func, **kwargs):
     signature = inspect.signature(func)
     accepted_kwargs = {}
@@ -96,7 +92,6 @@ def invoke_with_supported_kwargs(func, **kwargs):
             accepted_kwargs[name] = kwargs[name]
 
     return func(**accepted_kwargs)
-
 
 
 def build_single_metric_result(data, metrics_config, scoring_config):
@@ -126,7 +121,6 @@ def build_single_metric_result(data, metrics_config, scoring_config):
         ) from exc
 
 
-
 def build_weighted_score_result(data, metrics_config, scoring_config):
     countries = ["ISR", "DEU", "SGP"]
 
@@ -151,12 +145,13 @@ def build_weighted_score_result(data, metrics_config, scoring_config):
         ) from exc
 
 
-
 def main() -> None:
     data = build_example_metric_dataframe()
     metrics_config, scoring_config = build_example_configs()
 
-    single_metric_result = build_single_metric_result(data, metrics_config, scoring_config)
+    single_metric_result = build_single_metric_result(
+        data, metrics_config, scoring_config
+    )
     single_metric_table = make_single_metric_table(
         single_metric_result,
         rename_columns={"country_name": "country"},
@@ -171,7 +166,9 @@ def main() -> None:
     )
     single_fig.savefig(OUTPUT_DIR / "single_metric_ranking.png", bbox_inches="tight")
 
-    weighted_score_result = build_weighted_score_result(data, metrics_config, scoring_config)
+    weighted_score_result = build_weighted_score_result(
+        data, metrics_config, scoring_config
+    )
     weighted_score_table = make_weighted_score_table(
         weighted_score_result,
         rename_columns={"country_name": "country"},

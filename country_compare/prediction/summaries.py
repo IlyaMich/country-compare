@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import asdict, is_dataclass
 from enum import Enum
-from typing import Any, Sequence
+from typing import Any
 
 import pandas as pd
 
@@ -68,10 +69,11 @@ def build_prediction_result_summary(result: PredictionResult) -> dict[str, Any]:
         "metrics": _unique_strings(result.forecast_df, METRIC_ID_COLUMN),
         "methods_used": _unique_strings(result.forecast_df, PREDICTION_METHOD_COLUMN),
         "metadata": _json_safe_mapping(result.metadata),
-        "diagnostics": build_prediction_diagnostics_collection_summary(result.diagnostics),
+        "diagnostics": build_prediction_diagnostics_collection_summary(
+            result.diagnostics
+        ),
         "forecasters": [
-            build_forecaster_info_summary(info)
-            for info in result.forecaster_info
+            build_forecaster_info_summary(info) for info in result.forecaster_info
         ],
     }
 
@@ -86,7 +88,9 @@ def build_predicted_comparison_result_summary(
         "comparison": _dataframe_summary(result.comparison_df),
         "metadata": _json_safe_mapping(result.metadata),
         "prediction": build_prediction_result_summary(result.prediction_result),
-        "diagnostics": build_prediction_diagnostics_collection_summary(result.diagnostics),
+        "diagnostics": build_prediction_diagnostics_collection_summary(
+            result.diagnostics
+        ),
     }
 
 
@@ -97,10 +101,11 @@ def build_backtest_result_summary(result: BacktestResult) -> dict[str, Any]:
         "actual_vs_predicted": _dataframe_summary(result.actual_vs_predicted_df),
         "metrics": _json_safe_mapping(result.metrics),
         "metadata": _json_safe_mapping(result.metadata),
-        "diagnostics": build_prediction_diagnostics_collection_summary(result.diagnostics),
+        "diagnostics": build_prediction_diagnostics_collection_summary(
+            result.diagnostics
+        ),
         "forecasters": [
-            build_forecaster_info_summary(info)
-            for info in result.forecaster_info
+            build_forecaster_info_summary(info) for info in result.forecaster_info
         ],
     }
 
@@ -146,10 +151,7 @@ def build_prediction_diagnostic_summary(
         "forecast_origin_year": diagnostic.forecast_origin_year,
         "missing_years": list(diagnostic.missing_years),
         "warnings": list(diagnostic.warnings),
-        "errors": [
-            _prediction_error_summary(error)
-            for error in diagnostic.errors
-        ],
+        "errors": [_prediction_error_summary(error) for error in diagnostic.errors],
         "messages": list(diagnostic.messages),
     }
 
@@ -233,8 +235,7 @@ def _prediction_error_summary(error: Any) -> dict[str, Any]:
 
 def _json_safe_mapping(mapping: dict[str, Any]) -> dict[str, Any]:
     return {
-        str(key): _json_safe_value(value)
-        for key, value in dict(mapping or {}).items()
+        str(key): _json_safe_value(value) for key, value in dict(mapping or {}).items()
     }
 
 

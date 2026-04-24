@@ -119,12 +119,25 @@ def main() -> None:
         )
         success_result = PipelineEngine().run(success_request)
         print("result.ok:", success_result.ok)
-        print("validation ok:", success_result.validation_report.ok if success_result.validation_report else None)
+        print(
+            "validation ok:",
+            (
+                success_result.validation_report.ok
+                if success_result.validation_report
+                else None
+            ),
+        )
         print(
             "publication ok:",
-            success_result.publication_report.ok if success_result.publication_report else None,
+            (
+                success_result.publication_report.ok
+                if success_result.publication_report
+                else None
+            ),
         )
-        print("published rows:", 0 if store.written is None else len(store.written.index))
+        print(
+            "published rows:", 0 if store.written is None else len(store.written.index)
+        )
         if success_result.canonical_dataframe is not None:
             print(success_result.canonical_dataframe.head().to_string(index=False))
 
@@ -167,9 +180,14 @@ def main() -> None:
             "adapter_registered": has_source_adapter("canonical_tabular_passthrough"),
             "acquisition_found_file": len(assets) == 1,
             "success_flow_ok": success_result.ok,
-            "publish_flow_ok": bool(success_result.publication_report and success_result.publication_report.ok),
-            "missing_source_detected": (missing_result.ok is False) and bool(missing_result.error),
-            "invalid_input_detected": (invalid_result.ok is False) and bool(invalid_result.warnings or invalid_result.error),
+            "publish_flow_ok": bool(
+                success_result.publication_report
+                and success_result.publication_report.ok
+            ),
+            "missing_source_detected": (missing_result.ok is False)
+            and bool(missing_result.error),
+            "invalid_input_detected": (invalid_result.ok is False)
+            and bool(invalid_result.warnings or invalid_result.error),
         }
         for key, value in checks.items():
             print(f"{key}: {value}")

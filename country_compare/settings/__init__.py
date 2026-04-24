@@ -1,5 +1,10 @@
 from country_compare.settings.loader import load_app_settings
-from country_compare.settings.models import AppSettings, PathSettings, PredictionSettings, UISettings
+from country_compare.settings.models import (
+    AppSettings,
+    PathSettings,
+    PredictionSettings,
+    UISettings,
+)
 
 __all__ = [
     "AppSettings",

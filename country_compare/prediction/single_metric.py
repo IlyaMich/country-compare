@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from dataclasses import replace
 
 import pandas as pd
@@ -6,9 +7,8 @@ import pandas as pd
 from country_compare.prediction.errors import PredictionErrorCode, PredictionException
 from country_compare.prediction.models import (
     ForecastOptions,
-    PredictionDiagnosticStatus,
     PredictionDiagnostics,
-    PredictionError,
+    PredictionDiagnosticStatus,
     PredictionResult,
     SingleMetricPredictionRequest,
 )
@@ -19,7 +19,10 @@ from country_compare.prediction.output import (
     new_prediction_run_id,
     prediction_created_at_now,
 )
-from country_compare.prediction.registry import ForecasterRegistryError, resolve_forecaster
+from country_compare.prediction.registry import (
+    ForecasterRegistryError,
+    resolve_forecaster,
+)
 from country_compare.prediction.timeseries import prepare_metric_time_series
 from country_compare.prediction.validation import (
     resolve_fallback_method,
@@ -66,7 +69,10 @@ def predict_single_metric(
         options=options,
     )
     if not supported:
-        if fallback_method is not None and fallback_method.value != requested_method.value:
+        if (
+            fallback_method is not None
+            and fallback_method.value != requested_method.value
+        ):
             fallback_forecaster = _resolve_forecaster_or_raise(
                 fallback_method.value,
                 country_code=request.country_code,
@@ -88,7 +94,8 @@ def predict_single_metric(
             else:
                 raise PredictionException(
                     PredictionErrorCode.INSUFFICIENT_HISTORY,
-                    "; ".join(fallback_reasons) or "fallback method does not support this series",
+                    "; ".join(fallback_reasons)
+                    or "fallback method does not support this series",
                     country_code=request.country_code,
                     metric_id=request.metric_id,
                     details={
@@ -101,13 +108,18 @@ def predict_single_metric(
         else:
             raise PredictionException(
                 PredictionErrorCode.INSUFFICIENT_HISTORY,
-                "; ".join(support_reasons) or "requested method does not support this series",
+                "; ".join(support_reasons)
+                or "requested method does not support this series",
                 country_code=request.country_code,
                 metric_id=request.metric_id,
                 details={"method": requested_method.value, "reasons": support_reasons},
             )
 
-    status = PredictionDiagnosticStatus.WARNING if warnings else PredictionDiagnosticStatus.OK
+    status = (
+        PredictionDiagnosticStatus.WARNING
+        if warnings
+        else PredictionDiagnosticStatus.OK
+    )
     diagnostics = PredictionDiagnostics(
         status=status,
         country_code=request.country_code,
@@ -124,7 +136,10 @@ def predict_single_metric(
         errors=[],
     )
 
-    if request.fail_on_warning and diagnostics.status == PredictionDiagnosticStatus.WARNING:
+    if (
+        request.fail_on_warning
+        and diagnostics.status == PredictionDiagnosticStatus.WARNING
+    ):
         raise PredictionException(
             PredictionErrorCode.UNSUPPORTED_SERIES_SHAPE,
             "prediction produced warnings and fail_on_warning=True",
@@ -142,7 +157,9 @@ def predict_single_metric(
         )
     except PredictionException:
         raise
-    except Exception as exc:  # pragma: no cover - defensive guard for future forecasters
+    except (
+        Exception
+    ) as exc:  # pragma: no cover - defensive guard for future forecasters
         raise PredictionException(
             PredictionErrorCode.FORECASTING_FAILED,
             str(exc),
@@ -169,7 +186,11 @@ def predict_single_metric(
         scenario_id=request.scenario_id,
     )
     combined_df = build_combined_dataframe(
-        prepared.series_df if request.include_actuals else prepared.series_df.iloc[0:0].copy(),
+        (
+            prepared.series_df
+            if request.include_actuals
+            else prepared.series_df.iloc[0:0].copy()
+        ),
         forecast_df,
         context=prepared.context,
         diagnostics=diagnostics,

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
-import os
 
 import yaml
 
@@ -12,7 +12,11 @@ from country_compare.config.loader import (
     load_metrics_config,
     load_scoring_config,
 )
-from country_compare.config.models import ConfigurationBundle, MetricsConfig, ScoringConfig
+from country_compare.config.models import (
+    ConfigurationBundle,
+    MetricsConfig,
+    ScoringConfig,
+)
 from country_compare.config.validator import (
     resolve_profile_options,
     resolve_profile_weights,
@@ -22,7 +26,11 @@ from country_compare.config.validator import (
 from country_compare.services.app_context import AppContext
 from country_compare.services.dataset_service import DatasetService
 from country_compare.services.errors import AppError, error_from_exception
-from country_compare.services.models import ConfigStatus, ProfileOption, ValidationReport
+from country_compare.services.models import (
+    ConfigStatus,
+    ProfileOption,
+    ValidationReport,
+)
 
 
 class ConfigService:
@@ -61,8 +69,12 @@ class ConfigService:
         exclude_none: bool = True,
     ) -> dict[str, dict[str, Any]]:
         return {
-            "metrics": bundle.metrics.model_dump(mode="json", exclude_none=exclude_none),
-            "scoring": bundle.scoring.model_dump(mode="json", exclude_none=exclude_none),
+            "metrics": bundle.metrics.model_dump(
+                mode="json", exclude_none=exclude_none
+            ),
+            "scoring": bundle.scoring.model_dump(
+                mode="json", exclude_none=exclude_none
+            ),
         }
 
     def build_bundle_from_data(
@@ -123,12 +135,16 @@ class ConfigService:
                 ),
             )
 
-    def save_metrics_config(self, metrics_config: MetricsConfig | dict[str, Any]) -> None:
+    def save_metrics_config(
+        self, metrics_config: MetricsConfig | dict[str, Any]
+    ) -> None:
         resolved = self._coerce_metrics_config(metrics_config)
         payload = resolved.model_dump(mode="json", exclude_none=True)
         self._write_yaml_atomic(self.context.metrics_config_path, payload)
 
-    def save_scoring_config(self, scoring_config: ScoringConfig | dict[str, Any]) -> None:
+    def save_scoring_config(
+        self, scoring_config: ScoringConfig | dict[str, Any]
+    ) -> None:
         resolved = self._coerce_scoring_config(scoring_config)
         payload = resolved.model_dump(mode="json", exclude_none=True)
         self._write_yaml_atomic(self.context.scoring_config_path, payload)
@@ -137,7 +153,9 @@ class ConfigService:
         validate_configuration_bundle(bundle)
         metrics_payload = bundle.metrics.model_dump(mode="json", exclude_none=True)
         scoring_payload = bundle.scoring.model_dump(mode="json", exclude_none=True)
-        self._write_bundle_atomic(metrics_payload=metrics_payload, scoring_payload=scoring_payload)
+        self._write_bundle_atomic(
+            metrics_payload=metrics_payload, scoring_payload=scoring_payload
+        )
 
     def save_bundle_data(
         self,
@@ -209,14 +227,17 @@ class ConfigService:
                 code="resource_not_found",
                 title="Configuration file not found",
                 user_message="One or more configuration files could not be found.",
-                technical_detail="Missing configuration paths: " + ", ".join(missing_paths),
+                technical_detail="Missing configuration paths: "
+                + ", ".join(missing_paths),
             )
             return ConfigStatus(
                 metrics_config_path=str(metrics_path),
                 scoring_config_path=str(scoring_path),
                 metrics_config_exists=metrics_exists,
                 scoring_config_exists=scoring_exists,
-                validation=ValidationReport(valid=False, error=error, messages=(error.technical_detail or "",)),
+                validation=ValidationReport(
+                    valid=False, error=error, messages=(error.technical_detail or "",)
+                ),
                 error=error,
             )
 
@@ -251,7 +272,9 @@ class ConfigService:
             error = error_from_exception(
                 exc,
                 default_title="Configuration error",
-                default_user_message="The configuration files could not be loaded for overview display.",
+                default_user_message=(
+                    "The configuration files could not be loaded for overview display."
+                ),
             )
             return ConfigStatus(
                 metrics_config_path=str(metrics_path),
@@ -259,16 +282,22 @@ class ConfigService:
                 metrics_config_exists=metrics_exists,
                 scoring_config_exists=scoring_exists,
                 bundle_loaded=False,
-                validation=ValidationReport(valid=False, messages=(str(exc),), error=error),
+                validation=ValidationReport(
+                    valid=False, messages=(str(exc),), error=error
+                ),
                 error=error,
             )
 
-    def _coerce_metrics_config(self, metrics_config: MetricsConfig | dict[str, Any]) -> MetricsConfig:
+    def _coerce_metrics_config(
+        self, metrics_config: MetricsConfig | dict[str, Any]
+    ) -> MetricsConfig:
         if isinstance(metrics_config, MetricsConfig):
             return metrics_config
         return MetricsConfig.model_validate(metrics_config)
 
-    def _coerce_scoring_config(self, scoring_config: ScoringConfig | dict[str, Any]) -> ScoringConfig:
+    def _coerce_scoring_config(
+        self, scoring_config: ScoringConfig | dict[str, Any]
+    ) -> ScoringConfig:
         if isinstance(scoring_config, ScoringConfig):
             return scoring_config
         return ScoringConfig.model_validate(scoring_config)

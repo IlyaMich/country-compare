@@ -4,7 +4,11 @@ from country_compare.services.app_context import AppContext
 from country_compare.services.comparison_service import ComparisonService
 from country_compare.services.config_service import ConfigService
 from country_compare.services.dataset_service import DatasetService
-from country_compare.services.errors import AppError, AppServiceError, error_from_exception
+from country_compare.services.errors import (
+    AppError,
+    AppServiceError,
+    error_from_exception,
+)
 from country_compare.services.facade import AppFacade
 from country_compare.services.models import (
     AppStatus,
@@ -17,6 +21,7 @@ from country_compare.services.models import (
     ProfileOption,
     ValidationReport,
 )
+from country_compare.services.prediction_service import PredictionService
 from country_compare.services.presentation_service import PresentationService
 from country_compare.services.requests import (
     BaseComparisonRequest,
@@ -36,13 +41,12 @@ from country_compare.services.serialization import (
     serialize_dataset_summary,
     serialize_error,
     serialize_overview_status,
+    serialize_prediction_service_result,
     serialize_presentation_result,
     serialize_request,
     serialize_validation_report,
     to_jsonable,
-    serialize_prediction_service_result
 )
-from country_compare.services.prediction_service import PredictionService
 
 __all__ = [
     "AppContext",

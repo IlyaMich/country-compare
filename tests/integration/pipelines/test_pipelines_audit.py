@@ -6,9 +6,18 @@ from pathlib import Path
 import pandas as pd
 
 from country_compare.data.ingestion.base import SourceAdapter
-from country_compare.data.ingestion.registry import register_source_adapter, unregister_source_adapter
+from country_compare.data.ingestion.registry import (
+    register_source_adapter,
+    unregister_source_adapter,
+)
 from country_compare.pipelines.engine import PipelineEngine
-from country_compare.pipelines.models import AdapterResult, ProcessingRequest, RejectedRow, RowIssue, SourceSpec
+from country_compare.pipelines.models import (
+    AdapterResult,
+    ProcessingRequest,
+    RejectedRow,
+    RowIssue,
+    SourceSpec,
+)
 
 
 class WideLikeIssueAdapter(SourceAdapter):
@@ -59,7 +68,9 @@ class WideLikeIssueAdapter(SourceAdapter):
             warnings=["dropped one invalid raw row during harmonization"],
         )
 
-    def to_standardized_dataframe(self) -> pd.DataFrame:  # pragma: no cover - compat path only
+    def to_standardized_dataframe(
+        self,
+    ) -> pd.DataFrame:  # pragma: no cover - compat path only
         raise NotImplementedError
 
 
@@ -117,7 +128,9 @@ def test_audit_artifacts_are_written_when_enabled(tmp_path: Path) -> None:
     for path in result.audit_report.artifact_paths.values():
         assert Path(path).exists()
 
-    run_summary = json.loads((audit_dir / "run_summary.json").read_text(encoding="utf-8"))
+    run_summary = json.loads(
+        (audit_dir / "run_summary.json").read_text(encoding="utf-8")
+    )
     assert run_summary["ok"] is True
     assert run_summary["run_metadata"]["successful_source_count"] == 1
     assert run_summary["row_counts"]["canonical"] == 2
@@ -148,10 +161,14 @@ def test_audit_artifacts_are_not_written_when_disabled(tmp_path: Path) -> None:
 
 
 def test_source_summary_and_issue_exports_capture_rejected_rows(tmp_path: Path) -> None:
-    register_source_adapter("wide_year_metric_csv_stub", WideLikeIssueAdapter, replace=True)
+    register_source_adapter(
+        "wide_year_metric_csv_stub", WideLikeIssueAdapter, replace=True
+    )
     try:
         raw_path = tmp_path / "wide_like.csv"
-        pd.DataFrame({"Country Name": ["Israel", "Germany"], "2023": [54000.0, "n/a"]}).to_csv(
+        pd.DataFrame(
+            {"Country Name": ["Israel", "Germany"], "2023": [54000.0, "n/a"]}
+        ).to_csv(
             raw_path,
             index=False,
         )
@@ -174,7 +191,9 @@ def test_source_summary_and_issue_exports_capture_rejected_rows(tmp_path: Path) 
 
         assert result.ok is True
 
-        source_summary = json.loads((audit_dir / "source_summary.json").read_text(encoding="utf-8"))
+        source_summary = json.loads(
+            (audit_dir / "source_summary.json").read_text(encoding="utf-8")
+        )
         assert source_summary[0]["source_id"] == "wide_source"
         assert source_summary[0]["raw_row_count"] == 2
         assert source_summary[0]["canonical_row_count"] == 1
@@ -222,14 +241,23 @@ def test_partial_source_failure_is_reflected_in_audit_summary(tmp_path: Path) ->
     assert result.ok is True
     assert any("missing_source" in warning for warning in result.warnings)
 
-    run_summary = json.loads((audit_dir / "run_summary.json").read_text(encoding="utf-8"))
+    run_summary = json.loads(
+        (audit_dir / "run_summary.json").read_text(encoding="utf-8")
+    )
     assert run_summary["source_counts"]["successful"] == 1
     assert run_summary["source_counts"]["failed"] == 1
 
-    source_summary = json.loads((audit_dir / "source_summary.json").read_text(encoding="utf-8"))
+    source_summary = json.loads(
+        (audit_dir / "source_summary.json").read_text(encoding="utf-8")
+    )
     assert len(source_summary) == 2
-    assert {item["source_id"] for item in source_summary} == {"good_source", "missing_source"}
-    failed = next(item for item in source_summary if item["source_id"] == "missing_source")
+    assert {item["source_id"] for item in source_summary} == {
+        "good_source",
+        "missing_source",
+    }
+    failed = next(
+        item for item in source_summary if item["source_id"] == "missing_source"
+    )
     assert failed["ok"] is False
     assert failed["error"]
 
@@ -266,7 +294,9 @@ def test_duplicate_merge_failure_writes_failure_summary(tmp_path: Path) -> None:
     assert result.error is not None
     assert "duplicate canonical primary-key rows" in result.error
 
-    run_summary = json.loads((audit_dir / "run_summary.json").read_text(encoding="utf-8"))
+    run_summary = json.loads(
+        (audit_dir / "run_summary.json").read_text(encoding="utf-8")
+    )
     assert run_summary["ok"] is False
     assert any(
         "duplicate canonical primary-key rows" in message

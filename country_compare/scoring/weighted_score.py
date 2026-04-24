@@ -95,7 +95,9 @@ def prepare_weighted_score_input(
     countries_exclude: Iterable[str] | None = None,
     target_year: int | None = None,
     normalization_method: NormalizationMethod | str | None = None,
-    normalization_method_overrides: Mapping[str, NormalizationMethod | str] | None = None,
+    normalization_method_overrides: (
+        Mapping[str, NormalizationMethod | str] | None
+    ) = None,
 ) -> pd.DataFrame:
     """
     Build the filtered and normalized long-form input used by weighted scoring.
@@ -152,16 +154,22 @@ def compute_weighted_scores(
     """
     resolved_policy = MissingDataPolicy(missing_data_policy)
     resolved_weights = _validate_weights(weights)
-    _require_columns(dataframe, [COUNTRY_CODE_COLUMN, METRIC_ID_COLUMN, NORMALIZED_VALUE_COLUMN])
+    _require_columns(
+        dataframe, [COUNTRY_CODE_COLUMN, METRIC_ID_COLUMN, NORMALIZED_VALUE_COLUMN]
+    )
 
     relevant = dataframe.loc[
         dataframe[METRIC_ID_COLUMN].astype("string").isin(resolved_weights.keys())
     ].copy()
 
     if relevant.empty:
-        raise ScoringError("no rows remain after restricting data to the weighted metrics")
+        raise ScoringError(
+            "no rows remain after restricting data to the weighted metrics"
+        )
 
-    duplicate_pairs = relevant.duplicated(subset=[COUNTRY_CODE_COLUMN, METRIC_ID_COLUMN], keep=False)
+    duplicate_pairs = relevant.duplicated(
+        subset=[COUNTRY_CODE_COLUMN, METRIC_ID_COLUMN], keep=False
+    )
     if duplicate_pairs.any():
         duplicate_rows = relevant.loc[
             duplicate_pairs,
@@ -175,13 +183,21 @@ def compute_weighted_scores(
     expected_metrics = list(resolved_weights.keys())
     score_rows: list[dict[str, object]] = []
 
-    for country_code, country_df in relevant.groupby(COUNTRY_CODE_COLUMN, sort=False, dropna=False):
+    for _country_code, country_df in relevant.groupby(
+        COUNTRY_CODE_COLUMN, sort=False, dropna=False
+    ):
         available_metrics = set(
-            country_df.loc[country_df[NORMALIZED_VALUE_COLUMN].notna(), METRIC_ID_COLUMN]
+            country_df.loc[
+                country_df[NORMALIZED_VALUE_COLUMN].notna(), METRIC_ID_COLUMN
+            ]
             .astype("string")
             .tolist()
         )
-        missing_metrics = [metric_id for metric_id in expected_metrics if metric_id not in available_metrics]
+        missing_metrics = [
+            metric_id
+            for metric_id in expected_metrics
+            if metric_id not in available_metrics
+        ]
 
         if resolved_policy == MissingDataPolicy.DROP_COUNTRY and missing_metrics:
             continue
@@ -221,7 +237,9 @@ def compute_weighted_scores(
         row[METRIC_COUNT_USED_COLUMN] = len(effective_weights)
         row[METRIC_COUNT_EXPECTED_COLUMN] = len(expected_metrics)
         row[MISSING_METRIC_COUNT_COLUMN] = len(missing_metrics)
-        row[MISSING_METRICS_COLUMN] = ", ".join(missing_metrics) if missing_metrics else pd.NA
+        row[MISSING_METRICS_COLUMN] = (
+            ", ".join(missing_metrics) if missing_metrics else pd.NA
+        )
         row[WEIGHT_SUM_USED_COLUMN] = float(sum(effective_weights.values()))
         row[MISSING_DATA_POLICY_COLUMN] = resolved_policy.value
         score_rows.append(row)
@@ -246,7 +264,9 @@ def score_countries(
     countries_exclude: Iterable[str] | None = None,
     target_year: int | None = None,
     normalization_method: NormalizationMethod | str | None = None,
-    normalization_method_overrides: Mapping[str, NormalizationMethod | str] | None = None,
+    normalization_method_overrides: (
+        Mapping[str, NormalizationMethod | str] | None
+    ) = None,
 ) -> pd.DataFrame:
     """
     End-to-end Phase 9 weighted scoring workflow.
@@ -333,7 +353,11 @@ def _rank_weighted_scores(dataframe: pd.DataFrame) -> pd.DataFrame:
 
     sort_columns = [
         SCORE_RANK_COLUMN,
-        *(column for column in [COUNTRY_NAME_COLUMN, COUNTRY_CODE_COLUMN] if column in result.columns),
+        *(
+            column
+            for column in [COUNTRY_NAME_COLUMN, COUNTRY_CODE_COLUMN]
+            if column in result.columns
+        ),
     ]
     result = result.sort_values(
         by=sort_columns,

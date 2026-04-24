@@ -9,6 +9,7 @@ import streamlit as st
 
 from country_compare.ui.navigation import DEFAULT_PAGE
 
+
 class StateKey(StrEnum):
     SELECTED_PAGE = "country_compare.selected_page"
     DEBUG_MODE = "country_compare.debug_mode"
@@ -113,7 +114,9 @@ def _resolve_compare_mode(
     return "single_metric"
 
 
-def _resolve_prediction_mode(*, mode: str | None = None, result=None, error=None) -> str:
+def _resolve_prediction_mode(
+    *, mode: str | None = None, result=None, error=None
+) -> str:
     if mode:
         return str(mode)
 
@@ -209,7 +212,9 @@ def get_latest_compare_presentation(mode: str | None = None):
     return result_state.get("compare_presentation")
 
 
-def set_compare_presentation(*, compare_result, presentation, mode: str | None = None) -> None:
+def set_compare_presentation(
+    *, compare_result, presentation, mode: str | None = None
+) -> None:
     initialize_session_state()
     current = dict(_get_result_state())
 
@@ -369,7 +374,11 @@ def initialize_config_editor_draft(
 ) -> None:
     initialize_session_state()
     current = deepcopy(get_config_editor_state())
-    should_initialize = force or current.get("draft_metrics_data") is None or current.get("draft_scoring_data") is None
+    should_initialize = (
+        force
+        or current.get("draft_metrics_data") is None
+        or current.get("draft_scoring_data") is None
+    )
     if not should_initialize:
         _normalize_config_editor_selection(current)
         _session_state()[StateKey.CONFIG_EDITOR_STATE] = current
@@ -419,7 +428,9 @@ def set_config_editor_selection(
     _session_state()[StateKey.CONFIG_EDITOR_STATE] = current
 
 
-def set_config_editor_validation(report, *, against_dataset: bool | None = None) -> None:
+def set_config_editor_validation(
+    report, *, against_dataset: bool | None = None
+) -> None:
     initialize_session_state()
     current = deepcopy(get_config_editor_state())
     current["validation_report"] = report
@@ -435,7 +446,9 @@ def set_config_editor_validation_preference(value: bool) -> None:
     _session_state()[StateKey.CONFIG_EDITOR_STATE] = current
 
 
-def set_config_editor_save_status(status: str | None, *, message: str | None = None, error=None) -> None:
+def set_config_editor_save_status(
+    status: str | None, *, message: str | None = None, error=None
+) -> None:
     initialize_session_state()
     current = deepcopy(get_config_editor_state())
     current["save_status"] = status
@@ -460,7 +473,9 @@ def reset_config_editor_draft() -> None:
     _session_state()[StateKey.CONFIG_EDITOR_STATE] = current
 
 
-def commit_config_editor_saved_state(*, metrics_data: dict[str, Any], scoring_data: dict[str, Any]) -> None:
+def commit_config_editor_saved_state(
+    *, metrics_data: dict[str, Any], scoring_data: dict[str, Any]
+) -> None:
     initialize_session_state()
     current = deepcopy(get_config_editor_state())
     current["loaded_metrics_data"] = deepcopy(metrics_data)
@@ -481,7 +496,9 @@ def config_editor_is_dirty() -> bool:
 
 
 def _config_editor_dirty(state: dict[str, Any]) -> bool:
-    return state.get("draft_metrics_data") != state.get("loaded_metrics_data") or state.get("draft_scoring_data") != state.get("loaded_scoring_data")
+    return state.get("draft_metrics_data") != state.get(
+        "loaded_metrics_data"
+    ) or state.get("draft_scoring_data") != state.get("loaded_scoring_data")
 
 
 def _normalize_config_editor_selection(state: dict[str, Any]) -> None:

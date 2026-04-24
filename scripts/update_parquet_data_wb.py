@@ -8,7 +8,6 @@ from country_compare.data.stores.registry import create_metric_store
 from country_compare.paths import CONFIG_DIR, METRICS_CONFIG_PATH
 from country_compare.pipelines.runners import run_processing_manifest
 
-
 DEFAULT_MANIFEST_PATH = CONFIG_DIR / "source_manifests" / "world_bank_real_data.yaml"
 DEFAULT_AUDIT_DIR = CONFIG_DIR.parent / "data" / "audit" / "world_bank_update"
 
@@ -83,7 +82,10 @@ def main() -> None:
 
     if not result.ok:
         message = result.error or "processing failed"
-        if result.validation_report is not None and result.validation_report.error_messages:
+        if (
+            result.validation_report is not None
+            and result.validation_report.error_messages
+        ):
             message = f"{message}\nValidation errors: {result.validation_report.error_messages}"
         raise SystemExit(message)
 

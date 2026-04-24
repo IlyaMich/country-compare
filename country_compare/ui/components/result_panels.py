@@ -115,7 +115,9 @@ def _string_or_dash(value: Any) -> str:
 
 def _format_value(value: Any) -> str:
     if isinstance(value, dict):
-        return ", ".join(f"{key}={item}" for key, item in value.items()) if value else "—"
+        return (
+            ", ".join(f"{key}={item}" for key, item in value.items()) if value else "—"
+        )
     if isinstance(value, list):
         return ", ".join(str(item) for item in value) if value else "—"
     return _string_or_dash(value)

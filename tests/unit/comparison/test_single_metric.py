@@ -4,9 +4,9 @@ import pandas as pd
 import pytest
 
 from country_compare.comparison.single_metric import (
-    ComparisonError,
     RANK_COLUMN,
     RANK_METHOD_COLUMN,
+    ComparisonError,
     compare_metric,
 )
 from country_compare.config.models import (
@@ -205,7 +205,9 @@ def test_compare_metric_single_country_behavior() -> None:
 def test_compare_metric_metric_not_found_failure() -> None:
     df = build_example_metric_dataframe()
 
-    with pytest.raises(ComparisonError, match="metric_id 'nonexistent_metric' was not found"):
+    with pytest.raises(
+        ComparisonError, match="metric_id 'nonexistent_metric' was not found"
+    ):
         compare_metric(
             df,
             metric_id="nonexistent_metric",

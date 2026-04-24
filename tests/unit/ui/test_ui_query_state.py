@@ -7,16 +7,18 @@ import streamlit as st
 
 from country_compare.ui import state
 from country_compare.ui.query_state import (
+    apply_query_params_once,
     build_compare_selection_state_from_query_params,
     build_prediction_selection_state_from_query_params,
     build_query_params,
-    apply_query_params_once,
     sync_query_params_from_state,
 )
 
 
 class FakeQueryParams(dict[str, str]):
-    def clear(self) -> None:  # pragma: no cover - trivial override for parity with Streamlit API
+    def clear(
+        self,
+    ) -> None:  # pragma: no cover - trivial override for parity with Streamlit API
         super().clear()
 
     def items(self):  # pragma: no cover - keeps return type predictable in tests
@@ -33,11 +35,15 @@ def clear_streamlit_state() -> Iterator[None]:
 @pytest.fixture
 def fake_query_params(monkeypatch: pytest.MonkeyPatch) -> FakeQueryParams:
     params = FakeQueryParams()
-    monkeypatch.setattr("country_compare.ui.query_state.st.query_params", params, raising=False)
+    monkeypatch.setattr(
+        "country_compare.ui.query_state.st.query_params", params, raising=False
+    )
     return params
 
 
-def test_build_compare_selection_state_from_query_params_normalizes_compare_state() -> None:
+def test_build_compare_selection_state_from_query_params_normalizes_compare_state() -> (
+    None
+):
     selection_state = build_compare_selection_state_from_query_params(
         {
             "mode": "multi_metric",
@@ -84,7 +90,9 @@ def test_build_query_params_only_emits_active_compare_mode_specific_fields() -> 
     }
 
 
-def test_build_prediction_selection_state_from_query_params_normalizes_prediction_state() -> None:
+def test_build_prediction_selection_state_from_query_params_normalizes_prediction_state() -> (
+    None
+):
     selection_state = build_prediction_selection_state_from_query_params(
         {
             "prediction_mode": "predicted_multi_metric_comparison",
@@ -148,7 +156,9 @@ def test_build_query_params_for_prediction_page_emits_prediction_fields() -> Non
     }
 
 
-def test_build_query_params_for_non_compare_or_prediction_page_only_emits_page() -> None:
+def test_build_query_params_for_non_compare_or_prediction_page_only_emits_page() -> (
+    None
+):
     params = build_query_params(
         selected_page="Overview",
         selection_state={

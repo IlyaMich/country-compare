@@ -130,13 +130,18 @@ def test_batch_prediction_accepts_moving_average() -> None:
 
     assert result.metadata["successful_series_count"] == 2
     assert result.metadata["failed_series_count"] == 0
-    assert result.forecast_df["prediction_method"].unique().tolist() == ["moving_average"]
+    assert result.forecast_df["prediction_method"].unique().tolist() == [
+        "moving_average"
+    ]
     assert result.forecast_df["value"].tolist() == pytest.approx([30.0, 16.0])
 
 
 def test_backtest_series_accepts_moving_average() -> None:
     result = backtest_series(
-        _canonical_df(country_values={"ISR": [10.0, 20.0, 30.0, 40.0, 50.0]}, years=(2019, 2020, 2021, 2022, 2023)),
+        _canonical_df(
+            country_values={"ISR": [10.0, 20.0, 30.0, 40.0, 50.0]},
+            years=(2019, 2020, 2021, 2022, 2023),
+        ),
         country_code="ISR",
         metric_id="gdp_per_capita",
         method=PredictionMethod.MOVING_AVERAGE,
@@ -144,5 +149,7 @@ def test_backtest_series_accepts_moving_average() -> None:
     )
 
     assert result.diagnostics[0].method_used == "moving_average"
-    assert result.actual_vs_predicted_df["predicted_value"].tolist() == pytest.approx([20.0, 20.0])
+    assert result.actual_vs_predicted_df["predicted_value"].tolist() == pytest.approx(
+        [20.0, 20.0]
+    )
     assert result.metrics["mae"] == pytest.approx(25.0)

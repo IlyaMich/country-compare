@@ -12,7 +12,9 @@ from country_compare.prediction import (
 )
 
 
-def _canonical_df(years=(2018, 2019, 2020, 2021, 2022), values=(10.0, 15.0, 20.0, 25.0, 30.0)) -> pd.DataFrame:
+def _canonical_df(
+    years=(2018, 2019, 2020, 2021, 2022), values=(10.0, 15.0, 20.0, 25.0, 30.0)
+) -> pd.DataFrame:
     rows = []
     for year, value in zip(years, values, strict=True):
         rows.append(
@@ -57,8 +59,12 @@ def test_backtest_series_successful_linear_trend_holdout() -> None:
     assert result.metrics["test_start_year"] == 2021
     assert result.metrics["test_end_year"] == 2022
     assert result.actual_vs_predicted_df["year"].tolist() == [2021, 2022]
-    assert result.actual_vs_predicted_df["actual_value"].tolist() == pytest.approx([25.0, 30.0])
-    assert result.actual_vs_predicted_df["predicted_value"].tolist() == pytest.approx([25.0, 30.0])
+    assert result.actual_vs_predicted_df["actual_value"].tolist() == pytest.approx(
+        [25.0, 30.0]
+    )
+    assert result.actual_vs_predicted_df["predicted_value"].tolist() == pytest.approx(
+        [25.0, 30.0]
+    )
     assert result.actual_vs_predicted_df["error"].tolist() == pytest.approx([0.0, 0.0])
     assert result.metrics["mae"] == pytest.approx(0.0)
     assert result.metrics["rmse"] == pytest.approx(0.0)
@@ -124,7 +130,9 @@ def test_backtest_series_fallback_from_linear_trend_to_last_observed() -> None:
     assert diagnostic.fallback_used is True
     assert result.metrics["method_used"] == "last_observed"
     assert result.metrics["fallback_used"] is True
-    assert result.actual_vs_predicted_df["predicted_value"].tolist() == pytest.approx([20.0, 20.0])
+    assert result.actual_vs_predicted_df["predicted_value"].tolist() == pytest.approx(
+        [20.0, 20.0]
+    )
 
 
 def test_backtest_series_does_not_mutate_original_dataframe() -> None:

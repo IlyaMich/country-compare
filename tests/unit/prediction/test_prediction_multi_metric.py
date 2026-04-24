@@ -36,11 +36,25 @@ def _canonical_df() -> pd.DataFrame:
     }
     country_names = {"ISR": "Israel", "FRA": "France"}
     metric_meta = {
-        "gdp_per_capita": ("GDP per capita", "USD", True, "economy", "https://example.com/gdp"),
-        "unemployment_pct": ("Unemployment", "pct", False, "labor", "https://example.com/unemployment"),
+        "gdp_per_capita": (
+            "GDP per capita",
+            "USD",
+            True,
+            "economy",
+            "https://example.com/gdp",
+        ),
+        "unemployment_pct": (
+            "Unemployment",
+            "pct",
+            False,
+            "labor",
+            "https://example.com/unemployment",
+        ),
     }
     for (country_code, metric_id), series in values.items():
-        metric_name, unit, higher_is_better, category, source_url = metric_meta[metric_id]
+        metric_name, unit, higher_is_better, category, source_url = metric_meta[
+            metric_id
+        ]
         for offset, value in enumerate(series):
             year = 2020 + offset
             rows.append(
@@ -111,7 +125,9 @@ def test_predict_metric_country_grid_succeeds() -> None:
     assert result.forecast_df["prediction_run_id"].nunique() == 1
 
 
-def test_partial_failure_with_fail_fast_false_records_diagnostics_and_keeps_successes() -> None:
+def test_partial_failure_with_fail_fast_false_records_diagnostics_and_keeps_successes() -> (
+    None
+):
     result = predict_single_metric_for_countries(
         _canonical_df(),
         metric_id="gdp_per_capita",
@@ -123,7 +139,9 @@ def test_partial_failure_with_fail_fast_false_records_diagnostics_and_keeps_succ
     assert result.metadata["successful_series_count"] == 2
     assert result.metadata["failed_series_count"] == 1
     assert set(result.forecast_df["country_code"].unique().tolist()) == {"ISR", "FRA"}
-    failed = [d for d in result.diagnostics if d.status == PredictionDiagnosticStatus.FAILED]
+    failed = [
+        d for d in result.diagnostics if d.status == PredictionDiagnosticStatus.FAILED
+    ]
     assert len(failed) == 1
     assert failed[0].errors[0].code == PredictionErrorCode.MISSING_COUNTRY
 
@@ -178,10 +196,17 @@ def test_batch_output_preserves_canonical_and_prediction_metadata_columns() -> N
     for column in PREDICTION_METADATA_COLUMNS:
         assert column in result.forecast_df.columns
     assert result.comparison_ready_df["row_type"].eq("predicted").all()
-    assert result.comparison_ready_df.duplicated(subset=["country_code", "metric_id", "year"]).sum() == 0
+    assert (
+        result.comparison_ready_df.duplicated(
+            subset=["country_code", "metric_id", "year"]
+        ).sum()
+        == 0
+    )
 
 
-def test_predicted_single_metric_comparison_ranks_countries_for_selected_forecast_year() -> None:
+def test_predicted_single_metric_comparison_ranks_countries_for_selected_forecast_year() -> (
+    None
+):
     result = compare_predicted_single_metric(
         _canonical_df(),
         metric_id="gdp_per_capita",
@@ -196,7 +221,9 @@ def test_predicted_single_metric_comparison_ranks_countries_for_selected_forecas
     assert result.comparison_df["rank"].tolist() == [1, 2]
 
 
-def test_predicted_single_metric_comparison_works_when_selecting_by_forecast_horizon() -> None:
+def test_predicted_single_metric_comparison_works_when_selecting_by_forecast_horizon() -> (
+    None
+):
     result = compare_predicted_single_metric(
         _canonical_df(),
         metric_id="gdp_per_capita",
@@ -226,8 +253,12 @@ def test_predicted_multi_metric_comparison_works_for_selected_forecast_year() ->
         "gdp_per_capita",
         "unemployment_pct",
     }
-    gdp_rows = result.comparison_df.loc[result.comparison_df["metric_id"].eq("gdp_per_capita")]
-    unemployment_rows = result.comparison_df.loc[result.comparison_df["metric_id"].eq("unemployment_pct")]
+    gdp_rows = result.comparison_df.loc[
+        result.comparison_df["metric_id"].eq("gdp_per_capita")
+    ]
+    unemployment_rows = result.comparison_df.loc[
+        result.comparison_df["metric_id"].eq("unemployment_pct")
+    ]
     assert gdp_rows.iloc[0]["country_code"] == "ISR"
     assert unemployment_rows.iloc[0]["country_code"] == "ISR"
 
@@ -256,11 +287,15 @@ def test_bridge_output_includes_prediction_diagnostics() -> None:
         comparison_options={"normalization_method": "minmax"},
     )
 
-    assert any(d.status == PredictionDiagnosticStatus.FAILED for d in result.diagnostics)
+    assert any(
+        d.status == PredictionDiagnosticStatus.FAILED for d in result.diagnostics
+    )
     assert result.prediction_result.metadata["failed_series_count"] == 1
 
 
-def test_compare_predicted_profile_is_straightforward_with_existing_scoring_config() -> None:
+def test_compare_predicted_profile_is_straightforward_with_existing_scoring_config() -> (
+    None
+):
     scoring_config = ScoringConfig(
         default_profile="economic_outlook",
         weight_handling=WeightHandlingStrategy.NORMALIZE,

@@ -30,7 +30,6 @@ from country_compare.ui.state import (
     set_config_editor_validation_preference,
 )
 
-
 EMPTY_OVERRIDE = "__use_default__"
 
 
@@ -64,7 +63,9 @@ def render_config_editor_view(context) -> None:
 
     action_cols = st.columns([1, 1, 1, 1])
     validate_clicked = action_cols[0].button("Validate draft", use_container_width=True)
-    save_clicked = action_cols[1].button("Save draft", type="primary", use_container_width=True)
+    save_clicked = action_cols[1].button(
+        "Save draft", type="primary", use_container_width=True
+    )
     reset_clicked = action_cols[2].button("Reset draft", use_container_width=True)
     reload_clicked = action_cols[3].button("Reload from disk", use_container_width=True)
 
@@ -99,7 +100,9 @@ def render_config_editor_view(context) -> None:
             scoring_data=draft_scoring,
             against_dataset=validate_against_dataset,
         )
-        set_config_editor_validation(validation, against_dataset=validate_against_dataset)
+        set_config_editor_validation(
+            validation, against_dataset=validate_against_dataset
+        )
         if validation.valid:
             set_config_editor_save_status(
                 "success",
@@ -118,7 +121,9 @@ def render_config_editor_view(context) -> None:
             scoring_data=draft_scoring,
             against_dataset=validate_against_dataset,
         )
-        set_config_editor_validation(validation, against_dataset=validate_against_dataset)
+        set_config_editor_validation(
+            validation, against_dataset=validate_against_dataset
+        )
         if not validation.valid:
             set_config_editor_save_status(
                 "error",
@@ -148,7 +153,9 @@ def render_config_editor_view(context) -> None:
                 error = error_from_exception(
                     exc,
                     default_title="Save failed",
-                    default_user_message="The validated configuration could not be written to disk.",
+                    default_user_message=(
+                        "The validated configuration could not be written to disk."
+                    ),
                 )
                 set_config_editor_save_status(
                     "error",
@@ -170,7 +177,10 @@ def render_config_editor_view(context) -> None:
 
 def _ensure_editor_state_loaded(config_service) -> AppError | None:
     editor_state = get_config_editor_state()
-    if editor_state.get("draft_metrics_data") is not None and editor_state.get("draft_scoring_data") is not None:
+    if (
+        editor_state.get("draft_metrics_data") is not None
+        and editor_state.get("draft_scoring_data") is not None
+    ):
         return None
     return _reload_editor_state_from_disk(config_service)
 
@@ -243,7 +253,11 @@ def _render_metrics_editor(editor_state: dict[str, Any]) -> None:
     scoring_data = deepcopy(editor_state.get("draft_scoring_data") or {"profiles": {}})
     metrics_map = metrics_data.setdefault("metrics", {})
     metric_ids = list(metrics_map.keys())
-    selected_metric_id = editor_state.get("selected_metric_id") if editor_state.get("selected_metric_id") in metric_ids else (metric_ids[0] if metric_ids else None)
+    selected_metric_id = (
+        editor_state.get("selected_metric_id")
+        if editor_state.get("selected_metric_id") in metric_ids
+        else (metric_ids[0] if metric_ids else None)
+    )
 
     control_cols = st.columns([2, 1, 1])
     if metric_ids:
@@ -267,7 +281,9 @@ def _render_metrics_editor(editor_state: dict[str, Any]) -> None:
         return
 
     delete_disabled = selected_metric_id is None
-    if control_cols[2].button("Delete metric draft", disabled=delete_disabled, use_container_width=True):
+    if control_cols[2].button(
+        "Delete metric draft", disabled=delete_disabled, use_container_width=True
+    ):
         metrics_data, scoring_data, next_metric_id = _delete_metric_from_draft(
             metrics_data=metrics_data,
             scoring_data=scoring_data,
@@ -291,7 +307,9 @@ def _render_metrics_editor(editor_state: dict[str, Any]) -> None:
             "Display name",
             value=str(metric_payload.get("display_name") or ""),
         )
-        category_input = form_col1.text_input("Category", value=str(metric_payload.get("category") or ""))
+        category_input = form_col1.text_input(
+            "Category", value=str(metric_payload.get("category") or "")
+        )
         default_weight_input = form_col2.number_input(
             "Default weight",
             min_value=0.000001,
@@ -303,14 +321,25 @@ def _render_metrics_editor(editor_state: dict[str, Any]) -> None:
             "Higher is better",
             value=bool(metric_payload.get("higher_is_better", True)),
         )
-        normalization_value = str(metric_payload.get("normalization_method") or NormalizationMethod.MINMAX.value)
+        normalization_value = str(
+            metric_payload.get("normalization_method")
+            or NormalizationMethod.MINMAX.value
+        )
         normalization_input = form_col2.selectbox(
             "Normalization method",
             options=normalization_options,
-            index=normalization_options.index(normalization_value) if normalization_value in normalization_options else 0,
+            index=(
+                normalization_options.index(normalization_value)
+                if normalization_value in normalization_options
+                else 0
+            ),
         )
-        unit_input = form_col1.text_input("Unit", value=str(metric_payload.get("unit") or ""))
-        source_input = form_col2.text_input("Source", value=str(metric_payload.get("source") or ""))
+        unit_input = form_col1.text_input(
+            "Unit", value=str(metric_payload.get("unit") or "")
+        )
+        source_input = form_col2.text_input(
+            "Source", value=str(metric_payload.get("source") or "")
+        )
         description_input = st.text_area(
             "Description",
             value=str(metric_payload.get("description") or ""),
@@ -345,7 +374,9 @@ def _render_metrics_editor(editor_state: dict[str, Any]) -> None:
                 error=error,
             )
         else:
-            set_config_editor_drafts(metrics_data=metrics_data, scoring_data=scoring_data)
+            set_config_editor_drafts(
+                metrics_data=metrics_data, scoring_data=scoring_data
+            )
             set_config_editor_selection(selected_metric_id=next_metric_id)
             set_config_editor_save_status(
                 "success",
@@ -365,39 +396,71 @@ def _render_scoring_editor(editor_state: dict[str, Any]) -> None:
     metric_ids = list((metrics_data.get("metrics") or {}).keys())
     profiles_map = scoring_data.setdefault("profiles", {})
     profile_names = list(profiles_map.keys())
-    selected_profile_name = editor_state.get("selected_profile_name") if editor_state.get("selected_profile_name") in profile_names else (profile_names[0] if profile_names else None)
+    selected_profile_name = (
+        editor_state.get("selected_profile_name")
+        if editor_state.get("selected_profile_name") in profile_names
+        else (profile_names[0] if profile_names else None)
+    )
 
     st.markdown("### Global scoring settings")
     with st.form("config_editor_scoring_defaults_form"):
         defaults_col1, defaults_col2 = st.columns(2)
         defaults_col3, defaults_col4 = st.columns(2)
-        default_profile_value = str(scoring_data.get("default_profile") or (profile_names[0] if profile_names else ""))
+        default_profile_value = str(
+            scoring_data.get("default_profile")
+            or (profile_names[0] if profile_names else "")
+        )
         default_profile_input = defaults_col1.selectbox(
             "Default profile",
             options=profile_names if profile_names else [""],
-            index=profile_names.index(default_profile_value) if profile_names and default_profile_value in profile_names else 0,
+            index=(
+                profile_names.index(default_profile_value)
+                if profile_names and default_profile_value in profile_names
+                else 0
+            ),
             disabled=not bool(profile_names),
         )
         weight_handling_options = [item.value for item in WeightHandlingStrategy]
-        weight_handling_value = str(scoring_data.get("weight_handling") or WeightHandlingStrategy.NORMALIZE.value)
+        weight_handling_value = str(
+            scoring_data.get("weight_handling")
+            or WeightHandlingStrategy.NORMALIZE.value
+        )
         weight_handling_input = defaults_col2.selectbox(
             "Weight handling",
             options=weight_handling_options,
-            index=weight_handling_options.index(weight_handling_value) if weight_handling_value in weight_handling_options else 0,
+            index=(
+                weight_handling_options.index(weight_handling_value)
+                if weight_handling_value in weight_handling_options
+                else 0
+            ),
         )
         year_strategy_options = [item.value for item in YearStrategy]
-        default_year_strategy_value = str(scoring_data.get("default_year_strategy") or YearStrategy.LATEST_PER_METRIC.value)
+        default_year_strategy_value = str(
+            scoring_data.get("default_year_strategy")
+            or YearStrategy.LATEST_PER_METRIC.value
+        )
         default_year_strategy_input = defaults_col3.selectbox(
             "Default year strategy",
             options=year_strategy_options,
-            index=year_strategy_options.index(default_year_strategy_value) if default_year_strategy_value in year_strategy_options else 0,
+            index=(
+                year_strategy_options.index(default_year_strategy_value)
+                if default_year_strategy_value in year_strategy_options
+                else 0
+            ),
         )
         missing_policy_options = [item.value for item in MissingDataPolicy]
-        default_missing_policy_value = str(scoring_data.get("default_missing_data_policy") or MissingDataPolicy.RENORMALIZE_WEIGHTS.value)
+        default_missing_policy_value = str(
+            scoring_data.get("default_missing_data_policy")
+            or MissingDataPolicy.RENORMALIZE_WEIGHTS.value
+        )
         default_missing_policy_input = defaults_col4.selectbox(
             "Default missing-data policy",
             options=missing_policy_options,
-            index=missing_policy_options.index(default_missing_policy_value) if default_missing_policy_value in missing_policy_options else 0,
+            index=(
+                missing_policy_options.index(default_missing_policy_value)
+                if default_missing_policy_value in missing_policy_options
+                else 0
+            ),
         )
         defaults_submitted = st.form_submit_button("Apply scoring defaults")
 
@@ -439,7 +502,9 @@ def _render_scoring_editor(editor_state: dict[str, Any]) -> None:
         return
 
     delete_disabled = selected_profile_name is None
-    if control_cols[2].button("Delete profile draft", disabled=delete_disabled, use_container_width=True):
+    if control_cols[2].button(
+        "Delete profile draft", disabled=delete_disabled, use_container_width=True
+    ):
         scoring_data, next_profile_name = _delete_profile_from_draft(
             scoring_data=scoring_data,
             profile_name=selected_profile_name,
@@ -453,17 +518,29 @@ def _render_scoring_editor(editor_state: dict[str, Any]) -> None:
         return
 
     profile_payload = deepcopy(profiles_map[selected_profile_name])
-    selected_metrics = [metric_id for metric_id in profile_payload.get("metrics", []) if metric_id in metric_ids]
+    selected_metrics = [
+        metric_id
+        for metric_id in profile_payload.get("metrics", [])
+        if metric_id in metric_ids
+    ]
     weights = dict(profile_payload.get("weights") or {})
     normalization_overrides = dict(profile_payload.get("normalization_overrides") or {})
 
     override_year_options = [EMPTY_OVERRIDE, *[item.value for item in YearStrategy]]
-    override_missing_options = [EMPTY_OVERRIDE, *[item.value for item in MissingDataPolicy]]
-    override_norm_options = [EMPTY_OVERRIDE, *[item.value for item in NormalizationMethod]]
+    override_missing_options = [
+        EMPTY_OVERRIDE,
+        *[item.value for item in MissingDataPolicy],
+    ]
+    override_norm_options = [
+        EMPTY_OVERRIDE,
+        *[item.value for item in NormalizationMethod],
+    ]
 
     with st.form(key=f"config_editor_profile_form::{selected_profile_name}"):
         form_col1, form_col2 = st.columns(2)
-        profile_name_input = form_col1.text_input("Profile name", value=selected_profile_name)
+        profile_name_input = form_col1.text_input(
+            "Profile name", value=selected_profile_name
+        )
         description_input = form_col2.text_input(
             "Description",
             value=str(profile_payload.get("description") or ""),
@@ -478,15 +555,29 @@ def _render_scoring_editor(editor_state: dict[str, Any]) -> None:
         profile_year_input = form_col1.selectbox(
             "Year strategy override",
             options=override_year_options,
-            index=override_year_options.index(profile_year_value) if profile_year_value in override_year_options else 0,
-            format_func=lambda value: "Use scoring default" if value == EMPTY_OVERRIDE else value,
+            index=(
+                override_year_options.index(profile_year_value)
+                if profile_year_value in override_year_options
+                else 0
+            ),
+            format_func=lambda value: (
+                "Use scoring default" if value == EMPTY_OVERRIDE else value
+            ),
         )
-        profile_missing_value = str(profile_payload.get("missing_data_policy") or EMPTY_OVERRIDE)
+        profile_missing_value = str(
+            profile_payload.get("missing_data_policy") or EMPTY_OVERRIDE
+        )
         profile_missing_input = form_col2.selectbox(
             "Missing-data policy override",
             options=override_missing_options,
-            index=override_missing_options.index(profile_missing_value) if profile_missing_value in override_missing_options else 0,
-            format_func=lambda value: "Use scoring default" if value == EMPTY_OVERRIDE else value,
+            index=(
+                override_missing_options.index(profile_missing_value)
+                if profile_missing_value in override_missing_options
+                else 0
+            ),
+            format_func=lambda value: (
+                "Use scoring default" if value == EMPTY_OVERRIDE else value
+            ),
         )
 
         st.markdown("#### Per-metric overrides")
@@ -510,12 +601,20 @@ def _render_scoring_editor(editor_state: dict[str, Any]) -> None:
                     disabled=not weight_enabled,
                     key=f"profile_weight_value::{selected_profile_name}::{metric_id}",
                 )
-                norm_value = str(normalization_overrides.get(metric_id) or EMPTY_OVERRIDE)
+                norm_value = str(
+                    normalization_overrides.get(metric_id) or EMPTY_OVERRIDE
+                )
                 normalization_value = metric_cols[3].selectbox(
                     f"Normalization for {metric_id}",
                     options=override_norm_options,
-                    index=override_norm_options.index(norm_value) if norm_value in override_norm_options else 0,
-                    format_func=lambda value: "Use metric default" if value == EMPTY_OVERRIDE else value,
+                    index=(
+                        override_norm_options.index(norm_value)
+                        if norm_value in override_norm_options
+                        else 0
+                    ),
+                    format_func=lambda value: (
+                        "Use metric default" if value == EMPTY_OVERRIDE else value
+                    ),
                     key=f"profile_norm_value::{selected_profile_name}::{metric_id}",
                 )
                 if weight_enabled:
@@ -551,7 +650,9 @@ def _render_scoring_editor(editor_state: dict[str, Any]) -> None:
                 error=error,
             )
         else:
-            set_config_editor_drafts(metrics_data=metrics_data, scoring_data=scoring_data)
+            set_config_editor_drafts(
+                metrics_data=metrics_data, scoring_data=scoring_data
+            )
             set_config_editor_selection(selected_profile_name=next_profile_name)
             set_config_editor_save_status(
                 "success",
@@ -649,31 +750,55 @@ def _apply_metric_changes(
 ) -> tuple[dict[str, Any], dict[str, Any], str, AppError | None]:
     resolved_metric_id = str(new_metric_id).strip()
     if not resolved_metric_id:
-        return metrics_data, scoring_data, current_metric_id, AppError(
-            code="input_invalid",
-            title="Metric ID is required",
-            user_message="Metric ID cannot be blank.",
-            field_errors={"metric_id": "Metric ID cannot be blank."},
+        return (
+            metrics_data,
+            scoring_data,
+            current_metric_id,
+            AppError(
+                code="input_invalid",
+                title="Metric ID is required",
+                user_message="Metric ID cannot be blank.",
+                field_errors={"metric_id": "Metric ID cannot be blank."},
+            ),
         )
     if " " in resolved_metric_id:
-        return metrics_data, scoring_data, current_metric_id, AppError(
-            code="input_invalid",
-            title="Metric ID is invalid",
-            user_message="Metric ID must not contain spaces.",
-            field_errors={"metric_id": "Use underscores or another space-free identifier."},
+        return (
+            metrics_data,
+            scoring_data,
+            current_metric_id,
+            AppError(
+                code="input_invalid",
+                title="Metric ID is invalid",
+                user_message="Metric ID must not contain spaces.",
+                field_errors={
+                    "metric_id": "Use underscores or another space-free identifier."
+                },
+            ),
         )
     existing_metrics = metrics_data.setdefault("metrics", {})
-    if resolved_metric_id != current_metric_id and resolved_metric_id in existing_metrics:
-        return metrics_data, scoring_data, current_metric_id, AppError(
-            code="input_invalid",
-            title="Metric ID already exists",
-            user_message="Choose a different metric ID.",
-            field_errors={"metric_id": f"'{resolved_metric_id}' is already used by another metric."},
+    if (
+        resolved_metric_id != current_metric_id
+        and resolved_metric_id in existing_metrics
+    ):
+        return (
+            metrics_data,
+            scoring_data,
+            current_metric_id,
+            AppError(
+                code="input_invalid",
+                title="Metric ID already exists",
+                user_message="Choose a different metric ID.",
+                field_errors={
+                    "metric_id": f"'{resolved_metric_id}' is already used by another metric."
+                },
+            ),
         )
 
     updated_metrics = deepcopy(metrics_data)
     updated_scoring = deepcopy(scoring_data)
-    updated_metrics.setdefault("metrics", {})[resolved_metric_id] = deepcopy(updated_metric)
+    updated_metrics.setdefault("metrics", {})[resolved_metric_id] = deepcopy(
+        updated_metric
+    )
     if resolved_metric_id != current_metric_id:
         updated_metrics["metrics"].pop(current_metric_id, None)
         updated_scoring = _rename_metric_references(
@@ -692,7 +817,10 @@ def _rename_metric_references(
 ) -> dict[str, Any]:
     updated = deepcopy(scoring_data)
     for profile_payload in (updated.get("profiles") or {}).values():
-        metrics = [new_metric_id if metric_id == old_metric_id else metric_id for metric_id in profile_payload.get("metrics", [])]
+        metrics = [
+            new_metric_id if metric_id == old_metric_id else metric_id
+            for metric_id in profile_payload.get("metrics", [])
+        ]
         profile_payload["metrics"] = metrics
 
         weights = dict(profile_payload.get("weights") or {})
@@ -700,9 +828,13 @@ def _rename_metric_references(
             weights[new_metric_id] = weights.pop(old_metric_id)
         profile_payload["weights"] = weights
 
-        normalization_overrides = dict(profile_payload.get("normalization_overrides") or {})
+        normalization_overrides = dict(
+            profile_payload.get("normalization_overrides") or {}
+        )
         if old_metric_id in normalization_overrides:
-            normalization_overrides[new_metric_id] = normalization_overrides.pop(old_metric_id)
+            normalization_overrides[new_metric_id] = normalization_overrides.pop(
+                old_metric_id
+            )
         profile_payload["normalization_overrides"] = normalization_overrides
     return updated
 
@@ -719,11 +851,19 @@ def _delete_metric_from_draft(
     metrics_map.pop(metric_id, None)
 
     for profile_payload in (updated_scoring.get("profiles") or {}).values():
-        profile_payload["metrics"] = [value for value in profile_payload.get("metrics", []) if value != metric_id]
-        profile_payload["weights"] = {key: value for key, value in (profile_payload.get("weights") or {}).items() if key != metric_id}
+        profile_payload["metrics"] = [
+            value for value in profile_payload.get("metrics", []) if value != metric_id
+        ]
+        profile_payload["weights"] = {
+            key: value
+            for key, value in (profile_payload.get("weights") or {}).items()
+            if key != metric_id
+        }
         profile_payload["normalization_overrides"] = {
             key: value
-            for key, value in (profile_payload.get("normalization_overrides") or {}).items()
+            for key, value in (
+                profile_payload.get("normalization_overrides") or {}
+            ).items()
             if key != metric_id
         }
 
@@ -740,21 +880,34 @@ def _apply_profile_changes(
 ) -> tuple[dict[str, Any], str, AppError | None]:
     resolved_profile_name = str(new_profile_name).strip()
     if not resolved_profile_name:
-        return scoring_data, current_profile_name, AppError(
-            code="input_invalid",
-            title="Profile name is required",
-            user_message="Profile name cannot be blank.",
-            field_errors={"profile_name": "Profile name cannot be blank."},
+        return (
+            scoring_data,
+            current_profile_name,
+            AppError(
+                code="input_invalid",
+                title="Profile name is required",
+                user_message="Profile name cannot be blank.",
+                field_errors={"profile_name": "Profile name cannot be blank."},
+            ),
         )
 
     updated = deepcopy(scoring_data)
     profiles = updated.setdefault("profiles", {})
-    if resolved_profile_name != current_profile_name and resolved_profile_name in profiles:
-        return scoring_data, current_profile_name, AppError(
-            code="input_invalid",
-            title="Profile already exists",
-            user_message="Choose a different profile name.",
-            field_errors={"profile_name": f"'{resolved_profile_name}' is already used by another profile."},
+    if (
+        resolved_profile_name != current_profile_name
+        and resolved_profile_name in profiles
+    ):
+        return (
+            scoring_data,
+            current_profile_name,
+            AppError(
+                code="input_invalid",
+                title="Profile already exists",
+                user_message="Choose a different profile name.",
+                field_errors={
+                    "profile_name": f"'{resolved_profile_name}' is already used by another profile."
+                },
+            ),
         )
 
     profiles[resolved_profile_name] = deepcopy(updated_profile)

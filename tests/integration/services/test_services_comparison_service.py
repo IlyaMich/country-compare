@@ -61,7 +61,9 @@ class StubComparisonService(ComparisonService):
             (dataframe["country_code"].isin(request.countries))
             & (dataframe["metric_id"].isin(request.metric_ids))
         ].copy()
-        result = result.sort_values(["metric_id", "country_code"]).reset_index(drop=True)
+        result = result.sort_values(["metric_id", "country_code"]).reset_index(
+            drop=True
+        )
         result["normalized_value"] = [0.8, 1.0, 1.0, 0.7]
         result["normalization_method"] = "minmax"
         result["rank"] = [2, 1, 1, 2]
@@ -297,7 +299,9 @@ def test_run_weighted_score_returns_successful_result() -> None:
     assert any("missing metrics" in warning.lower() for warning in result.warnings)
 
 
-def test_run_weighted_score_requires_target_year_when_profile_uses_target_year() -> None:
+def test_run_weighted_score_requires_target_year_when_profile_uses_target_year() -> (
+    None
+):
     service = StubComparisonService(_dataframe(), _bundle())
     request = WeightedScoreRequest(
         countries=["ISR", "DEU"],

@@ -130,7 +130,9 @@ def rank_metric(
             f"dataframe must contain '{normalized_value_column}' before ranking"
         )
 
-    missing_tiebreaks = [column for column in tie_break_columns if column not in dataframe.columns]
+    missing_tiebreaks = [
+        column for column in tie_break_columns if column not in dataframe.columns
+    ]
     if missing_tiebreaks:
         raise ComparisonError(
             "dataframe is missing required tie-break columns for deterministic "

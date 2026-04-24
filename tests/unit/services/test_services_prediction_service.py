@@ -47,12 +47,26 @@ def _canonical_df() -> pd.DataFrame:
     }
     country_names = {"ISR": "Israel", "FRA": "France"}
     metric_meta = {
-        "gdp_per_capita": ("GDP per capita", "USD", True, "economy", "https://example.com/gdp"),
-        "unemployment_pct": ("Unemployment", "pct", False, "labor", "https://example.com/unemployment"),
+        "gdp_per_capita": (
+            "GDP per capita",
+            "USD",
+            True,
+            "economy",
+            "https://example.com/gdp",
+        ),
+        "unemployment_pct": (
+            "Unemployment",
+            "pct",
+            False,
+            "labor",
+            "https://example.com/unemployment",
+        ),
     }
 
     for (country_code, metric_id), series in values.items():
-        metric_name, unit, higher_is_better, category, source_url = metric_meta[metric_id]
+        metric_name, unit, higher_is_better, category, source_url = metric_meta[
+            metric_id
+        ]
         for offset, value in enumerate(series):
             rows.append(
                 {
@@ -112,7 +126,9 @@ def test_service_single_series_prediction_returns_expected_output() -> None:
     assert result.ok
     assert result.error is None
     assert result.prediction_result is not None
-    assert result.prediction_result.forecast_df["value"].tolist() == pytest.approx([30.0, 30.0])
+    assert result.prediction_result.forecast_df["value"].tolist() == pytest.approx(
+        [30.0, 30.0]
+    )
     assert result.summary["forecast"]["row_count"] == 2
     assert result.summary["forecast_years"] == [2024, 2025]
 
@@ -161,11 +177,15 @@ def test_predicted_single_metric_comparison_injects_bundle_configs(
     )
     captured: dict[str, object] = {}
 
-    def fake_compare_predicted_single_metric(dataframe: pd.DataFrame, **kwargs: object) -> object:
+    def fake_compare_predicted_single_metric(
+        dataframe: pd.DataFrame, **kwargs: object
+    ) -> object:
         captured["comparison_options"] = kwargs["comparison_options"]
         return object()
 
-    def fake_run_predicted_comparison_result(*, mode: str, request: object, executor: object) -> str:
+    def fake_run_predicted_comparison_result(
+        *, mode: str, request: object, executor: object
+    ) -> str:
         captured["mode"] = mode
         captured["request"] = request
         executor(pd.DataFrame())
@@ -175,7 +195,11 @@ def test_predicted_single_metric_comparison_injects_bundle_configs(
         "country_compare.services.prediction_service.compare_predicted_single_metric",
         fake_compare_predicted_single_metric,
     )
-    monkeypatch.setattr(service, "_run_predicted_comparison_result", fake_run_predicted_comparison_result)
+    monkeypatch.setattr(
+        service,
+        "_run_predicted_comparison_result",
+        fake_run_predicted_comparison_result,
+    )
 
     result = service.run_predicted_single_metric_comparison(
         metric_id="gdp_per_capita",
@@ -216,11 +240,15 @@ def test_predicted_multi_metric_comparison_injects_bundle_configs(
     )
     captured: dict[str, object] = {}
 
-    def fake_compare_predicted_multi_metric(dataframe: pd.DataFrame, **kwargs: object) -> object:
+    def fake_compare_predicted_multi_metric(
+        dataframe: pd.DataFrame, **kwargs: object
+    ) -> object:
         captured["comparison_options"] = kwargs["comparison_options"]
         return object()
 
-    def fake_run_predicted_comparison_result(*, mode: str, request: object, executor: object) -> str:
+    def fake_run_predicted_comparison_result(
+        *, mode: str, request: object, executor: object
+    ) -> str:
         captured["mode"] = mode
         captured["request"] = request
         executor(pd.DataFrame())
@@ -230,7 +258,11 @@ def test_predicted_multi_metric_comparison_injects_bundle_configs(
         "country_compare.services.prediction_service.compare_predicted_multi_metric",
         fake_compare_predicted_multi_metric,
     )
-    monkeypatch.setattr(service, "_run_predicted_comparison_result", fake_run_predicted_comparison_result)
+    monkeypatch.setattr(
+        service,
+        "_run_predicted_comparison_result",
+        fake_run_predicted_comparison_result,
+    )
 
     result = service.run_predicted_multi_metric_comparison(
         metric_ids=["gdp_per_capita", "life_expectancy"],
@@ -272,12 +304,16 @@ def test_predicted_profile_comparison_injects_bundle_configs_and_profile_name(
     )
     captured: dict[str, object] = {}
 
-    def fake_compare_predicted_profile(dataframe: pd.DataFrame, **kwargs: object) -> object:
+    def fake_compare_predicted_profile(
+        dataframe: pd.DataFrame, **kwargs: object
+    ) -> object:
         captured["comparison_options"] = kwargs["comparison_options"]
         captured["scoring_config"] = kwargs["scoring_config"]
         return object()
 
-    def fake_run_predicted_comparison_result(*, mode: str, request: object, executor: object) -> str:
+    def fake_run_predicted_comparison_result(
+        *, mode: str, request: object, executor: object
+    ) -> str:
         captured["mode"] = mode
         captured["request"] = request
         executor(pd.DataFrame())
@@ -287,7 +323,11 @@ def test_predicted_profile_comparison_injects_bundle_configs_and_profile_name(
         "country_compare.services.prediction_service.compare_predicted_profile",
         fake_compare_predicted_profile,
     )
-    monkeypatch.setattr(service, "_run_predicted_comparison_result", fake_run_predicted_comparison_result)
+    monkeypatch.setattr(
+        service,
+        "_run_predicted_comparison_result",
+        fake_run_predicted_comparison_result,
+    )
 
     result = service.run_predicted_profile_comparison(
         profile_name="default_profile",
@@ -378,7 +418,9 @@ def test_prediction_result_summary_does_not_mutate_dataframes() -> None:
     assert summary["forecast"]["row_count"] == 1
     pd.testing.assert_frame_equal(prediction_result.forecast_df, forecast_before)
     pd.testing.assert_frame_equal(prediction_result.combined_df, combined_before)
-    pd.testing.assert_frame_equal(prediction_result.comparison_ready_df, comparison_before)
+    pd.testing.assert_frame_equal(
+        prediction_result.comparison_ready_df, comparison_before
+    )
 
 
 def test_prediction_exception_translation_preserves_structured_fields() -> None:
@@ -419,8 +461,8 @@ def test_service_returns_app_error_for_prediction_failure() -> None:
 
 
 def test_prediction_service_does_not_import_ui_or_rendering_dependencies() -> None:
-    import country_compare.services.prediction_service as prediction_service_module
     import country_compare.prediction.summaries as summaries_module
+    import country_compare.services.prediction_service as prediction_service_module
 
     service_source = inspect.getsource(prediction_service_module)
     summaries_source = inspect.getsource(summaries_module)

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal, Mapping
+from typing import Any, Literal
 
 import pandas as pd
 
-Severity = Literal['warning', 'error']
+Severity = Literal["warning", "error"]
 
 
 def _normalize_tuple(values: Any) -> tuple[str, ...]:
@@ -94,26 +95,50 @@ class SourceSpec:
         self.path = Path(self.path) if self.path is not None else None
         self.glob = str(self.glob).strip() or None if self.glob is not None else None
 
-        self.remote_url = str(self.remote_url).strip() or None if self.remote_url is not None else None
+        self.remote_url = (
+            str(self.remote_url).strip() or None
+            if self.remote_url is not None
+            else None
+        )
         self.download_filename = (
             str(self.download_filename).strip() or None
             if self.download_filename is not None
             else None
         )
 
-        self.format_hint = str(self.format_hint).strip() or None if self.format_hint is not None else None
+        self.format_hint = (
+            str(self.format_hint).strip() or None
+            if self.format_hint is not None
+            else None
+        )
 
-        self.source_name = str(self.source_name).strip() or None if self.source_name is not None else None
-        self.source_url = str(self.source_url).strip() or None if self.source_url is not None else None
+        self.source_name = (
+            str(self.source_name).strip() or None
+            if self.source_name is not None
+            else None
+        )
+        self.source_url = (
+            str(self.source_url).strip() or None
+            if self.source_url is not None
+            else None
+        )
         self.dataset_version = (
             str(self.dataset_version).strip() or None
             if self.dataset_version is not None
             else None
         )
-        self.metric_id = str(self.metric_id).strip() or None if self.metric_id is not None else None
-        self.metric_name = str(self.metric_name).strip() or None if self.metric_name is not None else None
+        self.metric_id = (
+            str(self.metric_id).strip() or None if self.metric_id is not None else None
+        )
+        self.metric_name = (
+            str(self.metric_name).strip() or None
+            if self.metric_name is not None
+            else None
+        )
         self.unit = str(self.unit).strip() or None if self.unit is not None else None
-        self.category = str(self.category).strip() or None if self.category is not None else None
+        self.category = (
+            str(self.category).strip() or None if self.category is not None else None
+        )
 
         self.country_name_column = (
             str(self.country_name_column).strip() or None
@@ -141,13 +166,13 @@ class SourceSpec:
 
         if self.year_columns is not None:
             self.year_columns = [
-                str(value).strip()
-                for value in self.year_columns
-                if str(value).strip()
+                str(value).strip() for value in self.year_columns if str(value).strip()
             ]
 
         if self.expected_indicator_code is not None:
-            self.expected_indicator_code = str(self.expected_indicator_code).strip() or None
+            self.expected_indicator_code = (
+                str(self.expected_indicator_code).strip() or None
+            )
 
         if self.allowed_country_codes is not None:
             self.allowed_country_codes = [
@@ -285,11 +310,15 @@ class SourceProcessingResult:
 
     @property
     def warning_count(self) -> int:
-        return len(self.warnings) + sum(1 for issue in self.issues if issue.severity == 'warning')
+        return len(self.warnings) + sum(
+            1 for issue in self.issues if issue.severity == "warning"
+        )
 
     @property
     def error_count(self) -> int:
-        return (1 if self.error else 0) + sum(1 for issue in self.issues if issue.severity == 'error')
+        return (1 if self.error else 0) + sum(
+            1 for issue in self.issues if issue.severity == "error"
+        )
 
 
 @dataclass(slots=True)
@@ -356,7 +385,19 @@ class ProcessingResult:
 
     @property
     def ok(self) -> bool:
-        validation_ok = self.validation_report.ok if self.validation_report is not None else False
-        publication_ok = True if self.publication_report is None or not self.publication_report.attempted else self.publication_report.ok
+        validation_ok = (
+            self.validation_report.ok if self.validation_report is not None else False
+        )
+        publication_ok = (
+            True
+            if self.publication_report is None or not self.publication_report.attempted
+            else self.publication_report.ok
+        )
         merge_ok = True if self.merge_report is None else self.merge_report.ok
-        return self.error is None and self.canonical_dataframe is not None and validation_ok and publication_ok and merge_ok
+        return (
+            self.error is None
+            and self.canonical_dataframe is not None
+            and validation_ok
+            and publication_ok
+            and merge_ok
+        )

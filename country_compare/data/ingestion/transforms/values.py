@@ -5,7 +5,6 @@ from typing import Any
 
 import pandas as pd
 
-
 _YEAR_LABEL_PATTERN = re.compile(r"^(?P<year>19\d{2}|20\d{2}|2100)$")
 
 

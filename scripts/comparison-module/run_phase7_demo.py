@@ -1,5 +1,9 @@
 from country_compare.comparison.single_metric import compare_metric
-from country_compare.config.models import MetricConfig, MetricsConfig, NormalizationMethod
+from country_compare.config.models import (
+    MetricConfig,
+    MetricsConfig,
+    NormalizationMethod,
+)
 from country_compare.data.examples import build_example_metric_dataframe
 
 
@@ -48,4 +52,14 @@ if __name__ == "__main__":
         metrics_config=build_metrics_config(),
     )
     print("Config-driven normalization:")
-    print(config_driven[["country_code", "value", "normalization_method", "normalized_value", "rank"]])
+    print(
+        config_driven[
+            [
+                "country_code",
+                "value",
+                "normalization_method",
+                "normalized_value",
+                "rank",
+            ]
+        ]
+    )

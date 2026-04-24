@@ -28,11 +28,25 @@ def _canonical_df() -> pd.DataFrame:
     }
     country_names = {"ISR": "Israel", "FRA": "France"}
     metric_meta = {
-        "gdp_per_capita": ("GDP per capita", "USD", True, "economy", "https://example.com/gdp"),
-        "unemployment_pct": ("Unemployment", "pct", False, "labor", "https://example.com/unemployment"),
+        "gdp_per_capita": (
+            "GDP per capita",
+            "USD",
+            True,
+            "economy",
+            "https://example.com/gdp",
+        ),
+        "unemployment_pct": (
+            "Unemployment",
+            "pct",
+            False,
+            "labor",
+            "https://example.com/unemployment",
+        ),
     }
     for (country_code, metric_id), series in values.items():
-        metric_name, unit, higher_is_better, category, source_url = metric_meta[metric_id]
+        metric_name, unit, higher_is_better, category, source_url = metric_meta[
+            metric_id
+        ]
         for offset, value in enumerate(series):
             rows.append(
                 {
@@ -138,7 +152,12 @@ def test_actual_vs_predicted_dataframe_uses_shared_overlay_label() -> None:
     overlay_df = build_actual_vs_predicted_dataframe(result)
 
     assert overlay_df["series_label"].unique().tolist() == ["Israel"]
-    assert overlay_df["row_type"].tolist() == ["actual", "actual", "actual", "predicted"]
+    assert overlay_df["row_type"].tolist() == [
+        "actual",
+        "actual",
+        "actual",
+        "predicted",
+    ]
 
 
 def test_forecast_table_dataframe_renames_forecast_year_and_predicted_value() -> None:
@@ -151,13 +170,19 @@ def test_forecast_table_dataframe_renames_forecast_year_and_predicted_value() ->
 
     table_df = build_forecast_table_dataframe(result)
 
-    assert list(table_df.columns[: len(FORECAST_TABLE_COLUMNS)]) == list(FORECAST_TABLE_COLUMNS)
+    assert list(table_df.columns[: len(FORECAST_TABLE_COLUMNS)]) == list(
+        FORECAST_TABLE_COLUMNS
+    )
     assert "forecast_year" in table_df.columns
     assert "predicted_value" in table_df.columns
-    assert "year" in table_df.columns  # preserved as an extra source column for traceability
+    assert (
+        "year" in table_df.columns
+    )  # preserved as an extra source column for traceability
     assert table_df["row_type"].eq("predicted").all()
     assert table_df["forecast_year"].tolist() == [2023, 2024, 2023, 2024]
-    assert table_df["predicted_value"].tolist() == pytest.approx([40.0, 50.0, 25.0, 30.0])
+    assert table_df["predicted_value"].tolist() == pytest.approx(
+        [40.0, 50.0, 25.0, 30.0]
+    )
     assert table_df["forecast_horizon"].tolist() == [1, 2, 1, 2]
 
 
@@ -178,4 +203,6 @@ def test_visualization_helpers_handle_empty_successful_output_shape() -> None:
     assert chart_df.empty
     assert table_df.empty
     assert list(chart_df.columns[: len(LINE_CHART_COLUMNS)]) == list(LINE_CHART_COLUMNS)
-    assert list(table_df.columns[: len(FORECAST_TABLE_COLUMNS)]) == list(FORECAST_TABLE_COLUMNS)
+    assert list(table_df.columns[: len(FORECAST_TABLE_COLUMNS)]) == list(
+        FORECAST_TABLE_COLUMNS
+    )

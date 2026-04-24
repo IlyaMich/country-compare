@@ -189,25 +189,35 @@ def render_multi_metric_selector(
     return [str(metric_id).strip() for metric_id in selected]
 
 
-def get_prediction_method_options(methods: Sequence[Any]) -> tuple[list[str], dict[str, str]]:
+def get_prediction_method_options(
+    methods: Sequence[Any],
+) -> tuple[list[str], dict[str, str]]:
     options: list[str] = []
     labels: dict[str, str] = {}
 
     for item in methods:
         if isinstance(item, dict):
             method_id = str(item.get("method_id") or item.get("id") or "").strip()
-            display_name = str(item.get("display_name") or item.get("name") or method_id).strip()
+            display_name = str(
+                item.get("display_name") or item.get("name") or method_id
+            ).strip()
             description = str(item.get("description") or "").strip()
         else:
             method_id = str(getattr(item, "method_id", getattr(item, "id", ""))).strip()
-            display_name = str(getattr(item, "display_name", getattr(item, "name", method_id))).strip()
+            display_name = str(
+                getattr(item, "display_name", getattr(item, "name", method_id))
+            ).strip()
             description = str(getattr(item, "description", "") or "").strip()
 
         if not method_id:
             continue
 
         options.append(method_id)
-        labels[method_id] = f"{display_name} — {description}" if description else display_name or method_id
+        labels[method_id] = (
+            f"{display_name} — {description}"
+            if description
+            else display_name or method_id
+        )
 
     return list(dict.fromkeys(options)), labels
 
@@ -281,7 +291,9 @@ def render_profile_selector(
     return str(selected).strip() if selected is not None else ""
 
 
-def _resolve_country_options(countries: Sequence[Any]) -> tuple[list[str], dict[str, str]]:
+def _resolve_country_options(
+    countries: Sequence[Any],
+) -> tuple[list[str], dict[str, str]]:
     options: list[str] = []
     labels: dict[str, str] = {}
 
@@ -290,10 +302,10 @@ def _resolve_country_options(countries: Sequence[Any]) -> tuple[list[str], dict[
             code = str(item.get("country_code") or item.get("code") or "").upper()
             name = str(item.get("country_name") or item.get("name") or code)
         elif hasattr(item, "country_code"):
-            code = str(getattr(item, "country_code")).upper()
+            code = str(item.country_code).upper()
             name = str(getattr(item, "country_name", code))
         elif hasattr(item, "code"):
-            code = str(getattr(item, "code")).upper()
+            code = str(item.code).upper()
             name = str(getattr(item, "name", code))
         else:
             code = str(item).upper()
@@ -315,7 +327,9 @@ def _resolve_metric_options(metrics: Sequence[Any]) -> tuple[list[str], dict[str
     for item in metrics:
         if isinstance(item, dict):
             metric_id = str(item.get("metric_id") or item.get("id") or "").strip()
-            display_name = str(item.get("display_name") or item.get("metric_name") or metric_id).strip()
+            display_name = str(
+                item.get("display_name") or item.get("metric_name") or metric_id
+            ).strip()
         elif hasattr(item, "metric_id"):
             metric_id = str(getattr(item, "metric_id", "")).strip()
             display_name = str(getattr(item, "display_name", metric_id)).strip()
@@ -329,7 +343,9 @@ def _resolve_metric_options(metrics: Sequence[Any]) -> tuple[list[str], dict[str
         if not metric_id:
             continue
 
-        labels[metric_id] = f"{display_name} ({metric_id})" if display_name != metric_id else metric_id
+        labels[metric_id] = (
+            f"{display_name} ({metric_id})" if display_name != metric_id else metric_id
+        )
         options.append(metric_id)
 
     return list(dict.fromkeys(options)), labels

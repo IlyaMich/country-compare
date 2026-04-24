@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import pandas as pd
 
-from country_compare.ui.components.prediction_result_panels import build_streamlit_line_chart_table
+from country_compare.ui.components.prediction_result_panels import (
+    build_streamlit_line_chart_table,
+)
 
 
 def test_build_streamlit_line_chart_table_pivots_long_dataframe() -> None:

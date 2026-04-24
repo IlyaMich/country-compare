@@ -5,7 +5,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from country_compare.data.ingestion.adapters.wide_year_metric_csv import WideYearMetricCsvAdapter
+from country_compare.data.ingestion.adapters.wide_year_metric_csv import (
+    WideYearMetricCsvAdapter,
+)
 from country_compare.pipelines.acquisition.directory import DirectoryRawAcquirer
 from country_compare.pipelines.models import SourceSpec
 
@@ -37,8 +39,12 @@ def test_adapter_transforms_wide_csv_to_canonical(tmp_path: Path) -> None:
     path = tmp_path / "wide.csv"
     raw.to_csv(path, index=False)
 
-    asset = DirectoryRawAcquirer().acquire(_make_source(path.name), raw_root=tmp_path)[0]
-    result = WideYearMetricCsvAdapter().process([asset], source_spec=_make_source(path.name))
+    asset = DirectoryRawAcquirer().acquire(_make_source(path.name), raw_root=tmp_path)[
+        0
+    ]
+    result = WideYearMetricCsvAdapter().process(
+        [asset], source_spec=_make_source(path.name)
+    )
 
     assert len(result.dataframe.index) == 4
     assert list(result.dataframe.columns[:5]) == [
@@ -75,7 +81,9 @@ def test_adapter_drops_bad_rows_and_captures_issues(tmp_path: Path) -> None:
     assert "blank_country_row_dropped" in issue_codes
 
 
-def test_adapter_fails_when_required_country_columns_are_missing(tmp_path: Path) -> None:
+def test_adapter_fails_when_required_country_columns_are_missing(
+    tmp_path: Path,
+) -> None:
     raw = pd.DataFrame({"Country Name": ["Israel"], "2023": [54000]})
     path = tmp_path / "wide_missing.csv"
     raw.to_csv(path, index=False)

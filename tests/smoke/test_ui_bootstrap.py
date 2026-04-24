@@ -1,5 +1,9 @@
 from country_compare.services.prediction_service import PredictionService
-from country_compare.ui.bootstrap import build_app_context, get_ui_services, refresh_cached_services
+from country_compare.ui.bootstrap import (
+    build_app_context,
+    get_ui_services,
+    refresh_cached_services,
+)
 
 
 def test_ui_services_include_prediction_service() -> None:

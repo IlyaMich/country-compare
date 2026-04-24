@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pandas as pd
 
+from country_compare.data.ingestion.registry import has_source_adapter
 from country_compare.pipelines.engine import PipelineEngine
 from country_compare.pipelines.models import ProcessingRequest, SourceSpec
-from country_compare.data.ingestion.registry import has_source_adapter
 
 
 def _write_world_bank_csv(path: Path, dataframe: pd.DataFrame) -> None:
@@ -26,7 +26,9 @@ def test_world_bank_indicator_csv_is_registered() -> None:
     assert has_source_adapter("world_bank_indicator_csv") is True
 
 
-def test_world_bank_indicator_csv_filters_aggregate_rows_before_melt(tmp_path: Path) -> None:
+def test_world_bank_indicator_csv_filters_aggregate_rows_before_melt(
+    tmp_path: Path,
+) -> None:
     raw = pd.DataFrame(
         {
             "Country Name": ["World", "Israel"],
@@ -67,11 +69,16 @@ def test_world_bank_indicator_csv_filters_aggregate_rows_before_melt(tmp_path: P
     assert set(result.canonical_dataframe["country_code"].tolist()) == {"ISR"}
     assert len(result.canonical_dataframe.index) == 2
     source_result = result.source_results[0]
-    assert any(issue.code == "unsupported_country_code_dropped" for issue in source_result.issues)
+    assert any(
+        issue.code == "unsupported_country_code_dropped"
+        for issue in source_result.issues
+    )
     assert source_result.rejected_row_count == 1
 
 
-def test_world_bank_indicator_csv_fails_on_indicator_code_mismatch(tmp_path: Path) -> None:
+def test_world_bank_indicator_csv_fails_on_indicator_code_mismatch(
+    tmp_path: Path,
+) -> None:
     raw = pd.DataFrame(
         {
             "Country Name": ["Israel"],

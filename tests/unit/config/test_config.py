@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yaml
+from pydantic import ValidationError
 
 from country_compare.config.loader import (
     load_configuration_bundle,
@@ -43,6 +44,7 @@ def test_resolve_profile_options_uses_profile_override_and_global_defaults(
     resolved_default = resolve_profile_options(bundle.scoring, "default_profile")
     assert resolved_default["year_strategy"] == "latest_per_metric"
     assert resolved_default["missing_data_policy"] == "renormalize_weights"
+
 
 @pytest.fixture
 def valid_metrics_payload() -> dict:
@@ -111,7 +113,10 @@ def test_load_metrics_config(tmp_path: Path, valid_metrics_payload: dict) -> Non
     config = load_metrics_config(path)
 
     assert "gdp_per_capita" in config.metrics
-    assert config.metrics["gdp_per_capita"].normalization_method == NormalizationMethod.LOG_MINMAX
+    assert (
+        config.metrics["gdp_per_capita"].normalization_method
+        == NormalizationMethod.LOG_MINMAX
+    )
 
 
 def test_load_scoring_config(tmp_path: Path, valid_scoring_payload: dict) -> None:
@@ -132,7 +137,9 @@ def test_bundle_validation_rejects_unknown_metric_reference(
     metrics_path = tmp_path / "metrics.yaml"
     scoring_path = tmp_path / "scoring.yaml"
 
-    valid_scoring_payload["profiles"]["default_profile"]["metrics"].append("unknown_metric")
+    valid_scoring_payload["profiles"]["default_profile"]["metrics"].append(
+        "unknown_metric"
+    )
 
     write_yaml(metrics_path, valid_metrics_payload)
     write_yaml(scoring_path, valid_scoring_payload)
@@ -161,12 +168,16 @@ def test_resolve_profile_weights_uses_defaults_and_normalizes(
     assert resolved["gdp_per_capita"] > resolved["inflation"]
 
 
-def test_invalid_normalization_method_fails(tmp_path: Path, valid_metrics_payload: dict) -> None:
+def test_invalid_normalization_method_fails(
+    tmp_path: Path, valid_metrics_payload: dict
+) -> None:
     path = tmp_path / "metrics.yaml"
-    valid_metrics_payload["metrics"]["gdp_per_capita"]["normalization_method"] = "zscore"
+    valid_metrics_payload["metrics"]["gdp_per_capita"][
+        "normalization_method"
+    ] = "zscore"
     write_yaml(path, valid_metrics_payload)
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         load_metrics_config(path)
 
 
@@ -193,7 +204,9 @@ def test_dataframe_consistency_validation_passes(valid_metrics_payload: dict) ->
     validate_metrics_against_dataframe(metrics, df)
 
 
-def test_dataframe_consistency_validation_rejects_conflict(valid_metrics_payload: dict) -> None:
+def test_dataframe_consistency_validation_rejects_conflict(
+    valid_metrics_payload: dict,
+) -> None:
     metrics = load_metrics_config_from_payload(valid_metrics_payload)
 
     df = pd.DataFrame(
@@ -207,7 +220,9 @@ def test_dataframe_consistency_validation_rejects_conflict(valid_metrics_payload
         ]
     )
 
-    with pytest.raises(ConfigurationValidationError, match="conflicting 'higher_is_better'"):
+    with pytest.raises(
+        ConfigurationValidationError, match="conflicting 'higher_is_better'"
+    ):
         validate_metrics_against_dataframe(metrics, df)
 
 

@@ -28,8 +28,12 @@ from country_compare.services.requests import (
 from country_compare.services.results import ComparisonResult
 
 try:  # pragma: no cover - package availability depends on project state
-    from country_compare.scoring.weighted_score import ScoringError, resolve_scoring_profile
+    from country_compare.scoring.weighted_score import (
+        ScoringError,
+        resolve_scoring_profile,
+    )
 except Exception:  # pragma: no cover
+
     class ScoringError(ValueError):
         """Fallback scoring error when the scoring module is unavailable."""
 
@@ -121,7 +125,9 @@ class ComparisonService:
                 diagnostics=diagnostics_builder(result_df),
                 warnings=warnings,
             )
-        except Exception as exc:  # pragma: no cover - exercised via mapping-oriented tests
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - exercised via mapping-oriented tests
             return ComparisonResult(
                 mode=getattr(request, "mode", default_mode),
                 request=request,
@@ -143,18 +149,27 @@ class ComparisonService:
         if request.metric_id not in bundle.metrics.metrics:
             field_errors["metric_id"] = f"Unknown metric_id: {request.metric_id}"
 
-        if request.year_strategy == YearStrategy.TARGET_YEAR and request.target_year is None:
-            field_errors["target_year"] = "A target year is required for target-year mode."
+        if (
+            request.year_strategy == YearStrategy.TARGET_YEAR
+            and request.target_year is None
+        ):
+            field_errors["target_year"] = (
+                "A target year is required for target-year mode."
+            )
 
         available_countries = self._available_country_codes(dataframe)
-        missing_countries = [code for code in request.countries if code not in available_countries]
+        missing_countries = [
+            code for code in request.countries if code not in available_countries
+        ]
         if missing_countries:
             field_errors["countries"] = (
                 "The dataset does not contain these selected countries: "
                 + ", ".join(sorted(missing_countries))
             )
 
-        metric_rows = dataframe.loc[dataframe["metric_id"].astype("string") == request.metric_id]
+        metric_rows = dataframe.loc[
+            dataframe["metric_id"].astype("string") == request.metric_id
+        ]
         if metric_rows.empty:
             field_errors["metric_id"] = (
                 f"The dataset does not contain rows for metric_id '{request.metric_id}'."
@@ -178,17 +193,28 @@ class ComparisonService:
         if not request.metric_ids:
             field_errors["metric_ids"] = "Select at least one metric."
 
-        unknown_metrics = [metric_id for metric_id in request.metric_ids if metric_id not in bundle.metrics.metrics]
+        unknown_metrics = [
+            metric_id
+            for metric_id in request.metric_ids
+            if metric_id not in bundle.metrics.metrics
+        ]
         if unknown_metrics:
-            field_errors["metric_ids"] = (
-                "Unknown metric_id values: " + ", ".join(sorted(unknown_metrics))
+            field_errors["metric_ids"] = "Unknown metric_id values: " + ", ".join(
+                sorted(unknown_metrics)
             )
 
-        if request.year_strategy == YearStrategy.TARGET_YEAR and request.target_year is None:
-            field_errors["target_year"] = "A target year is required for target-year mode."
+        if (
+            request.year_strategy == YearStrategy.TARGET_YEAR
+            and request.target_year is None
+        ):
+            field_errors["target_year"] = (
+                "A target year is required for target-year mode."
+            )
 
         available_countries = self._available_country_codes(dataframe)
-        missing_countries = [code for code in request.countries if code not in available_countries]
+        missing_countries = [
+            code for code in request.countries if code not in available_countries
+        ]
         if missing_countries:
             field_errors["countries"] = (
                 "The dataset does not contain these selected countries: "
@@ -196,7 +222,11 @@ class ComparisonService:
             )
 
         available_metrics = self._available_metric_ids(dataframe)
-        missing_metrics = [metric_id for metric_id in request.metric_ids if metric_id not in available_metrics]
+        missing_metrics = [
+            metric_id
+            for metric_id in request.metric_ids
+            if metric_id not in available_metrics
+        ]
         if missing_metrics:
             field_errors["metric_ids"] = (
                 "The dataset does not contain rows for these metric_id values: "
@@ -219,17 +249,26 @@ class ComparisonService:
             field_errors["countries"] = "Select at least two countries to score."
 
         if request.profile_name not in bundle.scoring.profiles:
-            field_errors["profile_name"] = f"Unknown scoring profile: {request.profile_name}"
+            field_errors["profile_name"] = (
+                f"Unknown scoring profile: {request.profile_name}"
+            )
         else:
-            resolved_profile = self._resolve_weighted_profile(bundle, request.profile_name)
-            if resolved_profile.year_strategy == YearStrategy.TARGET_YEAR and request.target_year is None:
+            resolved_profile = self._resolve_weighted_profile(
+                bundle, request.profile_name
+            )
+            if (
+                resolved_profile.year_strategy == YearStrategy.TARGET_YEAR
+                and request.target_year is None
+            ):
                 field_errors["target_year"] = (
                     "This scoring profile uses target-year mode, so a target year is required."
                 )
 
             available_metrics = self._available_metric_ids(dataframe)
             missing_profile_metrics = [
-                metric_id for metric_id in resolved_profile.weights if metric_id not in available_metrics
+                metric_id
+                for metric_id in resolved_profile.weights
+                if metric_id not in available_metrics
             ]
             if missing_profile_metrics:
                 field_errors["profile_name"] = (
@@ -238,7 +277,9 @@ class ComparisonService:
                 )
 
         available_countries = self._available_country_codes(dataframe)
-        missing_countries = [code for code in request.countries if code not in available_countries]
+        missing_countries = [
+            code for code in request.countries if code not in available_countries
+        ]
         if missing_countries:
             field_errors["countries"] = (
                 "The dataset does not contain these selected countries: "
@@ -249,14 +290,18 @@ class ComparisonService:
             raise ValueError(field_errors)
 
     def _load_dataframe(self) -> pd.DataFrame:
-        if self.dataset_service is not None and hasattr(self.dataset_service, "load_dataframe"):
+        if self.dataset_service is not None and hasattr(
+            self.dataset_service, "load_dataframe"
+        ):
             return self.dataset_service.load_dataframe()
 
         store = self._create_store_from_context()
         return load_metric_dataframe(store=store)
 
     def _load_configuration_bundle(self) -> Any:
-        if self.config_service is not None and hasattr(self.config_service, "load_bundle"):
+        if self.config_service is not None and hasattr(
+            self.config_service, "load_bundle"
+        ):
             return self.config_service.load_bundle()
 
         return load_configuration_bundle(
@@ -366,12 +411,18 @@ class ComparisonService:
         }
         return _invoke_callable_with_supported_kwargs(score_countries, aliases)
 
-    def _coerce_comparison_output(self, raw_output: Any) -> tuple[pd.DataFrame, dict[str, Any]]:
+    def _coerce_comparison_output(
+        self, raw_output: Any
+    ) -> tuple[pd.DataFrame, dict[str, Any]]:
         if isinstance(raw_output, pd.DataFrame):
             return raw_output.copy(), {}
 
         if isinstance(raw_output, tuple):
-            if len(raw_output) >= 2 and isinstance(raw_output[0], pd.DataFrame) and isinstance(raw_output[1], dict):
+            if (
+                len(raw_output) >= 2
+                and isinstance(raw_output[0], pd.DataFrame)
+                and isinstance(raw_output[1], dict)
+            ):
                 return raw_output[0].copy(), dict(raw_output[1])
             if len(raw_output) >= 1 and isinstance(raw_output[0], pd.DataFrame):
                 return raw_output[0].copy(), {}
@@ -399,17 +450,23 @@ class ComparisonService:
 
         if dataframe.empty:
             warnings.append(
-                "The selection produced no comparison rows. Try a different selection or year strategy."
+                "The selection produced no comparison rows. Try a different selection or "
+                "year strategy."
             )
             return warnings
 
         if "country_code" in dataframe.columns:
             returned_countries = {
                 str(value).upper()
-                for value in dataframe["country_code"].dropna().astype("string").tolist()
+                for value in dataframe["country_code"]
+                .dropna()
+                .astype("string")
+                .tolist()
             }
             missing_countries = [
-                code for code in getattr(request, "countries", []) if code not in returned_countries
+                code
+                for code in getattr(request, "countries", [])
+                if code not in returned_countries
             ]
             if missing_countries:
                 warnings.append(
@@ -418,10 +475,13 @@ class ComparisonService:
                 )
 
         if getattr(request, "mode", "") == "weighted_score":
-            if "missing_metric_count" in dataframe.columns and dataframe["missing_metric_count"].fillna(0).gt(0).any():
+            if (
+                "missing_metric_count" in dataframe.columns
+                and dataframe["missing_metric_count"].fillna(0).gt(0).any()
+            ):
                 warnings.append(
-                    "Some weighted scores were computed with missing metrics. Review the diagnostics and "
-                    "missing-data columns in the result table."
+                    "Some weighted scores were computed with missing metrics. "
+                    "Review the diagnostics and missing-data columns in the result table."
                 )
 
         return warnings
@@ -443,7 +503,11 @@ class ComparisonService:
             "metric_category": metric_cfg.category,
             "metric_unit": metric_cfg.unit,
             "year_strategy": request.year_strategy.value,
-            "target_year": request.target_year if request.year_strategy == YearStrategy.TARGET_YEAR else None,
+            "target_year": (
+                request.target_year
+                if request.year_strategy == YearStrategy.TARGET_YEAR
+                else None
+            ),
             "selected_countries": list(request.countries),
             "result_row_count": int(len(dataframe)),
             "years_used": years_used,
@@ -467,12 +531,20 @@ class ComparisonService:
             "metric_labels": metric_labels,
             "selected_countries": list(request.countries),
             "year_strategy": request.year_strategy.value,
-            "target_year": request.target_year if request.year_strategy == YearStrategy.TARGET_YEAR else None,
+            "target_year": (
+                request.target_year
+                if request.year_strategy == YearStrategy.TARGET_YEAR
+                else None
+            ),
             "result_row_count": int(len(dataframe)),
-            "countries_returned": self._extract_string_values(dataframe, "country_code"),
+            "countries_returned": self._extract_string_values(
+                dataframe, "country_code"
+            ),
             "metrics_returned": self._extract_string_values(dataframe, "metric_id"),
             "years_used": self._extract_years_used(dataframe),
-            "normalization_methods": self._extract_string_values(dataframe, "normalization_method"),
+            "normalization_methods": self._extract_string_values(
+                dataframe, "normalization_method"
+            ),
         }
 
     def _build_weighted_score_metadata(
@@ -487,14 +559,22 @@ class ComparisonService:
             "profile_name": request.profile_name,
             "selected_countries": list(request.countries),
             "profile_year_strategy": resolved_profile.year_strategy.value,
-            "target_year": request.target_year if resolved_profile.year_strategy == YearStrategy.TARGET_YEAR else None,
+            "target_year": (
+                request.target_year
+                if resolved_profile.year_strategy == YearStrategy.TARGET_YEAR
+                else None
+            ),
             "missing_data_policy": resolved_profile.missing_data_policy.value,
             "resolved_weights": dict(resolved_profile.weights),
             "result_row_count": int(len(dataframe)),
-            "countries_returned": self._extract_string_values(dataframe, "country_code"),
+            "countries_returned": self._extract_string_values(
+                dataframe, "country_code"
+            ),
         }
 
-    def _build_single_metric_diagnostics(self, dataframe: pd.DataFrame) -> dict[str, Any]:
+    def _build_single_metric_diagnostics(
+        self, dataframe: pd.DataFrame
+    ) -> dict[str, Any]:
         return {
             "row_count": int(len(dataframe)),
             "ranked": "rank" in dataframe.columns,
@@ -502,20 +582,31 @@ class ComparisonService:
             "available_columns": list(dataframe.columns),
         }
 
-    def _build_multi_metric_diagnostics(self, dataframe: pd.DataFrame) -> dict[str, Any]:
+    def _build_multi_metric_diagnostics(
+        self, dataframe: pd.DataFrame
+    ) -> dict[str, Any]:
         return {
             "row_count": int(len(dataframe)),
             "ranked": "rank" in dataframe.columns,
             "normalized": "normalized_value" in dataframe.columns,
-            "metric_count": int(dataframe["metric_id"].nunique()) if "metric_id" in dataframe.columns else 0,
+            "metric_count": (
+                int(dataframe["metric_id"].nunique())
+                if "metric_id" in dataframe.columns
+                else 0
+            ),
             "available_columns": list(dataframe.columns),
         }
 
-    def _build_weighted_score_diagnostics(self, dataframe: pd.DataFrame) -> dict[str, Any]:
+    def _build_weighted_score_diagnostics(
+        self, dataframe: pd.DataFrame
+    ) -> dict[str, Any]:
         missing_count_summary = None
         if "missing_metric_count" in dataframe.columns:
             missing_count_summary = sorted(
-                {int(value) for value in dataframe["missing_metric_count"].fillna(0).tolist()}
+                {
+                    int(value)
+                    for value in dataframe["missing_metric_count"].fillna(0).tolist()
+                }
             )
         return {
             "row_count": int(len(dataframe)),
@@ -534,7 +625,9 @@ class ComparisonService:
     def _extract_string_values(self, dataframe: pd.DataFrame, column: str) -> list[str]:
         if column not in dataframe.columns:
             return []
-        values = [str(value) for value in dataframe[column].dropna().astype("string").tolist()]
+        values = [
+            str(value) for value in dataframe[column].dropna().astype("string").tolist()
+        ]
         return sorted(set(values))
 
     def _available_country_codes(self, dataframe: pd.DataFrame) -> set[str]:
@@ -562,11 +655,15 @@ class ComparisonService:
             )
 
         resolved_options = resolve_profile_options(bundle.scoring, profile_name)
-        resolved_weights = resolve_profile_weights(bundle.metrics, bundle.scoring, profile_name)
+        resolved_weights = resolve_profile_weights(
+            bundle.metrics, bundle.scoring, profile_name
+        )
         return SimpleNamespace(
             weights=resolved_weights,
             year_strategy=YearStrategy(resolved_options["year_strategy"]),
-            missing_data_policy=MissingDataPolicy(resolved_options["missing_data_policy"]),
+            missing_data_policy=MissingDataPolicy(
+                resolved_options["missing_data_policy"]
+            ),
         )
 
     def _map_exception(self, exc: Exception) -> AppError:
@@ -582,7 +679,9 @@ class ComparisonService:
 
         if isinstance(exc, PydanticValidationError):
             field_errors = {
-                ".".join(str(part) for part in item.get("loc", [])): item.get("msg", "Invalid value")
+                ".".join(str(part) for part in item.get("loc", [])): item.get(
+                    "msg", "Invalid value"
+                )
                 for item in exc.errors()
             }
             return AppError(
@@ -605,7 +704,9 @@ class ComparisonService:
             return AppError(
                 code="scoring_failed",
                 title="Weighted scoring failed",
-                user_message="The weighted scoring run could not be completed for the current selection.",
+                user_message=(
+                    "The weighted scoring run could not be completed for the current selection."
+                ),
                 technical_detail=str(exc),
             )
 
@@ -620,7 +721,9 @@ class ComparisonService:
         return error_from_exception(
             exc,
             default_title="Unexpected comparison error",
-            default_user_message="The comparison could not be completed because an unexpected error occurred.",
+            default_user_message=(
+                "The comparison could not be completed because an unexpected error occurred."
+            ),
         )
 
 

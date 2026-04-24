@@ -97,7 +97,9 @@ def test_minmax_normalization_single_metric_slice():
         "JPN": (42000.0 - min_val) / (max_val - min_val),
     }
     for code, val in expected.items():
-        assert result.loc[result["country_code"] == code, NORMALIZED_VALUE_COLUMN].iloc[0] == pytest.approx(val)
+        assert result.loc[result["country_code"] == code, NORMALIZED_VALUE_COLUMN].iloc[
+            0
+        ] == pytest.approx(val)
 
 
 def test_percentile_normalization_produces_zero_to_one_scale():
@@ -135,13 +137,17 @@ def test_log_minmax_normalization_works_for_positive_values():
     values = result[NORMALIZED_VALUE_COLUMN]
     assert values.min() >= 0.0
     assert values.max() <= 1.0
-    assert result.loc[result["country_code"] == "SGP", NORMALIZED_VALUE_COLUMN].iloc[0] == pytest.approx(1.0)
+    assert result.loc[result["country_code"] == "SGP", NORMALIZED_VALUE_COLUMN].iloc[
+        0
+    ] == pytest.approx(1.0)
 
 
 def test_zero_variance_minmax_returns_all_ones():
-    df = build_example_metric_dataframe().loc[
-        lambda frame: (frame["metric_id"] == "rule_of_law")
-    ].copy()
+    df = (
+        build_example_metric_dataframe()
+        .loc[lambda frame: (frame["metric_id"] == "rule_of_law")]
+        .copy()
+    )
     df["value"] = 5.0
 
     result = normalize_metric(df, method="minmax")
@@ -173,9 +179,11 @@ def test_normalization_preserves_canonical_columns_and_order():
 
 
 def test_resolve_normalization_methods_uses_metric_defaults():
-    df = build_example_metric_dataframe().loc[
-        lambda frame: frame["metric_id"].isin(["gdp_per_capita", "rule_of_law"])
-    ].copy()
+    df = (
+        build_example_metric_dataframe()
+        .loc[lambda frame: frame["metric_id"].isin(["gdp_per_capita", "rule_of_law"])]
+        .copy()
+    )
     metrics_config = MetricsConfig(
         metrics={
             "gdp_per_capita": MetricConfig(
@@ -204,9 +212,11 @@ def test_resolve_normalization_methods_uses_metric_defaults():
 
 
 def test_profile_override_behavior_takes_precedence_over_metric_default():
-    df = build_example_metric_dataframe().loc[
-        lambda frame: frame["metric_id"].isin(["gdp_per_capita", "rule_of_law"])
-    ].copy()
+    df = (
+        build_example_metric_dataframe()
+        .loc[lambda frame: frame["metric_id"].isin(["gdp_per_capita", "rule_of_law"])]
+        .copy()
+    )
     metrics_config = MetricsConfig(
         metrics={
             "gdp_per_capita": MetricConfig(
@@ -250,9 +260,11 @@ def test_profile_override_behavior_takes_precedence_over_metric_default():
 
 
 def test_explicit_method_overrides_profile_and_defaults():
-    df = build_example_metric_dataframe().loc[
-        lambda frame: frame["metric_id"].isin(["gdp_per_capita", "rule_of_law"])
-    ].copy()
+    df = (
+        build_example_metric_dataframe()
+        .loc[lambda frame: frame["metric_id"].isin(["gdp_per_capita", "rule_of_law"])]
+        .copy()
+    )
     metrics_config = MetricsConfig(
         metrics={
             "gdp_per_capita": MetricConfig(
@@ -295,9 +307,11 @@ def test_explicit_method_overrides_profile_and_defaults():
 
 
 def test_metric_specific_overrides_take_highest_precedence():
-    df = build_example_metric_dataframe().loc[
-        lambda frame: frame["metric_id"].isin(["gdp_per_capita", "rule_of_law"])
-    ].copy()
+    df = (
+        build_example_metric_dataframe()
+        .loc[lambda frame: frame["metric_id"].isin(["gdp_per_capita", "rule_of_law"])]
+        .copy()
+    )
 
     result = normalize_dataframe(
         df,
@@ -313,9 +327,14 @@ def test_metric_specific_overrides_take_highest_precedence():
 
 
 def test_log_minmax_raises_on_zero_or_negative_values():
-    df = build_example_metric_dataframe().loc[
-        lambda frame: (frame["metric_id"] == "gdp_per_capita") & (frame["year"] == 2022)
-    ].copy()
+    df = (
+        build_example_metric_dataframe()
+        .loc[
+            lambda frame: (frame["metric_id"] == "gdp_per_capita")
+            & (frame["year"] == 2022)
+        ]
+        .copy()
+    )
     df.loc[df.index[0], "value"] = 0.0
 
     with pytest.raises(ValueError, match="strictly positive"):

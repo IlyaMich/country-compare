@@ -6,7 +6,11 @@ import pandas as pd
 
 from country_compare.data.contract import REQUIRED_COLUMNS
 from country_compare.prediction.errors import PredictionErrorCode, PredictionException
-from country_compare.prediction.models import ForecastOptions, PredictionMethod, SingleMetricPredictionRequest
+from country_compare.prediction.models import (
+    ForecastOptions,
+    PredictionMethod,
+    SingleMetricPredictionRequest,
+)
 
 COUNTRY_CODE_COLUMN = "country_code"
 METRIC_ID_COLUMN = "metric_id"
@@ -45,7 +49,9 @@ def validate_prediction_request(
         )
 
     _resolve_method_value(request.method, field_name="method", allow_none=True)
-    _resolve_method_value(request.fallback_method, field_name="fallback_method", allow_none=True)
+    _resolve_method_value(
+        request.fallback_method, field_name="fallback_method", allow_none=True
+    )
 
 
 def validate_canonical_prediction_input(dataframe: pd.DataFrame) -> None:
@@ -85,7 +91,9 @@ def validate_country_metric_presence(
         )
 
 
-def validate_series_uniqueness(series_df: pd.DataFrame, *, country_code: str, metric_id: str) -> None:
+def validate_series_uniqueness(
+    series_df: pd.DataFrame, *, country_code: str, metric_id: str
+) -> None:
     if YEAR_COLUMN not in series_df.columns:
         raise PredictionException(
             PredictionErrorCode.UNSUPPORTED_SERIES_SHAPE,
@@ -111,7 +119,9 @@ def validate_series_uniqueness(series_df: pd.DataFrame, *, country_code: str, me
         )
 
 
-def validate_non_empty_series(series_df: pd.DataFrame, *, country_code: str, metric_id: str) -> None:
+def validate_non_empty_series(
+    series_df: pd.DataFrame, *, country_code: str, metric_id: str
+) -> None:
     if series_df.empty:
         raise PredictionException(
             PredictionErrorCode.EMPTY_SERIES,
@@ -121,9 +131,13 @@ def validate_non_empty_series(series_df: pd.DataFrame, *, country_code: str, met
         )
 
 
-def validate_numeric_series_values(series_df: pd.DataFrame, *, country_code: str, metric_id: str) -> pd.Series:
+def validate_numeric_series_values(
+    series_df: pd.DataFrame, *, country_code: str, metric_id: str
+) -> pd.Series:
     numeric_values = pd.to_numeric(series_df[VALUE_COLUMN], errors="coerce")
-    invalid_mask = numeric_values.isna() | numeric_values.isin([float("inf"), float("-inf")])
+    invalid_mask = numeric_values.isna() | numeric_values.isin(
+        [float("inf"), float("-inf")]
+    )
     if invalid_mask.any():
         invalid_years = (
             pd.to_numeric(series_df.loc[invalid_mask, YEAR_COLUMN], errors="coerce")
@@ -145,14 +159,25 @@ def identify_missing_internal_years(years: Iterable[int]) -> list[int]:
     resolved_years = sorted({int(year) for year in years})
     if len(resolved_years) < 2:
         return []
-    return [year for year in range(resolved_years[0], resolved_years[-1] + 1) if year not in resolved_years]
+    return [
+        year
+        for year in range(resolved_years[0], resolved_years[-1] + 1)
+        if year not in resolved_years
+    ]
 
 
-def resolve_requested_method(request: SingleMetricPredictionRequest) -> PredictionMethod:
-    return _resolve_method_value(request.method, field_name="method", allow_none=True) or DEFAULT_METHOD
+def resolve_requested_method(
+    request: SingleMetricPredictionRequest,
+) -> PredictionMethod:
+    return (
+        _resolve_method_value(request.method, field_name="method", allow_none=True)
+        or DEFAULT_METHOD
+    )
 
 
-def resolve_fallback_method(request: SingleMetricPredictionRequest) -> PredictionMethod | None:
+def resolve_fallback_method(
+    request: SingleMetricPredictionRequest,
+) -> PredictionMethod | None:
     return _resolve_method_value(
         request.fallback_method,
         field_name="fallback_method",
@@ -174,7 +199,11 @@ def _resolve_method_value(
             f"{field_name} must not be null",
         )
     try:
-        return method if isinstance(method, PredictionMethod) else PredictionMethod(str(method))
+        return (
+            method
+            if isinstance(method, PredictionMethod)
+            else PredictionMethod(str(method))
+        )
     except ValueError as exc:
         raise PredictionException(
             PredictionErrorCode.UNSUPPORTED_METHOD,

@@ -4,33 +4,28 @@ from country_compare.prediction.comparison_bridge import (
     compare_predicted_single_metric,
 )
 from country_compare.prediction.errors import PredictionErrorCode, PredictionException
+from country_compare.prediction.evaluation import backtest_series
 from country_compare.prediction.models import (
     BacktestRequest,
     BacktestResult,
     ForecastContext,
-    ForecastOptions,
     ForecasterInfo,
+    ForecastOptions,
     MultiSeriesPredictionRequest,
     PredictedComparisonResult,
-    PredictionDiagnosticStatus,
     PredictionDiagnostics,
+    PredictionDiagnosticStatus,
     PredictionError,
     PredictionMethod,
     PredictionResult,
     SingleMetricPredictionRequest,
 )
-from country_compare.prediction.evaluation import backtest_series
 from country_compare.prediction.multi_metric import (
     predict_metric_country_grid,
     predict_metrics_for_country,
     predict_single_metric_for_countries,
 )
 from country_compare.prediction.single_metric import predict_single_metric
-from country_compare.prediction.visualization import (
-    build_actual_vs_predicted_dataframe,
-    build_forecast_table_dataframe,
-    build_line_chart_dataframe,
-)
 from country_compare.prediction.summaries import (
     build_backtest_result_summary,
     build_forecaster_info_summary,
@@ -42,6 +37,11 @@ from country_compare.prediction.summaries import (
     list_forecast_horizons,
     list_forecast_years,
     prediction_exception_to_dict,
+)
+from country_compare.prediction.visualization import (
+    build_actual_vs_predicted_dataframe,
+    build_forecast_table_dataframe,
+    build_line_chart_dataframe,
 )
 
 __all__ = [

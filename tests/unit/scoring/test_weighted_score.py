@@ -3,6 +3,17 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+from country_compare.config.models import (
+    MetricConfig,
+    MetricsConfig,
+    MissingDataPolicy,
+    NormalizationMethod,
+    ScoringConfig,
+    ScoringProfile,
+    WeightHandlingStrategy,
+    YearStrategy,
+)
+from country_compare.data.examples import build_example_metric_dataframe
 from country_compare.metrics.normalization import NORMALIZED_VALUE_COLUMN
 from country_compare.scoring.weighted_score import (
     METRIC_COUNT_EXPECTED_COLUMN,
@@ -18,17 +29,6 @@ from country_compare.scoring.weighted_score import (
     resolve_scoring_profile,
     score_countries,
 )
-from country_compare.config.models import (
-    MetricConfig,
-    MetricsConfig,
-    MissingDataPolicy,
-    NormalizationMethod,
-    ScoringConfig,
-    ScoringProfile,
-    WeightHandlingStrategy,
-    YearStrategy,
-)
-from country_compare.data.examples import build_example_metric_dataframe
 
 
 def _build_metrics_config() -> MetricsConfig:
@@ -119,7 +119,10 @@ def test_prepare_weighted_score_input_uses_profile_year_strategy() -> None:
     assert prepared["year"].nunique() == 1
     # Latest common year is now 2025
     assert int(prepared["year"].iloc[0]) == 2025
-    assert sorted(prepared["metric_id"].unique().tolist()) == ["gdp_per_capita", "rule_of_law"]
+    assert sorted(prepared["metric_id"].unique().tolist()) == [
+        "gdp_per_capita",
+        "rule_of_law",
+    ]
 
 
 def test_score_countries_basic_weighted_result() -> None:
@@ -141,7 +144,9 @@ def test_score_countries_basic_weighted_result() -> None:
 
 def test_compute_weighted_scores_renormalizes_for_partial_country() -> None:
     df = build_example_metric_dataframe()
-    partial = df.loc[~((df["country_code"] == "SGP") & (df["metric_id"] == "democracy_index"))].copy()
+    partial = df.loc[
+        ~((df["country_code"] == "SGP") & (df["metric_id"] == "democracy_index"))
+    ].copy()
 
     prepared = prepare_weighted_score_input(
         partial,
@@ -166,7 +171,9 @@ def test_compute_weighted_scores_renormalizes_for_partial_country() -> None:
 
 def test_score_countries_drop_country_policy_excludes_partial_country() -> None:
     df = build_example_metric_dataframe()
-    partial = df.loc[~((df["country_code"] == "SGP") & (df["metric_id"] == "democracy_index"))].copy()
+    partial = df.loc[
+        ~((df["country_code"] == "SGP") & (df["metric_id"] == "democracy_index"))
+    ].copy()
 
     scored = score_countries(
         partial,
@@ -181,9 +188,11 @@ def test_score_countries_drop_country_policy_excludes_partial_country() -> None:
 
 
 def test_compute_weighted_scores_requires_normalized_values() -> None:
-    df = build_example_metric_dataframe().loc[
-        lambda frame: frame["metric_id"].isin(["gdp_per_capita", "rule_of_law"])
-    ].copy()
+    df = (
+        build_example_metric_dataframe()
+        .loc[lambda frame: frame["metric_id"].isin(["gdp_per_capita", "rule_of_law"])]
+        .copy()
+    )
 
     with pytest.raises(ValueError, match="missing required columns"):
         compute_weighted_scores(
