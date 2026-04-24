@@ -29,20 +29,32 @@ def _normalize_tuple(values: Any) -> tuple[str, ...]:
 def _normalize_labels(values: Mapping[str, Any] | None) -> dict[str, str]:
     if values is None:
         return {}
-    return {str(key).strip(): str(value).strip() for key, value in values.items() if str(key).strip()}
+    return {
+        str(key).strip(): str(value).strip()
+        for key, value in values.items()
+        if str(key).strip()
+    }
 
 
 @dataclass(slots=True)
 class SourceSpec:
     source_id: str
     adapter_id: str
+
+    # local acquisition
     path: str | Path | None = None
     glob: str | None = None
+
+    # remote acquisition
     remote_url: str | None = None
     download_filename: str | None = None
+
+    # reader hints
     format_hint: str | None = None
     sheet_name: str | int | None = None
     read_options: dict[str, Any] = field(default_factory=dict)
+
+    # source / dataset metadata
     source_name: str | None = None
     source_url: str | None = None
     dataset_version: str | None = None
@@ -51,44 +63,111 @@ class SourceSpec:
     unit: str | None = None
     category: str | None = None
     higher_is_better: bool | str | int | None = None
+
+    # column / adapter hints
     country_name_column: str | None = None
     country_code_column: str | None = None
     year_columns: list[str] | tuple[str, ...] | None = None
     mapping_overrides: dict[str, Any] = field(default_factory=dict)
+
+    # pipeline flags / annotations
     enabled: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
     tags: tuple[str, ...] = ()
     labels: dict[str, str] = field(default_factory=dict)
 
+    # World Bank-specific support
+    expected_indicator_code: str | None = None
+    filter_to_allowed_country_codes: bool = False
+    allowed_country_codes: list[str] | tuple[str, ...] | None = None
+    extra_allowed_country_codes: list[str] | tuple[str, ...] | None = None
+
     def __post_init__(self) -> None:
         self.source_id = str(self.source_id).strip()
         self.adapter_id = str(self.adapter_id).strip()
+
         if not self.source_id:
-            raise ValueError('source_id must be a non-empty string')
+            raise ValueError("source_id must be a non-empty string")
         if not self.adapter_id:
-            raise ValueError('adapter_id must be a non-empty string')
-        if self.path is None and self.glob is None and self.remote_url is None:
-            raise ValueError("SourceSpec requires 'path', 'glob', or 'remote_url'")
-        if self.path is not None:
-            self.path = Path(self.path)
-        if self.glob is not None:
-            self.glob = str(self.glob).strip() or None
-        if self.remote_url is not None:
-            self.remote_url = str(self.remote_url).strip() or None
-        if self.download_filename is not None:
-            self.download_filename = str(self.download_filename).strip() or None
+            raise ValueError("adapter_id must be a non-empty string")
+
+        self.path = Path(self.path) if self.path is not None else None
+        self.glob = str(self.glob).strip() or None if self.glob is not None else None
+
+        self.remote_url = str(self.remote_url).strip() or None if self.remote_url is not None else None
+        self.download_filename = (
+            str(self.download_filename).strip() or None
+            if self.download_filename is not None
+            else None
+        )
+
+        self.format_hint = str(self.format_hint).strip() or None if self.format_hint is not None else None
+
+        self.source_name = str(self.source_name).strip() or None if self.source_name is not None else None
+        self.source_url = str(self.source_url).strip() or None if self.source_url is not None else None
+        self.dataset_version = (
+            str(self.dataset_version).strip() or None
+            if self.dataset_version is not None
+            else None
+        )
+        self.metric_id = str(self.metric_id).strip() or None if self.metric_id is not None else None
+        self.metric_name = str(self.metric_name).strip() or None if self.metric_name is not None else None
+        self.unit = str(self.unit).strip() or None if self.unit is not None else None
+        self.category = str(self.category).strip() or None if self.category is not None else None
+
+        self.country_name_column = (
+            str(self.country_name_column).strip() or None
+            if self.country_name_column is not None
+            else None
+        )
+        self.country_code_column = (
+            str(self.country_code_column).strip() or None
+            if self.country_code_column is not None
+            else None
+        )
+
         self.read_options = dict(self.read_options or {})
-        if self.sheet_name is not None and 'sheet_name' not in self.read_options:
-            self.read_options['sheet_name'] = self.sheet_name
+        if self.sheet_name is not None and "sheet_name" not in self.read_options:
+            self.read_options["sheet_name"] = self.sheet_name
+
         self.mapping_overrides = dict(self.mapping_overrides or {})
-        columns_mapping = self.mapping_overrides.get('columns')
+        columns_mapping = self.mapping_overrides.get("columns")
         if columns_mapping is not None and not isinstance(columns_mapping, dict):
             raise ValueError("mapping_overrides['columns'] must be a mapping")
+
         self.metadata = dict(self.metadata or {})
         self.tags = _normalize_tuple(self.tags)
         self.labels = _normalize_labels(self.labels)
+
         if self.year_columns is not None:
-            self.year_columns = [str(value).strip() for value in self.year_columns if str(value).strip()]
+            self.year_columns = [
+                str(value).strip()
+                for value in self.year_columns
+                if str(value).strip()
+            ]
+
+        if self.expected_indicator_code is not None:
+            self.expected_indicator_code = str(self.expected_indicator_code).strip() or None
+
+        if self.allowed_country_codes is not None:
+            self.allowed_country_codes = [
+                str(value).strip().upper()
+                for value in self.allowed_country_codes
+                if str(value).strip()
+            ]
+
+        if self.extra_allowed_country_codes is not None:
+            self.extra_allowed_country_codes = [
+                str(value).strip().upper()
+                for value in self.extra_allowed_country_codes
+                if str(value).strip()
+            ]
+
+        if self.path is not None and self.glob is not None:
+            raise ValueError("SourceSpec may set either path or glob, not both")
+
+        if self.path is None and self.glob is None and self.remote_url is None:
+            raise ValueError("SourceSpec requires one of path, glob, or remote_url")
 
 
 @dataclass(slots=True)
