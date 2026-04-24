@@ -217,3 +217,49 @@ def _serialize_chart(chart: Any) -> dict[str, Any] | None:
         "type": chart.__class__.__name__,
         "present": True,
     }
+
+
+def serialize_prediction_service_result(
+    result: Any,
+    *,
+    include_records: bool = True,
+    max_records: int = DEFAULT_MAX_RECORDS,
+) -> dict[str, Any]:
+    dataframe = getattr(result, "dataframe", None)
+    return {
+        "mode": getattr(result, "mode", None),
+        "ok": bool(getattr(result, "ok", False)),
+        "request": to_jsonable(
+            getattr(result, "request", None),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "dataframe": None
+        if not isinstance(dataframe, pd.DataFrame)
+        else serialize_dataframe(
+            dataframe,
+            include_records=include_records,
+            max_records=max_records,
+        ),
+        "summary": to_jsonable(
+            getattr(result, "summary", {}),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "metadata": to_jsonable(
+            getattr(result, "metadata", {}),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "diagnostics": to_jsonable(
+            getattr(result, "diagnostics", {}),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "warnings": to_jsonable(
+            getattr(result, "warnings", []),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "error": serialize_error(getattr(result, "error", None)),
+    }
