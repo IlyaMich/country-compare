@@ -16,7 +16,6 @@ class StateKey(StrEnum):
     SELECTION_STATE = "country_compare.selection_state"
     RESULT_STATE = "country_compare.result_state"
     CONFIG_EDITOR_STATE = "country_compare.config_editor_state"
-    QUERY_STATE_INITIALIZED = "country_compare.query_state_initialized"
 
 
 @dataclass(frozen=True)
@@ -36,6 +35,17 @@ DEFAULT_SELECTION_STATE = {
     "weighted_profile_name": None,
     "year_strategy": "latest_per_metric",
     "target_year": None,
+    "prediction_active_mode": "single_forecast",
+    "prediction_country_code": None,
+    "prediction_country_codes": [],
+    "prediction_metric_id": None,
+    "prediction_metric_ids": [],
+    "prediction_profile_name": None,
+    "prediction_method": "linear_trend",
+    "prediction_horizon_years": 3,
+    "prediction_forecast_year": None,
+    "prediction_forecast_horizon": 1,
+    "prediction_holdout_years": 2,
 }
 
 DEFAULT_RESULT_STATE = {
@@ -46,6 +56,11 @@ DEFAULT_RESULT_STATE = {
     "compare_results_by_mode": {},
     "compare_presentations_by_mode": {},
     "compare_errors_by_mode": {},
+    "latest_prediction_mode": "single_forecast",
+    "prediction_result": None,
+    "prediction_error": None,
+    "prediction_results_by_mode": {},
+    "prediction_errors_by_mode": {},
 }
 
 DEFAULT_CONFIG_EDITOR_STATE = {
@@ -99,13 +114,32 @@ def _resolve_compare_mode(
     return "single_metric"
 
 
+def _resolve_prediction_mode(*, mode: str | None = None, result=None, error=None) -> str:
+    if mode:
+        return str(mode)
+
+    for candidate in (result, error):
+        candidate_mode = getattr(candidate, "mode", None)
+        if candidate_mode:
+            return str(candidate_mode)
+
+    selection_mode = get_selection_state().get("prediction_active_mode")
+    if selection_mode:
+        return str(selection_mode)
+
+    latest_mode = _get_result_state().get("latest_prediction_mode")
+    if latest_mode:
+        return str(latest_mode)
+
+    return "single_forecast"
+
+
 def initialize_session_state(*, default_debug: bool = False) -> None:
     session = _session_state()
     session.setdefault(StateKey.SELECTED_PAGE, DEFAULT_PAGE)
     session.setdefault(StateKey.DEBUG_MODE, default_debug)
     session.setdefault(StateKey.LAST_ERROR_CODE, None)
     session.setdefault(StateKey.CATALOG_STATE, {})
-    session.setdefault(StateKey.QUERY_STATE_INITIALIZED, False)
 
     session.setdefault(StateKey.SELECTION_STATE, {})
     for key, value in DEFAULT_SELECTION_STATE.items():
@@ -118,7 +152,6 @@ def initialize_session_state(*, default_debug: bool = False) -> None:
     session.setdefault(StateKey.CONFIG_EDITOR_STATE, {})
     for key, value in DEFAULT_CONFIG_EDITOR_STATE.items():
         session[StateKey.CONFIG_EDITOR_STATE].setdefault(key, deepcopy(value))
-
 
 
 def snapshot() -> UIStateSnapshot:
@@ -248,19 +281,80 @@ def get_compare_error(mode: str | None = None):
     return result_state.get("compare_error")
 
 
+def get_latest_prediction_result(mode: str | None = None):
+    result_state = _get_result_state()
+    results_by_mode = result_state.get("prediction_results_by_mode", {})
+    if mode is not None:
+        return results_by_mode.get(mode)
+
+    latest_mode = result_state.get("latest_prediction_mode")
+    if latest_mode in results_by_mode:
+        return results_by_mode.get(latest_mode)
+    return result_state.get("prediction_result")
+
+
+def set_prediction_result(result, *, mode: str | None = None) -> None:
+    initialize_session_state()
+    current = dict(_get_result_state())
+
+    resolved_mode = _resolve_prediction_mode(mode=mode, result=result)
+
+    results_by_mode = dict(current.get("prediction_results_by_mode", {}))
+    errors_by_mode = dict(current.get("prediction_errors_by_mode", {}))
+    results_by_mode[resolved_mode] = result
+    errors_by_mode[resolved_mode] = None
+
+    current.update(
+        {
+            "latest_prediction_mode": resolved_mode,
+            "prediction_result": result,
+            "prediction_error": None,
+            "prediction_results_by_mode": results_by_mode,
+            "prediction_errors_by_mode": errors_by_mode,
+        }
+    )
+    _session_state()[StateKey.RESULT_STATE] = current
+    set_last_error_code(None)
+
+
+def set_prediction_error(error, *, mode: str | None = None) -> None:
+    initialize_session_state()
+    current = dict(_get_result_state())
+
+    resolved_mode = _resolve_prediction_mode(mode=mode, error=error)
+
+    results_by_mode = dict(current.get("prediction_results_by_mode", {}))
+    errors_by_mode = dict(current.get("prediction_errors_by_mode", {}))
+    errors_by_mode[resolved_mode] = error
+
+    current.update(
+        {
+            "latest_prediction_mode": resolved_mode,
+            "prediction_result": results_by_mode.get(resolved_mode),
+            "prediction_error": error,
+            "prediction_results_by_mode": results_by_mode,
+            "prediction_errors_by_mode": errors_by_mode,
+        }
+    )
+    _session_state()[StateKey.RESULT_STATE] = current
+    set_last_error_code(getattr(error, "code", None))
+
+
+def get_prediction_error(mode: str | None = None):
+    result_state = _get_result_state()
+    errors_by_mode = result_state.get("prediction_errors_by_mode", {})
+    if mode is not None:
+        return errors_by_mode.get(mode)
+
+    latest_mode = result_state.get("latest_prediction_mode")
+    if latest_mode in errors_by_mode:
+        return errors_by_mode.get(latest_mode)
+    return result_state.get("prediction_error")
+
+
 def get_debug_mode() -> bool:
     initialize_session_state()
     return bool(_session_state()[StateKey.DEBUG_MODE])
-
-
-def query_state_initialized() -> bool:
-    initialize_session_state()
-    return bool(_session_state()[StateKey.QUERY_STATE_INITIALIZED])
-
-
-def mark_query_state_initialized(value: bool = True) -> None:
-    initialize_session_state()
-    _session_state()[StateKey.QUERY_STATE_INITIALIZED] = bool(value)
 
 
 def get_config_editor_state() -> dict[str, Any]:
@@ -342,19 +436,13 @@ def set_config_editor_validation_preference(value: bool) -> None:
     _session_state()[StateKey.CONFIG_EDITOR_STATE] = current
 
 
-def set_config_editor_save_status(
-    status: str | None,
-    *,
-    message: str | None = None,
-    error=None,
-) -> None:
+def set_config_editor_save_status(status: str | None, *, message: str | None = None, error=None) -> None:
     initialize_session_state()
     current = deepcopy(get_config_editor_state())
     current["save_status"] = status
     current["save_message"] = message
     current["save_error"] = error
     _session_state()[StateKey.CONFIG_EDITOR_STATE] = current
-    set_last_error_code(getattr(error, "code", None))
 
 
 def reset_config_editor_draft() -> None:
@@ -362,20 +450,18 @@ def reset_config_editor_draft() -> None:
     current = deepcopy(get_config_editor_state())
     loaded_metrics = deepcopy(current.get("loaded_metrics_data"))
     loaded_scoring = deepcopy(current.get("loaded_scoring_data"))
-    current.update(deepcopy(DEFAULT_CONFIG_EDITOR_STATE))
-    current["loaded_metrics_data"] = loaded_metrics
-    current["loaded_scoring_data"] = loaded_scoring
-    current["draft_metrics_data"] = deepcopy(loaded_metrics)
-    current["draft_scoring_data"] = deepcopy(loaded_scoring)
+    current["draft_metrics_data"] = loaded_metrics
+    current["draft_scoring_data"] = loaded_scoring
+    current["dirty"] = False
+    current["validation_report"] = None
+    current["save_status"] = None
+    current["save_message"] = None
+    current["save_error"] = None
     _normalize_config_editor_selection(current)
     _session_state()[StateKey.CONFIG_EDITOR_STATE] = current
 
 
-def commit_config_editor_saved_state(
-    *,
-    metrics_data: dict[str, Any],
-    scoring_data: dict[str, Any],
-) -> None:
+def commit_config_editor_saved_state(*, metrics_data: dict[str, Any], scoring_data: dict[str, Any]) -> None:
     initialize_session_state()
     current = deepcopy(get_config_editor_state())
     current["loaded_metrics_data"] = deepcopy(metrics_data)
@@ -384,26 +470,27 @@ def commit_config_editor_saved_state(
     current["draft_scoring_data"] = deepcopy(scoring_data)
     current["dirty"] = False
     current["validation_report"] = None
+    current["save_status"] = None
+    current["save_message"] = None
     current["save_error"] = None
     _normalize_config_editor_selection(current)
     _session_state()[StateKey.CONFIG_EDITOR_STATE] = current
 
 
 def config_editor_is_dirty() -> bool:
-    initialize_session_state()
-    return bool(get_config_editor_state().get("dirty"))
+    return bool(get_config_editor_state().get("dirty", False))
 
 
 def _config_editor_dirty(state: dict[str, Any]) -> bool:
-    return (
-        state.get("draft_metrics_data") != state.get("loaded_metrics_data")
-        or state.get("draft_scoring_data") != state.get("loaded_scoring_data")
-    )
+    return state.get("draft_metrics_data") != state.get("loaded_metrics_data") or state.get("draft_scoring_data") != state.get("loaded_scoring_data")
 
 
 def _normalize_config_editor_selection(state: dict[str, Any]) -> None:
-    metric_ids = _metric_ids_from_state(state)
-    profile_names = _profile_names_from_state(state)
+    metrics_data = state.get("draft_metrics_data") or {"metrics": {}}
+    scoring_data = state.get("draft_scoring_data") or {"profiles": {}}
+
+    metric_ids = list((metrics_data.get("metrics") or {}).keys())
+    profile_names = list((scoring_data.get("profiles") or {}).keys())
 
     selected_metric_id = state.get("selected_metric_id")
     if selected_metric_id not in metric_ids:
@@ -411,18 +498,8 @@ def _normalize_config_editor_selection(state: dict[str, Any]) -> None:
 
     selected_profile_name = state.get("selected_profile_name")
     if selected_profile_name not in profile_names:
-        state["selected_profile_name"] = profile_names[0] if profile_names else None
-
-    state["dirty"] = _config_editor_dirty(state)
-
-
-def _metric_ids_from_state(state: dict[str, Any]) -> list[str]:
-    metrics_data = state.get("draft_metrics_data") or {}
-    metrics_map = metrics_data.get("metrics") or {}
-    return [str(metric_id) for metric_id in metrics_map.keys()]
-
-
-def _profile_names_from_state(state: dict[str, Any]) -> list[str]:
-    scoring_data = state.get("draft_scoring_data") or {}
-    profiles_map = scoring_data.get("profiles") or {}
-    return [str(profile_name) for profile_name in profiles_map.keys()]
+        default_profile = scoring_data.get("default_profile")
+        if default_profile in profile_names:
+            state["selected_profile_name"] = default_profile
+        else:
+            state["selected_profile_name"] = profile_names[0] if profile_names else None

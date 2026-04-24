@@ -51,3 +51,26 @@ class PresentationResult:
         return self.error is None and (
             self.table is not None or bool(self.tables) or self.chart is not None or bool(self.charts)
         )
+
+@dataclass(slots=True)
+class PredictionServiceResult:
+    mode: str
+    request: Any
+    prediction_result: Any | None = None
+    predicted_comparison_result: Any | None = None
+    backtest_result: Any | None = None
+    dataframe: pd.DataFrame | None = None
+    summary: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    diagnostics: dict[str, Any] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
+    error: Any | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.error is None and (
+            self.prediction_result is not None
+            or self.predicted_comparison_result is not None
+            or self.backtest_result is not None
+            or self.dataframe is not None
+        )

@@ -47,10 +47,17 @@ METRICS: dict[str, dict[str, object]] = {
         "higher_is_better": True,
         "category": "economy",
         "yearly_values": {
+            2018: {"ISR": 48000.0, "DEU": 59000.0, "SGP": 120000.0, "CAN": 52000.0, "JPN": 39000.0},
+            2019: {"ISR": 49500.0, "DEU": 60500.0, "SGP": 124000.0, "CAN": 53500.0, "JPN": 39800.0},
+            2020: {"ISR": 47000.0, "DEU": 58000.0, "SGP": 118000.0, "CAN": 50000.0, "JPN": 38100.0},
+            2021: {"ISR": 51000.0, "DEU": 62000.0, "SGP": 132000.0, "CAN": 56000.0, "JPN": 40500.0},
             2022: {"ISR": 54000.0, "DEU": 65000.0, "SGP": 140000.0, "CAN": 59000.0, "JPN": 42000.0},
             2023: {"ISR": 56000.0, "DEU": 67000.0, "SGP": 145000.0, "CAN": 61000.0, "JPN": 43500.0},
+            2024: {"ISR": 57500.0, "DEU": 68000.0, "SGP": 149000.0, "CAN": 62500.0, "JPN": 44300.0},
+            2025: {"ISR": 59000.0, "DEU": 69500.0, "SGP": 153000.0, "CAN": 64000.0, "JPN": 45000.0},
         },
         "notes_by_year": {
+            2020: "Synthetic recession dip for trend-testing.",
             2023: "Example updated year.",
         },
     },
@@ -62,8 +69,14 @@ METRICS: dict[str, dict[str, object]] = {
         "higher_is_better": True,
         "category": "governance",
         "yearly_values": {
+            2018: {"ISR": 0.70, "DEU": 0.82, "SGP": 0.81, "CAN": 0.89, "JPN": 0.77},
+            2019: {"ISR": 0.69, "DEU": 0.82, "SGP": 0.82, "CAN": 0.90, "JPN": 0.78},
+            2020: {"ISR": 0.68, "DEU": 0.83, "SGP": 0.82, "CAN": 0.90, "JPN": 0.78},
+            2021: {"ISR": 0.68, "DEU": 0.83, "SGP": 0.83, "CAN": 0.91, "JPN": 0.79},
             2022: {"ISR": 0.67, "DEU": 0.84, "SGP": 0.83, "CAN": 0.91, "JPN": 0.79},
             2023: {"ISR": 0.66, "DEU": 0.85, "SGP": 0.84, "CAN": 0.92, "JPN": 0.80},
+            2024: {"ISR": 0.66, "DEU": 0.85, "SGP": 0.84, "CAN": 0.92, "JPN": 0.80},
+            2025: {"ISR": 0.65, "DEU": 0.86, "SGP": 0.85, "CAN": 0.93, "JPN": 0.81},
         },
     },
     "democracy_index": {
@@ -74,8 +87,14 @@ METRICS: dict[str, dict[str, object]] = {
         "higher_is_better": True,
         "category": "governance",
         "yearly_values": {
+            2018: {"ISR": 7.9, "DEU": 8.7, "SGP": 6.0, "CAN": 9.1, "JPN": 8.0},
+            2019: {"ISR": 7.8, "DEU": 8.7, "SGP": 6.1, "CAN": 9.1, "JPN": 8.1},
+            2020: {"ISR": 7.6, "DEU": 8.6, "SGP": 6.0, "CAN": 9.0, "JPN": 8.0},
+            2021: {"ISR": 7.7, "DEU": 8.7, "SGP": 6.1, "CAN": 9.0, "JPN": 8.1},
             2022: {"ISR": 7.8, "DEU": 8.8, "SGP": 6.2, "CAN": 9.0, "JPN": 8.2},
             2023: {"ISR": 7.6, "DEU": 8.8, "SGP": 6.3, "CAN": 9.0, "JPN": 8.1},
+            2024: {"ISR": 7.5, "DEU": 8.7, "SGP": 6.3, "CAN": 8.9, "JPN": 8.1},
+            2025: {"ISR": 7.4, "DEU": 8.7, "SGP": 6.4, "CAN": 8.9, "JPN": 8.0},
         },
     },
     "inflation": {
@@ -86,10 +105,17 @@ METRICS: dict[str, dict[str, object]] = {
         "higher_is_better": False,
         "category": "economy",
         "yearly_values": {
+            2018: {"ISR": 0.8, "DEU": 1.7, "SGP": 0.4, "CAN": 2.3, "JPN": 1.0},
+            2019: {"ISR": 0.6, "DEU": 1.4, "SGP": 0.6, "CAN": 1.9, "JPN": 0.5},
+            2020: {"ISR": -0.6, "DEU": 0.4, "SGP": -0.2, "CAN": 0.7, "JPN": 0.0},
+            2021: {"ISR": 1.5, "DEU": 3.1, "SGP": 2.3, "CAN": 3.4, "JPN": -0.2},
             2022: {"ISR": 4.4, "DEU": 6.9, "SGP": 6.1, "CAN": 6.8, "JPN": 2.5},
             2023: {"ISR": 3.1, "DEU": 5.9, "SGP": 4.8, "CAN": 3.9, "JPN": 3.2},
+            2024: {"ISR": 2.4, "DEU": 2.8, "SGP": 2.7, "CAN": 2.5, "JPN": 2.1},
+            2025: {"ISR": 2.0, "DEU": 2.3, "SGP": 2.2, "CAN": 2.1, "JPN": 1.8},
         },
         "notes_by_year": {
+            2020: "Includes a synthetic low-inflation year to test reversals.",
             2022: "Lower is better for this metric.",
             2023: "Lower is better for this metric.",
         },
@@ -102,14 +128,23 @@ METRICS: dict[str, dict[str, object]] = {
         "higher_is_better": True,
         "category": "health",
         "yearly_values": {
+            2018: {"ISR": 82.3, "DEU": 80.6, "SGP": 83.2, "CAN": 82.0, "JPN": 84.2},
+            2019: {"ISR": 82.5, "DEU": 80.7, "SGP": 83.3, "CAN": 82.1, "JPN": 84.3},
+            2020: {"ISR": 82.1, "DEU": 80.2, "SGP": 83.0, "CAN": 81.8, "JPN": 84.1},
+            2021: {"ISR": 82.4, "DEU": 80.5, "SGP": 83.2, "CAN": 82.0, "JPN": 84.2},
             2022: {"ISR": 82.7, "DEU": 80.8, "SGP": 83.5, "CAN": 82.3, "JPN": 84.4},
             2023: {"ISR": 82.9, "DEU": 81.0, "SGP": 83.8, "CAN": 82.5, "JPN": 84.6},
+            2024: {"ISR": 83.0, "DEU": 81.1, "SGP": 84.0, "CAN": 82.6, "JPN": 84.7},
+            2025: {"ISR": 83.1, "DEU": 81.2, "SGP": 84.1, "CAN": 82.7, "JPN": 84.8},
+        },
+        "notes_by_year": {
+            2020: "Synthetic dip to make recovery behavior visible in forecasts.",
         },
     },
 }
 
 
-DATASET_VERSION = "v0.2.0"
+DATASET_VERSION = "v0.3.0"
 
 
 def _build_metric_rows(
