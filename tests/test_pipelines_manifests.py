@@ -105,3 +105,39 @@ def test_load_source_manifest_preserves_remote_source_fields(tmp_path: Path) -> 
     source = manifest.sources[0]
     assert source.remote_url == 'file:///tmp/example.csv'
     assert source.download_filename == 'cached_example.csv'
+
+
+def test_manifest_loader_preserves_world_bank_source_fields(tmp_path) -> None:
+    manifest_path = tmp_path / "world_bank.yaml"
+    manifest_payload = {
+        "name": "world_bank_real_data",
+        "raw_root": str(tmp_path),
+        "defaults": {
+            "adapter_id": "world_bank_indicator_csv",
+            "source_name": "World Bank",
+            "source_url": "https://data.worldbank.org/",
+            "category": "TODO_CATEGORY",
+            "unit": "TODO_UNIT",
+            "higher_is_better": True,
+            "filter_to_allowed_country_codes": True,
+        },
+        "sources": [
+            {
+                "source_id": "wb_gdp_current_usd",
+                "path": "gdp_current_usd/wb_gdp_current_usd.csv",
+                "metric_id": "gdp_current_usd",
+                "metric_name": "GDP Current USD",
+                "expected_indicator_code": "NY.GDP.MKTP.CD",
+                "extra_allowed_country_codes": ["XKX"],
+            }
+        ],
+    }
+    manifest_path.write_text(yaml.safe_dump(manifest_payload), encoding="utf-8")
+
+    manifest = load_source_manifest(manifest_path)
+    source = manifest.sources[0]
+
+    assert source.adapter_id == "world_bank_indicator_csv"
+    assert source.expected_indicator_code == "NY.GDP.MKTP.CD"
+    assert source.filter_to_allowed_country_codes is True
+    assert source.extra_allowed_country_codes == ["XKX"]
