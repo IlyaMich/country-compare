@@ -10,6 +10,10 @@ from country_compare.prediction import (
     build_forecast_table_dataframe,
     build_line_chart_dataframe,
 )
+from country_compare.ui.components.downloads import (
+    build_result_markdown_summary,
+    render_result_downloads,
+)
 from country_compare.ui.components.messages import render_app_error
 
 
@@ -125,7 +129,22 @@ def _render_prediction_result_body(
             st.dataframe(combined_df, use_container_width=True, hide_index=True)
         else:
             st.write("No combined actual/forecast dataframe is available.")
-
+    _render_prediction_downloads(
+        table=forecast_table_df if not forecast_table_df.empty else None,
+        diagnostics={
+            "mode": mode,
+            "summary": summary,
+            "metadata": getattr(prediction_result, "metadata", {}),
+            "diagnostics": getattr(prediction_result, "diagnostics", []),
+        },
+        title="Country Compare Prediction Result",
+        base_file_name=f"country_compare_{mode}_forecast",
+        key_prefix=f"prediction_{mode}",
+        notes=[
+            "Forecasts are baseline statistical projections, not precise predictions.",
+            "Review diagnostics before using forecast outputs.",
+        ],
+    )
     _render_diagnostics(
         diagnostics=getattr(prediction_result, "diagnostics", []),
         summary=summary,
@@ -169,6 +188,22 @@ def _render_predicted_comparison_body(
                 hide_index=True,
             )
 
+    _render_prediction_downloads(
+        table=dataframe if isinstance(dataframe, pd.DataFrame) else None,
+        diagnostics={
+            "mode": mode,
+            "summary": summary,
+            "metadata": getattr(comparison_result, "metadata", {}),
+            "diagnostics": getattr(comparison_result, "diagnostics", []),
+        },
+        title="Country Compare Predicted Comparison Result",
+        base_file_name=f"country_compare_{mode}",
+        key_prefix=f"prediction_{mode}",
+        notes=[
+            "This comparison ranks forecasted rows for the selected forecast year or horizon.",
+            "Review diagnostics before using predicted comparison outputs.",
+        ],
+    )
     _render_diagnostics(
         diagnostics=getattr(comparison_result, "diagnostics", []),
         summary=summary,
@@ -209,6 +244,26 @@ def _render_backtest_body(
         st.markdown("### Actual vs predicted")
         st.dataframe(actual_vs_predicted_df, use_container_width=True, hide_index=True)
 
+    _render_prediction_downloads(
+        table=(
+            actual_vs_predicted_df
+            if isinstance(actual_vs_predicted_df, pd.DataFrame)
+            else None
+        ),
+        diagnostics={
+            "mode": mode,
+            "summary": summary,
+            "metrics": metrics,
+            "diagnostics": getattr(backtest_result, "diagnostics", []),
+        },
+        title="Country Compare Backtest Result",
+        base_file_name=f"country_compare_{mode}",
+        key_prefix=f"prediction_{mode}",
+        notes=[
+            "Backtests evaluate a forecast method against held-out observed years.",
+            "Lower error values indicate a better fit for this historical split.",
+        ],
+    )
     _render_diagnostics(
         diagnostics=getattr(backtest_result, "diagnostics", []),
         summary=summary,
@@ -296,6 +351,38 @@ def _render_diagnostics(
             )
         elif debug:
             st.json(summary)
+
+
+def _render_prediction_downloads(
+    *,
+    table: pd.DataFrame | None,
+    diagnostics: Any | None,
+    title: str,
+    base_file_name: str,
+    key_prefix: str,
+    notes: list[str],
+) -> None:
+    row_count = len(table.index) if isinstance(table, pd.DataFrame) else 0
+    column_count = len(table.columns) if isinstance(table, pd.DataFrame) else 0
+
+    summary_markdown = build_result_markdown_summary(
+        title=title,
+        sections={
+            "Result": [
+                f"Rows: {row_count}",
+                f"Columns: {column_count}",
+            ],
+            "Notes": notes,
+        },
+    )
+
+    render_result_downloads(
+        table=table,
+        diagnostics=diagnostics,
+        summary_markdown=summary_markdown,
+        base_file_name=base_file_name,
+        key_prefix=key_prefix,
+    )
 
 
 def _render_summary_json(*, summary: Mapping[str, Any], debug: bool) -> None:

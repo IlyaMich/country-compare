@@ -5,6 +5,10 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+from country_compare.ui.components.downloads import (
+    build_result_markdown_summary,
+    render_result_downloads,
+)
 from country_compare.ui.components.export_controls import render_presentation_exports
 from country_compare.ui.components.messages import render_app_error, render_messages
 
@@ -76,6 +80,8 @@ def render_comparison_result(
             st.markdown(f"**{title}**")
             st.pyplot(figure, use_container_width=True)
 
+    _render_comparison_downloads(presentation, table=table, summary=summary)
+
     if presentation_service is not None:
         render_presentation_exports(
             presentation,
@@ -105,6 +111,49 @@ def render_comparison_result(
     if diagnostics and debug:
         with st.expander("Diagnostics"):
             st.json(diagnostics)
+
+
+def _render_comparison_downloads(
+    presentation: Any,
+    *,
+    table: Any,
+    summary: dict[str, Any],
+) -> None:
+    if not isinstance(table, pd.DataFrame):
+        return
+
+    mode = str(getattr(presentation, "mode", "comparison") or "comparison")
+    metadata = getattr(presentation, "metadata", {}) or {}
+    warnings = list(getattr(presentation, "warnings", []) or [])
+    diagnostics = getattr(presentation, "diagnostics", {}) or {}
+
+    summary_markdown = build_result_markdown_summary(
+        title=str(summary.get("title", "Country Compare Result")),
+        sections={
+            "Result": [
+                f"Mode: {mode}",
+                f"Rows: {len(table.index)}",
+                f"Columns: {len(table.columns)}",
+                f"Top item: {_string_or_dash(summary.get('top_country'))}",
+                f"Top rank: {_string_or_dash(summary.get('top_rank'))}",
+            ],
+            "Notes": "Generated from the current Country Compare UI selection.",
+        },
+    )
+
+    render_result_downloads(
+        table=table,
+        diagnostics={
+            "mode": mode,
+            "summary": summary,
+            "metadata": metadata,
+            "warnings": warnings,
+            "diagnostics": diagnostics,
+        },
+        summary_markdown=summary_markdown,
+        base_file_name=f"country_compare_{mode}_result",
+        key_prefix=f"comparison_{mode}",
+    )
 
 
 def _string_or_dash(value: Any) -> str:
