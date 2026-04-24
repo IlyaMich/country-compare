@@ -106,7 +106,77 @@ class LastObservedForecaster(BaseForecaster):
             forecaster_info=self.info(metadata={"latest_observed_value": latest_value}),
         )
 
+class MovingAverageForecaster(BaseForecaster):
+    method_id = "moving_average"
+    display_name = "Moving average"
+    description = "Repeats the mean of the most recent observations for every forecast year."
+    default_window_size = 3
+    minimum_observations = 2
 
+    def supports(
+        self,
+        series: pd.DataFrame,
+        *,
+        context: ForecastContext,
+        options: ForecastOptions,
+    ) -> tuple[bool, list[str]]:
+        values = pd.to_numeric(series[VALUE_COLUMN], errors="coerce").dropna()
+        reasons: list[str] = []
+        if len(series.index) < self.minimum_observations:
+            reasons.append("moving_average requires at least two observations")
+        if len(values.index) < len(series.index):
+            reasons.append("moving_average requires numeric values for every observation")
+        return len(reasons) == 0, reasons
+
+    def forecast(
+        self,
+        series: pd.DataFrame,
+        future_years: list[int],
+        *,
+        context: ForecastContext,
+        options: ForecastOptions,
+    ) -> RawForecastResult:
+        self._require_supported(series, context=context, options=options)
+
+        sorted_series = series.copy(deep=True)
+        sorted_series[YEAR_COLUMN] = pd.to_numeric(sorted_series[YEAR_COLUMN], errors="coerce")
+        sorted_series[VALUE_COLUMN] = pd.to_numeric(sorted_series[VALUE_COLUMN], errors="coerce")
+        sorted_series = sorted_series.sort_values(by=YEAR_COLUMN, kind="mergesort")
+
+        effective_window_size = min(self.default_window_size, len(sorted_series.index))
+        window = sorted_series.tail(effective_window_size)
+        moving_average_value = float(window[VALUE_COLUMN].mean())
+        input_years_used = [int(year) for year in window[YEAR_COLUMN].tolist()]
+
+        warnings: list[str] = []
+        if effective_window_size < self.default_window_size:
+            warnings.append(
+                "moving_average used all available observations because fewer than "
+                f"{self.default_window_size} observations were available"
+            )
+
+        points = [
+            ForecastPoint(
+                year=int(year),
+                value=moving_average_value,
+                horizon=index + 1,
+            )
+            for index, year in enumerate(future_years)
+        ]
+        metadata = {
+            "window_size": self.default_window_size,
+            "effective_window_size": effective_window_size,
+            "input_years_used": input_years_used,
+            "moving_average_value": moving_average_value,
+        }
+        return RawForecastResult(
+            method_id=self.method_id,
+            points=points,
+            forecaster_info=self.info(metadata=metadata),
+            diagnostics_metadata=metadata,
+            warnings=warnings,
+        )
+    
 class LinearTrendForecaster(BaseForecaster):
     method_id = "linear_trend"
     display_name = "Linear trend"
