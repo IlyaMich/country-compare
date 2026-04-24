@@ -23,6 +23,20 @@ class InMemoryDatasetService:
         return self.dataframe.copy(deep=True)
 
 
+class StubConfigBundle:
+    def __init__(self, *, metrics: object, scoring: object) -> None:
+        self.metrics = metrics
+        self.scoring = scoring
+
+
+class InMemoryConfigService:
+    def __init__(self, *, metrics: object, scoring: object) -> None:
+        self._bundle = StubConfigBundle(metrics=metrics, scoring=scoring)
+
+    def load_bundle(self) -> StubConfigBundle:
+        return self._bundle
+
+
 def _canonical_df() -> pd.DataFrame:
     rows = []
     values = {
@@ -63,11 +77,16 @@ def _canonical_df() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _service(dataframe: pd.DataFrame | None = None) -> PredictionService:
+def _service(
+    dataframe: pd.DataFrame | None = None,
+    *,
+    config_service: object | None = None,
+) -> PredictionService:
     resolved_dataframe = _canonical_df() if dataframe is None else dataframe
     return PredictionService(
         context=AppContext(),
         dataset_service=InMemoryDatasetService(resolved_dataframe),
+        config_service=config_service,
     )
 
 
@@ -127,6 +146,176 @@ def test_service_predicted_comparison_delegates_to_bridge() -> None:
     assert result.dataframe is not None
     assert result.dataframe["country_code"].tolist() == ["ISR", "FRA"]
     assert result.summary["selected_forecast_horizon"] == 1
+
+
+def test_predicted_single_metric_comparison_injects_bundle_configs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    metrics_config = object()
+    scoring_config = object()
+    service = _service(
+        config_service=InMemoryConfigService(
+            metrics=metrics_config,
+            scoring=scoring_config,
+        )
+    )
+    captured: dict[str, object] = {}
+
+    def fake_compare_predicted_single_metric(dataframe: pd.DataFrame, **kwargs: object) -> object:
+        captured["comparison_options"] = kwargs["comparison_options"]
+        return object()
+
+    def fake_run_predicted_comparison_result(*, mode: str, request: object, executor: object) -> str:
+        captured["mode"] = mode
+        captured["request"] = request
+        executor(pd.DataFrame())
+        return "ok"
+
+    monkeypatch.setattr(
+        "country_compare.services.prediction_service.compare_predicted_single_metric",
+        fake_compare_predicted_single_metric,
+    )
+    monkeypatch.setattr(service, "_run_predicted_comparison_result", fake_run_predicted_comparison_result)
+
+    result = service.run_predicted_single_metric_comparison(
+        metric_id="gdp_per_capita",
+        country_codes=["ISR", "FRA"],
+        horizon_years=2,
+        forecast_horizon=1,
+        method="linear_trend",
+    )
+
+    assert result == "ok"
+    assert captured["mode"] == "predicted_single_metric_comparison"
+    assert captured["request"] == {
+        "metric_id": "gdp_per_capita",
+        "country_codes": ["ISR", "FRA"],
+        "horizon_years": 2,
+        "forecast_year": None,
+        "forecast_horizon": 1,
+        "method": "linear_trend",
+        "fallback_method": PredictionMethod.LAST_OBSERVED,
+        "comparison_options": {},
+    }
+    comparison_options = captured["comparison_options"]
+    assert isinstance(comparison_options, dict)
+    assert comparison_options["metrics_config"] is metrics_config
+    assert comparison_options["scoring_config"] is scoring_config
+
+
+def test_predicted_multi_metric_comparison_injects_bundle_configs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    metrics_config = object()
+    scoring_config = object()
+    service = _service(
+        config_service=InMemoryConfigService(
+            metrics=metrics_config,
+            scoring=scoring_config,
+        )
+    )
+    captured: dict[str, object] = {}
+
+    def fake_compare_predicted_multi_metric(dataframe: pd.DataFrame, **kwargs: object) -> object:
+        captured["comparison_options"] = kwargs["comparison_options"]
+        return object()
+
+    def fake_run_predicted_comparison_result(*, mode: str, request: object, executor: object) -> str:
+        captured["mode"] = mode
+        captured["request"] = request
+        executor(pd.DataFrame())
+        return "ok"
+
+    monkeypatch.setattr(
+        "country_compare.services.prediction_service.compare_predicted_multi_metric",
+        fake_compare_predicted_multi_metric,
+    )
+    monkeypatch.setattr(service, "_run_predicted_comparison_result", fake_run_predicted_comparison_result)
+
+    result = service.run_predicted_multi_metric_comparison(
+        metric_ids=["gdp_per_capita", "life_expectancy"],
+        country_codes=["ISR", "FRA"],
+        horizon_years=2,
+        forecast_horizon=1,
+        method="linear_trend",
+    )
+
+    assert result == "ok"
+    assert captured["mode"] == "predicted_multi_metric_comparison"
+    assert captured["request"] == {
+        "metric_ids": ["gdp_per_capita", "life_expectancy"],
+        "country_codes": ["ISR", "FRA"],
+        "horizon_years": 2,
+        "forecast_year": None,
+        "forecast_horizon": 1,
+        "method": "linear_trend",
+        "fallback_method": PredictionMethod.LAST_OBSERVED,
+        "comparison_options": {},
+    }
+    comparison_options = captured["comparison_options"]
+    assert isinstance(comparison_options, dict)
+    assert comparison_options["metrics_config"] is metrics_config
+    assert comparison_options["scoring_config"] is scoring_config
+
+
+def test_predicted_profile_comparison_injects_bundle_configs_and_profile_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    metrics_config = object()
+    bundle_scoring_config = object()
+    explicit_scoring_config = object()
+    service = _service(
+        config_service=InMemoryConfigService(
+            metrics=metrics_config,
+            scoring=bundle_scoring_config,
+        )
+    )
+    captured: dict[str, object] = {}
+
+    def fake_compare_predicted_profile(dataframe: pd.DataFrame, **kwargs: object) -> object:
+        captured["comparison_options"] = kwargs["comparison_options"]
+        captured["scoring_config"] = kwargs["scoring_config"]
+        return object()
+
+    def fake_run_predicted_comparison_result(*, mode: str, request: object, executor: object) -> str:
+        captured["mode"] = mode
+        captured["request"] = request
+        executor(pd.DataFrame())
+        return "ok"
+
+    monkeypatch.setattr(
+        "country_compare.services.prediction_service.compare_predicted_profile",
+        fake_compare_predicted_profile,
+    )
+    monkeypatch.setattr(service, "_run_predicted_comparison_result", fake_run_predicted_comparison_result)
+
+    result = service.run_predicted_profile_comparison(
+        profile_name="default_profile",
+        country_codes=["ISR", "FRA"],
+        horizon_years=2,
+        forecast_horizon=1,
+        method="linear_trend",
+        scoring_config=explicit_scoring_config,
+    )
+
+    assert result == "ok"
+    assert captured["mode"] == "predicted_profile_comparison"
+    assert captured["request"] == {
+        "profile_name": "default_profile",
+        "country_codes": ["ISR", "FRA"],
+        "horizon_years": 2,
+        "forecast_year": None,
+        "forecast_horizon": 1,
+        "method": "linear_trend",
+        "fallback_method": PredictionMethod.LAST_OBSERVED,
+        "comparison_options": {},
+    }
+    assert captured["scoring_config"] is explicit_scoring_config
+    comparison_options = captured["comparison_options"]
+    assert isinstance(comparison_options, dict)
+    assert comparison_options["metrics_config"] is metrics_config
+    assert comparison_options["scoring_config"] is explicit_scoring_config
+    assert comparison_options["profile_name"] == "default_profile"
 
 
 def test_service_backtest_delegates_to_evaluation() -> None:

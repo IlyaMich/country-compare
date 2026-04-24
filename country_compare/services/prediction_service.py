@@ -5,6 +5,7 @@ from typing import Any
 
 import pandas as pd
 
+from country_compare.config import load_configuration_bundle
 from country_compare.config.models import ScoringConfig
 from country_compare.data import load_metric_dataframe
 from country_compare.data.stores.registry import create_metric_store
@@ -241,6 +242,9 @@ class PredictionService:
         fallback_method: PredictionMethod | str | None = PredictionMethod.LAST_OBSERVED,
         comparison_options: dict[str, object] | None = None,
     ) -> PredictionServiceResult:
+        resolved_comparison_options = self._resolve_predicted_comparison_options(
+            comparison_options=comparison_options,
+        )
         request = {
             "metric_id": metric_id,
             "country_codes": list(country_codes),
@@ -263,7 +267,7 @@ class PredictionService:
                 horizon_years=horizon_years,
                 method=method,
                 fallback_method=fallback_method,
-                comparison_options=comparison_options,
+                comparison_options=resolved_comparison_options,
             ),
         )
 
@@ -279,6 +283,9 @@ class PredictionService:
         fallback_method: PredictionMethod | str | None = PredictionMethod.LAST_OBSERVED,
         comparison_options: dict[str, object] | None = None,
     ) -> PredictionServiceResult:
+        resolved_comparison_options = self._resolve_predicted_comparison_options(
+            comparison_options=comparison_options,
+        )
         request = {
             "metric_ids": list(metric_ids),
             "country_codes": list(country_codes),
@@ -301,7 +308,7 @@ class PredictionService:
                 horizon_years=horizon_years,
                 method=method,
                 fallback_method=fallback_method,
-                comparison_options=comparison_options,
+                comparison_options=resolved_comparison_options,
             ),
         )
 
@@ -319,6 +326,11 @@ class PredictionService:
         comparison_options: dict[str, object] | None = None,
     ) -> PredictionServiceResult:
         resolved_scoring_config = scoring_config or self._load_scoring_config()
+        resolved_comparison_options = self._resolve_predicted_comparison_options(
+            comparison_options=comparison_options,
+            scoring_config=resolved_scoring_config,
+            profile_name=profile_name,
+        )
         request = {
             "profile_name": profile_name,
             "country_codes": list(country_codes),
@@ -342,7 +354,7 @@ class PredictionService:
                 horizon_years=horizon_years,
                 method=method,
                 fallback_method=fallback_method,
-                comparison_options=comparison_options,
+                comparison_options=resolved_comparison_options,
             ),
         )
 
@@ -510,17 +522,45 @@ class PredictionService:
         store = self._create_store_from_context()
         return load_metric_dataframe(store=store)
 
-    def _load_scoring_config(self) -> ScoringConfig:
-        if self.config_service is not None and hasattr(self.config_service, "load_bundle"):
-            return self.config_service.load_bundle(validate=True).scoring
+    # def _load_scoring_config(self) -> ScoringConfig:
+    #     if self.config_service is not None and hasattr(self.config_service, "load_bundle"):
+    #         return self.config_service.load_bundle(validate=True).scoring
 
-        from country_compare.config import load_configuration_bundle
+    #     from country_compare.config import load_configuration_bundle
+
+    #     return load_configuration_bundle(
+    #         self.context.metrics_config_path,
+    #         self.context.scoring_config_path,
+    #         validate=True,
+    #     ).scoring
+    def _resolve_predicted_comparison_options(
+        self,
+        comparison_options: dict[str, object] | None = None,
+        *,
+        scoring_config: ScoringConfig | None = None,
+        profile_name: str | None = None,
+    ) -> dict[str, object]:
+        bundle = self._load_configuration_bundle()
+        resolved_options = dict(comparison_options or {})
+        resolved_options.setdefault("metrics_config", bundle.metrics)
+        resolved_options.setdefault("scoring_config", scoring_config or bundle.scoring)
+        if profile_name is not None:
+            resolved_options.setdefault("profile_name", profile_name)
+        return resolved_options
+
+    def _load_configuration_bundle(self) -> Any:
+        if self.config_service is not None and hasattr(self.config_service, "load_bundle"):
+            return self.config_service.load_bundle()
 
         return load_configuration_bundle(
             self.context.metrics_config_path,
             self.context.scoring_config_path,
             validate=True,
-        ).scoring
+        )
+
+    def _load_scoring_config(self) -> ScoringConfig:
+        return self._load_configuration_bundle().scoring
+
 
     def _create_store_from_context(self) -> Any:
         kwargs: dict[str, Any] = {}
