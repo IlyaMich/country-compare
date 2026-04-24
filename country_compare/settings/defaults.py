@@ -1,0 +1,26 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from country_compare.paths import CONFIG_DIR, DATA_DIR
+
+DEFAULT_APP_CONFIG_PATH = CONFIG_DIR / "app.yaml"
+
+DEFAULT_METRICS_CONFIG_PATH = CONFIG_DIR / "metrics.yaml"
+DEFAULT_SCORING_CONFIG_PATH = CONFIG_DIR / "scoring_profiles.yaml"
+DEFAULT_STORE_BACKEND = "parquet"
+DEFAULT_STORE_PATH: Path | None = None
+DEFAULT_AUDIT_DIR = DATA_DIR / "audit"
+DEFAULT_EXPORT_DIR = DATA_DIR / "exports"
+DEFAULT_DEBUG = False
+
+DEFAULT_UI_APP_TITLE = "Country Compare"
+DEFAULT_UI_PAGE_TITLE = "Country Comparison"
+DEFAULT_UI_PAGE_ICON = ""
+DEFAULT_UI_LAYOUT = "wide"
+DEFAULT_UI_DEFAULT_PAGE = "Overview"
+
+DEFAULT_PREDICTION_METHOD = "linear_trend"
+DEFAULT_PREDICTION_FALLBACK_METHOD = "last_observed"
+DEFAULT_MAX_PREDICTION_HORIZON = 10
+DEFAULT_MOVING_AVERAGE_WINDOW_SIZE = 3
