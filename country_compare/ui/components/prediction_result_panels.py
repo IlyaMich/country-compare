@@ -15,6 +15,9 @@ from country_compare.ui.components.downloads import (
     render_result_downloads,
 )
 from country_compare.ui.components.messages import render_app_error
+from country_compare.ui.components.prediction_quality import (
+    render_prediction_quality_panel,
+)
 
 
 def render_prediction_service_result(
@@ -112,6 +115,11 @@ def _render_prediction_result_body(
     _render_prediction_metrics(
         mode=mode, summary=summary, metadata=getattr(prediction_result, "metadata", {})
     )
+    render_prediction_quality_panel(
+        diagnostics=getattr(prediction_result, "diagnostics", []),
+        summary=summary,
+        mode=mode,
+    )
 
     if not forecast_table_df.empty:
         st.markdown("### Forecast table")
@@ -175,6 +183,12 @@ def _render_predicted_comparison_body(
     cols[2].metric("Forecast horizon", _metric_value(selected_horizon))
     cols[3].metric("Failed series", _metric_value(failed_series_count))
 
+    render_prediction_quality_panel(
+        diagnostics=getattr(comparison_result, "diagnostics", []),
+        summary=summary,
+        mode=mode,
+    )
+
     if isinstance(dataframe, pd.DataFrame):
         st.markdown("### Predicted comparison table")
         st.dataframe(dataframe, use_container_width=True, hide_index=True)
@@ -237,6 +251,12 @@ def _render_backtest_body(
     )
     secondary_cols[3].metric(
         "Test observations", _metric_value(metrics.get("n_test_observations"))
+    )
+
+    render_prediction_quality_panel(
+        diagnostics=getattr(backtest_result, "diagnostics", []),
+        summary=summary,
+        mode=mode,
     )
 
     actual_vs_predicted_df = getattr(backtest_result, "actual_vs_predicted_df", None)
