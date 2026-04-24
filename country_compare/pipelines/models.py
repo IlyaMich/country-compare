@@ -38,6 +38,8 @@ class SourceSpec:
     adapter_id: str
     path: str | Path | None = None
     glob: str | None = None
+    remote_url: str | None = None
+    download_filename: str | None = None
     format_hint: str | None = None
     sheet_name: str | int | None = None
     read_options: dict[str, Any] = field(default_factory=dict)
@@ -65,12 +67,16 @@ class SourceSpec:
             raise ValueError('source_id must be a non-empty string')
         if not self.adapter_id:
             raise ValueError('adapter_id must be a non-empty string')
-        if self.path is None and self.glob is None:
-            raise ValueError("SourceSpec requires either 'path' or 'glob'")
+        if self.path is None and self.glob is None and self.remote_url is None:
+            raise ValueError("SourceSpec requires 'path', 'glob', or 'remote_url'")
         if self.path is not None:
             self.path = Path(self.path)
         if self.glob is not None:
             self.glob = str(self.glob).strip() or None
+        if self.remote_url is not None:
+            self.remote_url = str(self.remote_url).strip() or None
+        if self.download_filename is not None:
+            self.download_filename = str(self.download_filename).strip() or None
         self.read_options = dict(self.read_options or {})
         if self.sheet_name is not None and 'sheet_name' not in self.read_options:
             self.read_options['sheet_name'] = self.sheet_name

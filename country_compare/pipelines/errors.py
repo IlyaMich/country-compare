@@ -13,6 +13,10 @@ class UnsupportedFormatError(PipelineError):
     """Raised when an acquired asset has an unsupported format."""
 
 
+class SourcePullError(PipelineError):
+    """Raised when a non-local source cannot be downloaded or materialized."""
+
+
 class AdapterExecutionError(PipelineError):
     """Raised when a source adapter cannot produce a canonical dataframe."""
 

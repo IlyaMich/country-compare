@@ -10,7 +10,8 @@ import pandas as pd
 
 from country_compare.data.contract import ALL_COLUMNS, PRIMARY_KEY_COLUMNS
 from country_compare.data.ingestion.registry import resolve_source_adapter
-from country_compare.pipelines.acquisition.directory import DirectoryRawAcquirer
+from country_compare.pipelines.acquisition.base import RawAcquirer
+from country_compare.pipelines.acquisition.remote import CompositeRawAcquirer
 from country_compare.pipelines.audit import write_audit_artifacts
 from country_compare.pipelines.errors import AdapterExecutionError, CanonicalValidationError, PipelineError
 from country_compare.pipelines.models import (
@@ -30,8 +31,8 @@ from country_compare.pipelines.publish import publish_dataframe
 
 
 class PipelineEngine:
-    def __init__(self, *, acquirer: DirectoryRawAcquirer | None = None) -> None:
-        self.acquirer = acquirer or DirectoryRawAcquirer()
+    def __init__(self, *, acquirer: RawAcquirer | None = None) -> None:
+        self.acquirer = acquirer or CompositeRawAcquirer()
 
     def run(self, request: ProcessingRequest) -> ProcessingResult:
         started_at = datetime.now(tz=timezone.utc)
@@ -119,54 +120,76 @@ class PipelineEngine:
         for result in source_results:
             if result.dataframe is None:
                 continue
-            lineage = result.dataframe.copy(deep=True)
-            lineage['_source_id'] = result.source_id
-            lineage['_adapter_id'] = result.adapter_id
-            lineage_frames.append(lineage)
-        lineage_df = pd.concat(lineage_frames, ignore_index=True)
-        duplicate_mask = lineage_df.duplicated(subset=list(PRIMARY_KEY_COLUMNS), keep=False)
-        if duplicate_mask.any():
-            conflict_df = lineage_df.loc[duplicate_mask].copy()
-            grouped = []
-            for key_values, group in conflict_df.groupby(list(PRIMARY_KEY_COLUMNS), dropna=False, sort=True):
-                if not isinstance(key_values, tuple):
-                    key_values = (key_values,)
-                key_dict = dict(zip(PRIMARY_KEY_COLUMNS, key_values))
-                grouped.append({**key_dict, 'row_count': int(len(group.index)), 'source_ids': '|'.join(sorted(group['_source_id'].astype(str).unique().tolist())), 'adapter_ids': '|'.join(sorted(group['_adapter_id'].astype(str).unique().tolist()))})
-            return MergeReport(attempted=True, ok=False, input_frame_count=len(frames), input_row_count=int(sum(len(frame.index) for frame in frames)), merged_row_count=int(len(merged.index)), duplicate_key_conflict_count=len(grouped), duplicate_key_row_count=int(len(conflict_df.index)), conflict_keys_preview=tuple(grouped[:10]), conflict_dataframe=conflict_df, error=f"duplicate canonical primary-key rows detected after merge: {tuple(grouped[:10])}"), None
-        ordered = [column for column in ALL_COLUMNS if column in merged.columns]
-        remaining = [column for column in merged.columns if column not in ordered]
-        merged = merged.loc[:, [*ordered, *remaining]].copy(deep=True)
-        return MergeReport(attempted=True, ok=True, input_frame_count=len(frames), input_row_count=int(sum(len(frame.index) for frame in frames)), merged_row_count=int(len(merged.index))), merged
+            tagged = result.dataframe.copy(deep=True)
+            tagged['_source_id'] = result.source_id
+            tagged['_adapter_id'] = result.adapter_id
+            if result.tags:
+                tagged['_source_tags'] = '|'.join(result.tags)
+            if result.labels:
+                for key, value in result.labels.items():
+                    tagged[f'_source_label__{key}'] = value
+            lineage_frames.append(tagged)
+        merged_with_lineage = pd.concat(lineage_frames, ignore_index=True) if lineage_frames else pd.DataFrame()
+        duplicate_mask = merged_with_lineage.duplicated(subset=list(PRIMARY_KEY_COLUMNS), keep=False) if not merged_with_lineage.empty else pd.Series(dtype=bool)
+        if not merged_with_lineage.empty and duplicate_mask.any():
+            conflicts = merged_with_lineage.loc[duplicate_mask].copy(deep=True)
+            preview_columns = [column for column in [*PRIMARY_KEY_COLUMNS, '_source_id', '_adapter_id'] if column in conflicts.columns]
+            preview_rows = conflicts.loc[:, preview_columns].drop_duplicates().head(20).to_dict(orient='records')
+            message = 'duplicate canonical primary-key rows detected after merge: ' + str(preview_rows)
+            return MergeReport(attempted=True, ok=False, input_frame_count=len(frames), input_row_count=sum(len(frame.index) for frame in frames), merged_row_count=int(len(merged.index)), duplicate_key_conflict_count=int(conflicts.loc[:, list(PRIMARY_KEY_COLUMNS)].drop_duplicates().shape[0]), duplicate_key_row_count=int(len(conflicts.index)), conflict_keys_preview=tuple(preview_rows), conflict_dataframe=conflicts, error=message), None
+        ordered_columns = [column for column in ALL_COLUMNS if column in merged.columns]
+        remaining_columns = [column for column in merged.columns if column not in ordered_columns]
+        merged = merged.loc[:, [*ordered_columns, *remaining_columns]].copy(deep=True)
+        return MergeReport(attempted=True, ok=True, input_frame_count=len(frames), input_row_count=sum(len(frame.index) for frame in frames), merged_row_count=int(len(merged.index))), merged
 
     def _validate_merged_dataframe(self, dataframe: pd.DataFrame, *, request: ProcessingRequest, source_results: list[SourceProcessingResult], merge_report: MergeReport) -> tuple[ValidationReport, pd.DataFrame, Any | None]:
         errors: list[str] = []
         warnings: list[str] = []
         issues: list[RowIssue] = []
         config_checked = False
-        validated_dataframe = dataframe.copy(deep=True)
-        metric_dataset = None
+        metric_dataset: Any | None = None
         try:
-            from country_compare.data import validation as validation_module
-            prepared = validation_module.prepare_dataframe_for_storage(validated_dataframe)
-            validated_dataframe = prepared.dataframe if hasattr(prepared, 'dataframe') else prepared
-            metric_dataset = validation_module.dataframe_to_metric_dataset(validated_dataframe)
+            validated_dataframe, metric_dataset = self._prepare_dataframe_for_storage(dataframe)
         except Exception as exc:
-            errors.append(_normalize_validation_error_message(str(exc)))
-            issues.append(RowIssue(severity='error', code='canonical_validation_failed', message=errors[-1], action='run_failed', stage='validation'))
+            message = _normalize_validation_error_message(str(exc))
+            errors.append(message)
+            issues.append(RowIssue(severity='error', code='canonical_validation_failed', message=message, action='run_failed', stage='validation'))
+            validated_dataframe = dataframe.copy(deep=True)
         if not errors and request.validate_against_config:
             config_checked = True
-            if request.metrics_config is None:
+            metrics_config = request.metrics_config
+            if metrics_config is None:
                 warnings.append('Config validation was requested but no metrics_config was provided.')
             else:
                 try:
                     from country_compare.config.validator import validate_metrics_against_dataframe
-                    validate_metrics_against_dataframe(request.metrics_config, validated_dataframe)
+                    validate_metrics_against_dataframe(metrics_config, validated_dataframe)
                 except Exception as exc:
                     errors.append(str(exc))
                     issues.append(RowIssue(severity='error', code='config_validation_failed', message=str(exc), action='run_failed', stage='validation'))
         report = ValidationReport(ok=not errors, error_messages=errors, warning_messages=warnings, issues=issues, validated_row_count=int(len(validated_dataframe.index)), config_checked=config_checked, source_issue_count=sum(item.issue_count for item in source_results), rejected_row_count=sum(item.rejected_row_count for item in source_results), merge_checked=merge_report.attempted, merge_conflict_count=merge_report.duplicate_key_conflict_count)
         return report, validated_dataframe, metric_dataset
+
+    @staticmethod
+    def _prepare_dataframe_for_storage(dataframe: pd.DataFrame) -> tuple[pd.DataFrame, Any | None]:
+        from country_compare.data import validation as validation_module
+        candidate = dataframe.copy(deep=True)
+        for function_name in ('prepare_dataframe_for_storage', 'canonicalize_and_validate_dataframe'):
+            function = getattr(validation_module, function_name, None)
+            if function is None:
+                continue
+            result = function(candidate.copy(deep=True))
+            extracted = _extract_dataframe(result)
+            if extracted is not None:
+                candidate = extracted.copy(deep=True)
+                break
+        dataset = None
+        dataframe_to_metric_dataset = getattr(validation_module, 'dataframe_to_metric_dataset', None)
+        if callable(dataframe_to_metric_dataset):
+            dataset = dataframe_to_metric_dataset(candidate)
+        if dataset is None:
+            _fallback_validate_dataframe(candidate)
+        return candidate, dataset
 
     @staticmethod
     def _finalize_run_metadata(run_metadata: RunMetadata, *, source_results: list[SourceProcessingResult], validation_report: ValidationReport, canonical_dataframe: pd.DataFrame | None, warnings: list[str], error: str | None) -> RunMetadata:
@@ -183,8 +206,8 @@ class PipelineEngine:
             return result
         artifact_paths = write_audit_artifacts(result, request=request)
         output_dir = request.output_dir
-        if output_dir is None and artifact_paths:
-            output_dir = Path(next(iter(artifact_paths.values()))).parent
+        if output_dir is None:
+            output_dir = Path(next(iter(artifact_paths.values()))).parent if artifact_paths else None
         result.audit_report = AuditReport(written=True, output_dir=Path(output_dir) if output_dir is not None else None, artifact_paths=artifact_paths)
         return result
 
@@ -195,17 +218,78 @@ def _coerce_adapter_output(output: Any) -> AdapterResult:
     dataframe = getattr(output, 'dataframe', None)
     if not isinstance(dataframe, pd.DataFrame):
         raise AdapterExecutionError('adapter did not return a pandas DataFrame')
-    issues = [issue if isinstance(issue, RowIssue) else RowIssue(**issue) for issue in (getattr(output, 'issues', []) or [])]
-    rejected_rows = [rejected if isinstance(rejected, RejectedRow) else RejectedRow(**rejected) for rejected in (getattr(output, 'rejected_rows', []) or [])]
-    warnings = [str(item) for item in getattr(output, 'warnings', []) or []]
-    return AdapterResult(dataframe=dataframe.copy(deep=True), raw_row_count=getattr(output, 'raw_row_count', None), issues=issues, rejected_rows=rejected_rows, warnings=warnings)
+    raw_row_count = getattr(output, 'raw_row_count', None)
+    issues = _coerce_issues(getattr(output, 'issues', []))
+    rejected_rows = _coerce_rejected_rows(getattr(output, 'rejected_rows', []))
+    warnings = [str(item) for item in getattr(output, 'warnings', [])]
+    return AdapterResult(dataframe=dataframe.copy(deep=True), raw_row_count=raw_row_count, issues=issues, rejected_rows=rejected_rows, warnings=warnings)
+
+
+def _coerce_issues(values: Any) -> list[RowIssue]:
+    issues: list[RowIssue] = []
+    for value in values or []:
+        if isinstance(value, RowIssue):
+            issues.append(value)
+            continue
+        if isinstance(value, dict):
+            issues.append(RowIssue(**value))
+            continue
+        raise AdapterExecutionError('adapter issues must contain RowIssue objects or mappings')
+    return issues
+
+
+def _coerce_rejected_rows(values: Any) -> list[RejectedRow]:
+    rejected_rows: list[RejectedRow] = []
+    for value in values or []:
+        if isinstance(value, RejectedRow):
+            rejected_rows.append(value)
+            continue
+        if isinstance(value, dict):
+            rejected_rows.append(RejectedRow(**value))
+            continue
+        raise AdapterExecutionError('adapter rejected_rows must contain RejectedRow objects or mappings')
+    return rejected_rows
+
+
+def _extract_dataframe(result: Any) -> pd.DataFrame | None:
+    if isinstance(result, pd.DataFrame):
+        return result
+    dataframe = getattr(result, 'dataframe', None)
+    if isinstance(dataframe, pd.DataFrame):
+        return dataframe
+    return None
+
+
+def _fallback_validate_dataframe(dataframe: pd.DataFrame) -> None:
+    missing_required = [column for column in ALL_COLUMNS[:11] if column not in dataframe.columns]
+    if missing_required:
+        raise CanonicalValidationError(f'dataframe is missing required canonical columns: {missing_required}')
+    duplicate_mask = dataframe.duplicated(subset=list(PRIMARY_KEY_COLUMNS), keep=False)
+    if duplicate_mask.any():
+        duplicates = dataframe.loc[duplicate_mask, list(PRIMARY_KEY_COLUMNS)]
+        raise CanonicalValidationError('duplicate canonical primary-key rows detected: ' + str(duplicates.to_dict(orient='records')))
+    for column in [
+        'country_code', 'country_name', 'metric_id', 'metric_name', 'value', 'year', 'unit', 'source_name', 'source_url', 'higher_is_better', 'category'
+    ]:
+        if dataframe[column].isna().any():
+            raise CanonicalValidationError(f"required column '{column}' contains missing values")
+    years = pd.to_numeric(dataframe['year'], errors='raise')
+    if ((years < 1900) | (years > 2100)).any():
+        raise CanonicalValidationError('year values must be between 1900 and 2100')
+    values = pd.to_numeric(dataframe['value'], errors='raise')
+    if values.isna().any():
+        raise CanonicalValidationError('value column contains invalid numeric values')
+    country_codes = dataframe['country_code'].astype('string').str.upper()
+    invalid_country_codes = country_codes[country_codes.str.len() != 3]
+    if not invalid_country_codes.empty:
+        raise CanonicalValidationError('country_code must contain ISO alpha-3 codes')
 
 
 def _normalize_validation_error_message(message: str) -> str:
     lowered = message.lower()
     if 'duplicate canonical primary-key rows detected after merge' in lowered:
         return message
-    if 'duplicate rows found for primary key' in lowered or 'duplicate canonical primary-key rows' in lowered:
+    if 'duplicate canonical primary-key rows' in lowered or 'duplicate rows found for primary key' in lowered or '[duplicates]' in lowered:
         return f'duplicate canonical primary-key rows detected after merge: {message}'
     return message
 
