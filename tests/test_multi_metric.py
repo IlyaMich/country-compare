@@ -105,8 +105,8 @@ def test_compare_countries_common_year_selects_shared_year() -> None:
     )
 
     assert result["year"].nunique() == 1
-    # Latest common year is now 2023
-    assert int(result["year"].iloc[0]) == 2023
+    # Latest common year is now 2025
+    assert int(result["year"].iloc[0]) == 2025
 
 
 def test_compare_countries_country_filters_work() -> None:
@@ -191,7 +191,7 @@ def test_compare_countries_missing_metric_fails_clearly() -> None:
 def test_compare_countries_duplicate_rows_fail_clearly() -> None:
     df = build_example_metric_dataframe()
     duplicate_row = df.loc[
-        (df["metric_id"] == "gdp_per_capita") & (df["country_code"] == "ISR") & (df["year"] == 2023)
+        (df["metric_id"] == "gdp_per_capita") & (df["country_code"] == "ISR") & (df["year"] == 2025)
     ].copy()
     duplicate_df = pd.concat([df, duplicate_row], ignore_index=True)
 

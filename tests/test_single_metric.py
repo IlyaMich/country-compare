@@ -89,7 +89,7 @@ def test_compare_metric_basic_ranking_order() -> None:
     assert result[NORMALIZATION_METHOD_COLUMN].tolist() == ["minmax"] * 5
     assert result[NORMALIZATION_BASIS_COLUMN].tolist() == ["metric_slice"] * 5
     assert result[RANK_METHOD_COLUMN].tolist() == ["competition_min"] * 5
-    assert result["year"].tolist() == [2023] * 5
+    assert result["year"].tolist() == [2025] * 5
 
 
 def test_compare_metric_uses_target_year() -> None:
@@ -266,7 +266,9 @@ def test_compare_metric_preserves_canonical_columns_plus_derived_columns() -> No
 def test_compare_metric_duplicate_country_rows_fail_clearly() -> None:
     df = build_example_metric_dataframe()
     duplicate_row = df.loc[
-        (df["metric_id"] == "gdp_per_capita") & (df["country_code"] == "ISR") & (df["year"] == 2023)
+        (df["metric_id"] == "gdp_per_capita")
+        & (df["country_code"] == "ISR")
+        & (df["year"] == 2025)
     ].copy()
     duplicate_df = pd.concat([df, duplicate_row], ignore_index=True)
 

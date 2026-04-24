@@ -117,8 +117,8 @@ def test_prepare_weighted_score_input_uses_profile_year_strategy() -> None:
     )
 
     assert prepared["year"].nunique() == 1
-    # Latest common year is now 2023
-    assert int(prepared["year"].iloc[0]) == 2023
+    # Latest common year is now 2025
+    assert int(prepared["year"].iloc[0]) == 2025
     assert sorted(prepared["metric_id"].unique().tolist()) == ["gdp_per_capita", "rule_of_law"]
 
 

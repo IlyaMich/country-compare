@@ -22,7 +22,7 @@ def test_filter_countries_include():
 
     assert set(result["country_code"].unique()) == {"ISR", "SGP"}
     # 2 countries × 5 metrics × 2 years = 20
-    assert len(result) == 20
+    assert len(result) == 80
 
 
 def test_filter_countries_exclude():
@@ -33,7 +33,7 @@ def test_filter_countries_exclude():
     # Excluding DEU, remaining: ISR, SGP, CAN, JPN
     assert set(result["country_code"].unique()) == {"ISR", "SGP", "CAN", "JPN"}
     # 4 countries × 5 metrics × 2 years = 40
-    assert len(result) == 40
+    assert len(result) == 160
 
 
 def test_filter_metrics_include():
@@ -43,7 +43,7 @@ def test_filter_metrics_include():
 
     assert set(result["metric_id"].unique()) == {"gdp_per_capita", "rule_of_law"}
     # 2 metrics × 5 countries × 2 years = 20
-    assert len(result) == 20
+    assert len(result) == 80
 
 
 def test_filter_metrics_exclude():
@@ -55,7 +55,7 @@ def test_filter_metrics_exclude():
     expected_metrics = {"gdp_per_capita", "rule_of_law", "inflation", "life_expectancy"}
     assert set(result["metric_id"].unique()) == expected_metrics
     # 4 metrics × 5 countries × 2 years = 40
-    assert len(result) == 40
+    assert len(result) == 160
 
 
 def test_latest_per_metric_selects_latest_row_per_country_metric():
@@ -70,9 +70,9 @@ def test_latest_per_metric_selects_latest_row_per_country_metric():
         (row.country_code, row.metric_id): int(row.year)
         for row in result.itertuples(index=False)
     }
-    # All should be 2023 for all (country, metric) pairs
+    # All should be 2025 for all (country, metric) pairs
     for (country, metric), year in observed.items():
-        assert year == 2023
+        assert year == 2025
 
 
 def test_target_year_filters_single_year():
@@ -100,7 +100,7 @@ def test_common_year_selects_latest_fully_covered_year():
     # All metrics and countries have both 2022 and 2023, so latest is 2023
     # 5 countries × 5 metrics = 25
     assert len(result) == 25
-    assert set(result["year"].astype(int).unique()) == {2023}
+    assert set(result["year"].astype(int).unique()) == {2025}
 
 
 def test_common_year_raises_when_no_fully_covered_year_exists():

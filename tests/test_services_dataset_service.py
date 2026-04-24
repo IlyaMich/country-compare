@@ -11,17 +11,19 @@ from country_compare.services import AppContext, DatasetService
 def test_dataset_service_returns_summary_for_valid_dataset(tmp_path: Path) -> None:
     store_path = tmp_path / "metrics.parquet"
     store = ParquetMetricStore(store_path)
-    save_metric_dataframe(build_example_metric_dataframe(), store=store)
+
+    df = build_example_metric_dataframe()
+    save_metric_dataframe(df, store=store)
 
     service = DatasetService(AppContext(store_backend="parquet", store_path=store_path))
     summary = service.get_dataset_summary()
 
     assert summary.exists is True
-    assert summary.row_count == 50
-    assert summary.country_count == 5
-    assert summary.metric_count == 5
-    assert summary.year_min == 2022
-    assert summary.year_max == 2023
+    assert summary.row_count == len(df)
+    assert summary.country_count == df["country_code"].nunique()
+    assert summary.metric_count == df["metric_id"].nunique()
+    assert summary.year_min == int(df["year"].min())
+    assert summary.year_max == int(df["year"].max())
     assert {item.name for item in summary.categories} == {"economy", "governance", "health"}
 
 
