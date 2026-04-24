@@ -1,44 +1,45 @@
-default_profile: default_profile
+default_profile: balanced_demo
 weight_handling: normalize
-default_year_strategy: latest_per_metric
+default_year_strategy: common_year
 default_missing_data_policy: renormalize_weights
 
 profiles:
-  default_profile:
-    description: Balanced default profile across core development and governance metrics.
+  balanced_demo:
+    description: Balanced demo profile across economy, health, employment, and governance.
     metrics:
       - gdp_per_capita
-      - rule_of_law
-      - democracy_index
       - life_expectancy
-    weights: {}
-    normalization_overrides: {}
-
-  economic_focus:
-    description: Prioritizes economic performance while still keeping institutional context.
-    metrics:
-      - gdp_per_capita
-      - inflation
-      - rule_of_law
+      - unemployment_pct
+      - governance_score
     weights:
-      gdp_per_capita: 2.0
-      inflation: 1.5
-      rule_of_law: 1.0
-    normalization_overrides:
-      inflation: rank
-      gdp_per_capita: log-minmax
-    year_strategy: latest_per_metric
+      gdp_per_capita: 0.30
+      life_expectancy: 0.25
+      unemployment_pct: 0.20
+      governance_score: 0.25
+    normalization_overrides: {}
+    year_strategy: common_year
     missing_data_policy: renormalize_weights
 
-  governance_focus:
-    description: Focuses on institutional and democratic quality.
+  economy_demo:
+    description: Demo profile focused on economic strength and labor market performance.
     metrics:
-      - rule_of_law
-      - democracy_index
+      - gdp_per_capita
+      - unemployment_pct
+    weights:
+      gdp_per_capita: 0.65
+      unemployment_pct: 0.35
+    normalization_overrides: {}
+    year_strategy: common_year
+    missing_data_policy: renormalize_weights
+
+  governance_quality_demo:
+    description: Demo profile focused on governance and quality-of-life signals.
+    metrics:
+      - governance_score
       - life_expectancy
     weights:
-      rule_of_law: 2.0
-      democracy_index: 1.5
-    normalization_overrides:
-      rule_of_law: percentile
-    year_strategy: common_year      
+      governance_score: 0.60
+      life_expectancy: 0.40
+    normalization_overrides: {}
+    year_strategy: common_year
+    missing_data_policy: renormalize_weights
