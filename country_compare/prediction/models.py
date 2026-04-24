@@ -75,6 +75,43 @@ class SingleMetricPredictionRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class MultiSeriesPredictionRequest:
+    """Request for forecasting multiple country/metric annual time series."""
+
+    country_codes: list[str]
+    metric_ids: list[str]
+    horizon_years: int
+    method: PredictionMethod | str | None = None
+    include_actuals: bool = True
+    history_start_year: int | None = None
+    history_end_year: int | None = None
+    fallback_method: PredictionMethod | str | None = PredictionMethod.LAST_OBSERVED
+    fail_fast: bool = False
+    scenario_id: str = "baseline"
+
+    def __post_init__(self) -> None:
+        country_codes = _deduplicate_strings(self.country_codes, uppercase=True)
+        metric_ids = _deduplicate_strings(self.metric_ids, uppercase=False)
+        scenario_id = str(self.scenario_id).strip() or "baseline"
+
+        if (
+            self.history_start_year is not None
+            and self.history_end_year is not None
+            and int(self.history_start_year) > int(self.history_end_year)
+        ):
+            raise ValueError("history_start_year must be <= history_end_year")
+
+        object.__setattr__(self, "country_codes", country_codes)
+        object.__setattr__(self, "metric_ids", metric_ids)
+        object.__setattr__(self, "horizon_years", int(self.horizon_years))
+        object.__setattr__(self, "scenario_id", scenario_id)
+        if self.history_start_year is not None:
+            object.__setattr__(self, "history_start_year", int(self.history_start_year))
+        if self.history_end_year is not None:
+            object.__setattr__(self, "history_end_year", int(self.history_end_year))
+
+
+@dataclass(frozen=True, slots=True)
 class ForecastOptions:
     max_horizon_years: int = 10
     scenario_id: str = "baseline"
@@ -158,10 +195,35 @@ class PreparedTimeSeries:
 
 @dataclass(frozen=True, slots=True)
 class PredictionResult:
-    request: SingleMetricPredictionRequest
+    request: SingleMetricPredictionRequest | MultiSeriesPredictionRequest
     forecast_df: pd.DataFrame
     combined_df: pd.DataFrame
     comparison_ready_df: pd.DataFrame
     diagnostics: list[PredictionDiagnostics]
     forecaster_info: list[ForecasterInfo]
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class PredictedComparisonResult:
+    comparison_df: pd.DataFrame
+    prediction_result: PredictionResult
+    diagnostics: list[PredictionDiagnostics]
+    selected_forecast_year: int | None = None
+    selected_forecast_horizon: int | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+def _deduplicate_strings(values: list[str], *, uppercase: bool) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value).strip()
+        if not text:
+            continue
+        key = text.upper() if uppercase else text
+        if key in seen:
+            continue
+        normalized.append(key)
+        seen.add(key)
+    return normalized
