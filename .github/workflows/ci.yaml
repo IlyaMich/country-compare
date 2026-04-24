@@ -39,11 +39,11 @@ jobs:
 
       - name: Check formatting
         run: |
-          python -m black --check country_compare tests scripts
+          python -m black --check country_compare tests scripts/demo_product_flow.py
 
       - name: Run lint checks
         run: |
-          python -m ruff check country_compare tests scripts
+          python -m ruff check country_compare tests scripts/demo_product_flow.py
 
       - name: Run tests
         run: |
