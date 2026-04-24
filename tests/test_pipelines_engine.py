@@ -309,3 +309,61 @@ def test_manifest_loader_applies_defaults_and_builds_request(tmp_path: Path) -> 
     assert source.adapter_id == 'wide_year_metric_csv'
     assert source.source_name == 'Example Source'
     assert source.tags == ('baseline', 'world_bank')
+
+
+def test_pipeline_run_succeeds_for_remote_file_url_input(
+    tmp_path: Path,
+    canonical_dataframe: pd.DataFrame,
+) -> None:
+    remote_path = tmp_path / 'remote_canonical.csv'
+    canonical_dataframe.to_csv(remote_path, index=False)
+
+    request = ProcessingRequest(
+        sources=[
+            SourceSpec(
+                source_id='remote_source',
+                adapter_id='canonical_tabular_passthrough',
+                remote_url=remote_path.resolve().as_uri(),
+                download_filename='downloaded_canonical.csv',
+                source_name='Example Source',
+                source_url='https://example.org/gdp',
+            )
+        ],
+        raw_root=tmp_path,
+    )
+
+    result = PipelineEngine().run(request)
+
+    assert result.ok is True
+    assert result.canonical_dataframe is not None
+    assert len(result.canonical_dataframe.index) == 2
+    assert result.source_results[0].assets[0].metadata['acquisition_mode'] == 'remote_pull'
+
+
+def test_pipeline_manifest_path_supports_remote_url_sources(tmp_path: Path, canonical_dataframe: pd.DataFrame) -> None:
+    remote_path = tmp_path / 'remote_manifest_source.csv'
+    canonical_dataframe.to_csv(remote_path, index=False)
+    manifest_path = tmp_path / 'sources.yaml'
+    manifest_path.write_text(
+        '\n'.join(
+            [
+                'name: remote_manifest',
+                f'raw_root: {tmp_path.as_posix()}',
+                'defaults:',
+                '  adapter_id: canonical_tabular_passthrough',
+                '  source_name: Example Source',
+                '  source_url: https://example.org/gdp',
+                'sources:',
+                '  - source_id: remote_source',
+                f'    remote_url: {remote_path.resolve().as_uri()}',
+                '    download_filename: pulled.csv',
+            ]
+        ),
+        encoding='utf-8',
+    )
+
+    request = manifest_to_processing_request(load_source_manifest(manifest_path))
+    result = PipelineEngine().run(request)
+
+    assert result.ok is True
+    assert result.source_results[0].assets[0].local_path.name == 'pulled.csv'

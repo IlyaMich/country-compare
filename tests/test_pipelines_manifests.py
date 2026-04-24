@@ -82,3 +82,26 @@ def test_manifest_to_processing_request_uses_manifest_processing_defaults(tmp_pa
     assert request.write_audit_artifacts is True
     assert request.canonical_preview_rows == 3
     assert len(request.sources) == 1
+
+
+def test_load_source_manifest_preserves_remote_source_fields(tmp_path: Path) -> None:
+    payload = {
+        'raw_root': str(tmp_path),
+        'defaults': {'adapter_id': 'canonical_tabular_passthrough'},
+        'sources': [
+            {
+                'source_id': 'remote_dataset',
+                'remote_url': 'file:///tmp/example.csv',
+                'download_filename': 'cached_example.csv',
+            }
+        ],
+    }
+    manifest_path = tmp_path / 'sources.yaml'
+    manifest_path.write_text(yaml.safe_dump(payload), encoding='utf-8')
+
+    manifest = load_source_manifest(manifest_path)
+
+    assert len(manifest.sources) == 1
+    source = manifest.sources[0]
+    assert source.remote_url == 'file:///tmp/example.csv'
+    assert source.download_filename == 'cached_example.csv'

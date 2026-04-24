@@ -141,3 +141,36 @@ def test_run_processing_manifest_allows_publish_override(tmp_path: Path) -> None
     assert result.publication_report is not None and result.publication_report.ok is True
     assert store.written is not None
     assert len(store.written.index) == 2
+
+
+def test_run_processing_manifest_supports_remote_url_source(tmp_path: Path) -> None:
+    csv_path = tmp_path / 'canonical.csv'
+    _make_valid_dataframe().to_csv(csv_path, index=False)
+    manifest_path = tmp_path / 'sources.yaml'
+    manifest_path.write_text(
+        yaml.safe_dump(
+            {
+                'raw_root': str(tmp_path),
+                'processing': {'publish': False},
+                'defaults': {
+                    'adapter_id': 'canonical_tabular_passthrough',
+                    'source_name': 'Example Source',
+                    'source_url': 'https://example.org/gdp',
+                },
+                'sources': [
+                    {
+                        'source_id': 'remote_source',
+                        'remote_url': csv_path.resolve().as_uri(),
+                        'download_filename': 'downloaded.csv',
+                    }
+                ],
+            }
+        ),
+        encoding='utf-8',
+    )
+
+    result = run_processing_manifest(manifest_path)
+
+    assert result.ok is True
+    assert result.source_results[0].assets[0].local_path.name == 'downloaded.csv'
+    assert result.source_results[0].assets[0].metadata['acquisition_mode'] == 'remote_pull'
