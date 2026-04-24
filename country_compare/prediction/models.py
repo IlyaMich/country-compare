@@ -214,6 +214,59 @@ class PredictedComparisonResult:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class BacktestRequest:
+    """Request for holdout-based evaluation of one country/metric series."""
+
+    country_code: str
+    metric_id: str
+    holdout_years: int = 3
+    method: PredictionMethod | str | None = PredictionMethod.LINEAR_TREND
+    fallback_method: PredictionMethod | str | None = PredictionMethod.LAST_OBSERVED
+    history_start_year: int | None = None
+    history_end_year: int | None = None
+    scenario_id: str = "baseline"
+
+    def __post_init__(self) -> None:
+        country_code = str(self.country_code).strip().upper()
+        metric_id = str(self.metric_id).strip()
+        scenario_id = str(self.scenario_id).strip() or "baseline"
+
+        if not country_code:
+            raise ValueError("country_code must not be empty")
+        if not metric_id:
+            raise ValueError("metric_id must not be empty")
+        if " " in metric_id:
+            raise ValueError("metric_id must not contain spaces; use snake_case.")
+        if (
+            self.history_start_year is not None
+            and self.history_end_year is not None
+            and int(self.history_start_year) > int(self.history_end_year)
+        ):
+            raise ValueError("history_start_year must be <= history_end_year")
+
+        object.__setattr__(self, "country_code", country_code)
+        object.__setattr__(self, "metric_id", metric_id)
+        object.__setattr__(self, "holdout_years", int(self.holdout_years))
+        object.__setattr__(self, "scenario_id", scenario_id)
+        if self.history_start_year is not None:
+            object.__setattr__(self, "history_start_year", int(self.history_start_year))
+        if self.history_end_year is not None:
+            object.__setattr__(self, "history_end_year", int(self.history_end_year))
+
+
+@dataclass(frozen=True, slots=True)
+class BacktestResult:
+    """Result wrapper for one holdout backtest run."""
+
+    request: BacktestRequest
+    actual_vs_predicted_df: pd.DataFrame
+    diagnostics: list[PredictionDiagnostics]
+    forecaster_info: list[ForecasterInfo]
+    metrics: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
 def _deduplicate_strings(values: list[str], *, uppercase: bool) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()
