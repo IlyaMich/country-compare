@@ -17,6 +17,10 @@ dependencies = [
     "streamlit>=1.56.0",
 ]
 
+[project.scripts]
+country-compare = "country_compare.cli.main:main"
+country-compare-ui = "country_compare.cli.ui:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
@@ -34,6 +38,11 @@ include = ["country_compare*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+ "unit: fast isolated tests",
+ "integration: multi-module or filesystem tests",
+ "smoke: high-level demo/app smoke tests",
+]
 
 [tool.ruff]
 line-length = 100
