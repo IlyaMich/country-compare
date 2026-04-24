@@ -23,6 +23,11 @@ from country_compare.prediction.multi_metric import (
     predict_single_metric_for_countries,
 )
 from country_compare.prediction.single_metric import predict_single_metric
+from country_compare.prediction.visualization import (
+    build_actual_vs_predicted_dataframe,
+    build_forecast_table_dataframe,
+    build_line_chart_dataframe,
+)
 
 __all__ = [
     "PredictionErrorCode",
@@ -45,4 +50,7 @@ __all__ = [
     "compare_predicted_single_metric",
     "compare_predicted_multi_metric",
     "compare_predicted_profile",
+    "build_line_chart_dataframe",
+    "build_actual_vs_predicted_dataframe",
+    "build_forecast_table_dataframe",
 ]
