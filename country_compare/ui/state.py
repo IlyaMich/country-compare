@@ -7,6 +7,7 @@ from typing import Any
 
 import streamlit as st
 
+from country_compare.ui.navigation import DEFAULT_PAGE
 
 class StateKey(StrEnum):
     SELECTED_PAGE = "country_compare.selected_page"
@@ -24,8 +25,6 @@ class UIStateSnapshot:
     debug_mode: bool
     last_error_code: str | None
 
-
-DEFAULT_PAGE = "Overview"
 
 DEFAULT_SELECTION_STATE = {
     "active_mode": "single_metric",
