@@ -1,0 +1,247 @@
+name: world_bank_real_data
+raw_root: data/raw
+
+processing:
+  publish: true
+  write_audit_artifacts: true
+  output_dir: data/audit/world_bank_real_data
+
+defaults:
+  adapter_id: world_bank_indicator_csv
+  source_name: World Bank
+  source_url: https://data.worldbank.org/
+  filter_to_allowed_country_codes: true
+  read_options:
+    skiprows: 4
+
+sources:
+  - source_id: wb_compensation_employees_lcu
+    path: compensation_employees_lcu/wb_compensation_employees_lcu.csv
+    metric_id: compensation_employees_lcu
+    metric_name: Compensation Employees LCU
+    expected_indicator_code: GC.XPN.COMP.CN
+    unit: LCU
+    category: fiscal
+    higher_is_better: false # TODO_REVIEW_DIRECTION
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_taxes_goods_services_lcu
+    path: taxes_goods_services_lcu/wb_taxes_goods_services_lcu.csv
+    metric_id: taxes_goods_services_lcu
+    metric_name: Taxes Goods Services LCU
+    expected_indicator_code: GC.TAX.GSRV.CN
+    unit: LCU
+    category: fiscal
+    higher_is_better: false # TODO_REVIEW_DIRECTION
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_external_debt_total
+    path: external_debt_total/wb_external_debt_total.csv
+    metric_id: external_debt_total
+    metric_name: External Debt Total
+    expected_indicator_code: DT.DOD.DECT.CD
+    unit: USD
+    category: finance
+    higher_is_better: false
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_journal_articles
+    path: journal_articles/wb_journal_articles.csv
+    metric_id: journal_articles
+    metric_name: Journal Articles
+    expected_indicator_code: IP.JRN.ARTC.SC
+    unit: count
+    category: innovation
+    higher_is_better: true
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_rnd_expenditure_pct_gdp
+    path: rnd_expenditure_pct_gdp/wb_rnd_expenditure_pct_gdp.csv
+    metric_id: rnd_expenditure_pct_gdp
+    metric_name: R&D Expenditure Pct GDP
+    expected_indicator_code: GB.XPD.RSDV.GD.ZS
+    unit: percent
+    category: innovation
+    higher_is_better: true
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_internet_users_pct
+    path: internet_users_pct/wb_internet_users_pct.csv
+    metric_id: internet_users_pct
+    metric_name: Internet Users Pct
+    expected_indicator_code: IT.NET.USER.ZS
+    unit: percent
+    category: technology
+    higher_is_better: true
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_military_exp_pct_gdp
+    path: military_exp_pct_gdp/wb_military_exp_pct_gdp.csv
+    metric_id: military_exp_pct_gdp
+    metric_name: Military Exp Pct GDP
+    expected_indicator_code: MS.MIL.XPND.GD.ZS
+    unit: percent
+    category: defense
+    higher_is_better: false # TODO_REVIEW_DIRECTION
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_market_cap_pct_gdp
+    path: market_cap_pct_gdp/wb_market_cap_pct_gdp.csv
+    metric_id: market_cap_pct_gdp
+    metric_name: Market Cap Pct GDP
+    expected_indicator_code: CM.MKT.LCAP.GD.ZS
+    unit: percent
+    category: finance
+    higher_is_better: true
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_consumer_price_index
+    path: consumer_price_index/wb_consumer_price_index.csv
+    metric_id: consumer_price_index
+    metric_name: Consumer Price Index
+    expected_indicator_code: FP.CPI.TOTL
+    unit: index_2010_100
+    category: economy
+    higher_is_better: false
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_imports_growth_pct
+    path: imports_growth_pct/wb_imports_growth_pct.csv
+    metric_id: imports_growth_pct
+    metric_name: Imports Growth Pct
+    expected_indicator_code: NE.IMP.GNFS.KD.ZG
+    unit: percent
+    category: trade
+    higher_is_better: true # TODO_REVIEW_DIRECTION
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_exports_growth_pct
+    path: exports_growth_pct/wb_exports_growth_pct.csv
+    metric_id: exports_growth_pct
+    metric_name: Exports Growth Pct
+    expected_indicator_code: NE.EXP.GNFS.KD.ZG
+    unit: percent
+    category: trade
+    higher_is_better: true
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_gdp_current_usd
+    path: gdp_current_usd/wb_gdp_current_usd.csv
+    metric_id: gdp_current_usd
+    metric_name: GDP Current USD
+    expected_indicator_code: NY.GDP.MKTP.CD
+    unit: USD
+    category: economy
+    higher_is_better: true
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_unemployment_pct
+    path: unemployment_pct/wb_unemployment_pct.csv
+    metric_id: unemployment_pct
+    metric_name: Unemployment Pct
+    expected_indicator_code: SL.UEM.TOTL.ZS
+    unit: percent
+    category: labor
+    higher_is_better: false
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_labor_participation_pct
+    path: labor_participation_pct/wb_labor_participation_pct.csv
+    metric_id: labor_participation_pct
+    metric_name: Labor Participation Pct
+    expected_indicator_code: SL.TLF.CACT.ZS
+    unit: percent
+    category: labor
+    higher_is_better: true
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_youth_literacy_pct
+    path: youth_literacy_pct/wb_youth_literacy_pct.csv
+    metric_id: youth_literacy_pct
+    metric_name: Youth Literacy Pct
+    expected_indicator_code: SE.ADT.1524.LT.ZS
+    unit: percent
+    category: education
+    higher_is_better: true
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_education_spending_pct_gdp
+    path: education_spending_pct_gdp/wb_education_spending_pct_gdp.csv
+    metric_id: education_spending_pct_gdp
+    metric_name: Education Spending Pct GDP
+    expected_indicator_code: SE.XPD.TOTL.GD.ZS
+    unit: percent
+    category: education
+    higher_is_better: true # TODO_REVIEW_DIRECTION
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_crude_death_rate
+    path: crude_death_rate/wb_crude_death_rate.csv
+    metric_id: crude_death_rate
+    metric_name: Crude Death Rate
+    expected_indicator_code: SP.DYN.CDRT.IN
+    unit: per_1000_people
+    category: health
+    higher_is_better: false
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_life_expectancy_female
+    path: life_expectancy_female/wb_life_expectancy_female.csv
+    metric_id: life_expectancy_female
+    metric_name: Life Expectancy Female
+    expected_indicator_code: SP.DYN.LE00.FE.IN
+    unit: years
+    category: health
+    higher_is_better: true
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_life_expectancy_male
+    path: life_expectancy_male/wb_life_expectancy_male.csv
+    metric_id: life_expectancy_male
+    metric_name: Life Expectancy Male
+    expected_indicator_code: SP.DYN.LE00.MA.IN
+    unit: years
+    category: health
+    higher_is_better: true
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_population_growth_pct
+    path: population_growth_pct/wb_population_growth_pct.csv
+    metric_id: population_growth_pct
+    metric_name: Population Growth Pct
+    expected_indicator_code: SP.POP.GROW
+    unit: percent
+    category: demographics
+    higher_is_better: true # TODO_REVIEW_DIRECTION
+    read_options:
+      skiprows: 4
+
+  - source_id: wb_top10_income_share
+    path: top10_income_share/wb_top10_income_share.csv
+    metric_id: top10_income_share
+    metric_name: Top10 Income Share
+    expected_indicator_code: SI.DST.10TH.10
+    unit: percent
+    category: inequality
+    higher_is_better: false
+    read_options:
+      skiprows: 4

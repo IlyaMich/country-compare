@@ -1,50 +1,210 @@
 metrics:
-  gdp_per_capita:
-    display_name: GDP per capita
-    category: economy
-    higher_is_better: true
-    default_weight: 1.0
-    description: GDP per capita in current international dollars or equivalent standardized unit.
+  compensation_employees_lcu:
+    display_name: Compensation of Employees
+    category: fiscal
+    higher_is_better: false
+    default_weight: 0.25
+    description: Compensation of employees in current local currency units. Size-sensitive total; use cautiously for direct cross-country comparison.
+    unit: LCU
+    source: World Bank
+    normalization_method: log-minmax
+
+  taxes_goods_services_lcu:
+    display_name: Taxes on Goods and Services
+    category: fiscal
+    higher_is_better: false
+    default_weight: 0.25
+    description: Taxes on goods and services in current local currency units. Size-sensitive total; use cautiously for direct cross-country comparison.
+    unit: LCU
+    source: World Bank
+    normalization_method: log-minmax
+
+  external_debt_total:
+    display_name: External Debt Stocks, Total
+    category: finance
+    higher_is_better: false
+    default_weight: 0.25
+    description: Total external debt stocks in current US dollars. Absolute debt burden; lower is generally better, but direct comparison is size-sensitive.
     unit: USD
     source: World Bank
     normalization_method: log-minmax
 
-  rule_of_law:
-    display_name: Rule of Law
-    category: governance
+  journal_articles:
+    display_name: Scientific and Technical Journal Articles
+    category: innovation
     higher_is_better: true
-    default_weight: 1.0
-    description: Rule of law composite index.
-    unit: index
-    source: World Justice Project
+    default_weight: 0.50
+    description: Number of scientific and technical journal articles published. Absolute total; informative but partly reflects country size.
+    unit: count
+    source: World Bank
+    normalization_method: log-minmax
+
+  rnd_expenditure_pct_gdp:
+    display_name: R&D Expenditure
+    category: innovation
+    higher_is_better: true
+    default_weight: 0.75
+    description: Research and development expenditure as a percentage of GDP.
+    unit: percent
+    source: World Bank
     normalization_method: minmax
 
-  democracy_index:
-    display_name: Democracy Index
-    category: governance
+  internet_users_pct:
+    display_name: Internet Users
+    category: technology
     higher_is_better: true
     default_weight: 1.0
-    description: Democracy score from a recognized public source.
-    unit: score_0_10
-    source: Economist Intelligence Unit
+    description: Individuals using the Internet as a percentage of the population.
+    unit: percent
+    source: World Bank
     normalization_method: minmax
 
-  life_expectancy:
-    display_name: Life Expectancy
+  military_exp_pct_gdp:
+    display_name: Military Expenditure
+    category: defense
+    higher_is_better: false
+    default_weight: 0.25
+    description: Military expenditure as a percentage of GDP. Interpretation is context-dependent; lower is treated as better for general civilian development comparisons.
+    unit: percent
+    source: World Bank
+    normalization_method: rank
+
+  market_cap_pct_gdp:
+    display_name: Market Capitalization
+    category: finance
+    higher_is_better: true
+    default_weight: 0.75
+    description: Market capitalization of listed domestic companies as a percentage of GDP.
+    unit: percent
+    source: World Bank
+    normalization_method: percentile
+
+  consumer_price_index:
+    display_name: Consumer Price Index
+    category: economy
+    higher_is_better: false
+    default_weight: 0.50
+    description: Consumer price index with base year 2010 = 100. Lower values imply lower cumulative inflation since the base year.
+    unit: index_2010_100
+    source: World Bank
+    normalization_method: rank
+
+  imports_growth_pct:
+    display_name: Imports Growth
+    category: trade
+    higher_is_better: true
+    default_weight: 0.50
+    description: Annual growth rate of imports of goods and services.
+    unit: percent
+    source: World Bank
+    normalization_method: percentile
+
+  exports_growth_pct:
+    display_name: Exports Growth
+    category: trade
+    higher_is_better: true
+    default_weight: 0.50
+    description: Annual growth rate of exports of goods and services.
+    unit: percent
+    source: World Bank
+    normalization_method: percentile
+
+  gdp_current_usd:
+    display_name: GDP
+    category: economy
+    higher_is_better: true
+    default_weight: 0.25
+    description: Gross domestic product in current US dollars. Large-economy measure; use cautiously for direct cross-country comparison.
+    unit: USD
+    source: World Bank
+    normalization_method: log-minmax
+
+  unemployment_pct:
+    display_name: Unemployment
+    category: labor
+    higher_is_better: false
+    default_weight: 1.0
+    description: Unemployment rate as a percentage of the total labor force, modeled ILO estimate.
+    unit: percent
+    source: World Bank
+    normalization_method: rank
+
+  labor_participation_pct:
+    display_name: Labor Force Participation
+    category: labor
+    higher_is_better: true
+    default_weight: 0.75
+    description: Labor force participation rate as a percentage of the total population ages 15 and above, modeled ILO estimate.
+    unit: percent
+    source: World Bank
+    normalization_method: minmax
+
+  youth_literacy_pct:
+    display_name: Youth Literacy
+    category: education
+    higher_is_better: true
+    default_weight: 1.0
+    description: Literacy rate among youth ages 15 to 24.
+    unit: percent
+    source: World Bank
+    normalization_method: minmax
+
+  education_spending_pct_gdp:
+    display_name: Education Spending
+    category: education
+    higher_is_better: true
+    default_weight: 0.75
+    description: Government expenditure on education as a percentage of GDP.
+    unit: percent
+    source: World Bank
+    normalization_method: minmax
+
+  crude_death_rate:
+    display_name: Crude Death Rate
+    category: health
+    higher_is_better: false
+    default_weight: 1.0
+    description: Crude death rate per 1,000 people.
+    unit: per_1000_people
+    source: World Bank
+    normalization_method: rank
+
+  life_expectancy_female:
+    display_name: Life Expectancy, Female
     category: health
     higher_is_better: true
     default_weight: 1.0
-    description: Life expectancy at birth.
+    description: Female life expectancy at birth in years.
     unit: years
     source: World Bank
     normalization_method: percentile
 
-  inflation:
-    display_name: Inflation
-    category: economy
+  life_expectancy_male:
+    display_name: Life Expectancy, Male
+    category: health
+    higher_is_better: true
+    default_weight: 1.0
+    description: Male life expectancy at birth in years.
+    unit: years
+    source: World Bank
+    normalization_method: percentile
+
+  population_growth_pct:
+    display_name: Population Growth
+    category: demographics
+    higher_is_better: true
+    default_weight: 0.25
+    description: Annual population growth rate. Interpretation depends on context; included as a low-weight demographic dynamism indicator.
+    unit: percent
+    source: World Bank
+    normalization_method: percentile
+
+  top10_income_share:
+    display_name: Income Share Held by Highest 10%
+    category: inequality
     higher_is_better: false
-    default_weight: 0.75
-    description: Annual inflation rate. Lower is better for broad stability comparisons.
+    default_weight: 1.0
+    description: Share of total income held by the highest 10 percent. Lower values indicate lower concentration and less inequality.
     unit: percent
     source: World Bank
     normalization_method: rank
