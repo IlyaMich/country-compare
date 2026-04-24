@@ -522,17 +522,7 @@ class PredictionService:
         store = self._create_store_from_context()
         return load_metric_dataframe(store=store)
 
-    # def _load_scoring_config(self) -> ScoringConfig:
-    #     if self.config_service is not None and hasattr(self.config_service, "load_bundle"):
-    #         return self.config_service.load_bundle(validate=True).scoring
 
-    #     from country_compare.config import load_configuration_bundle
-
-    #     return load_configuration_bundle(
-    #         self.context.metrics_config_path,
-    #         self.context.scoring_config_path,
-    #         validate=True,
-    #     ).scoring
     def _resolve_predicted_comparison_options(
         self,
         comparison_options: dict[str, object] | None = None,
