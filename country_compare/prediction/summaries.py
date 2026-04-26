@@ -7,6 +7,11 @@ from typing import Any
 
 import pandas as pd
 
+from country_compare.data.contract import (
+    COUNTRY_CODE_COLUMN,
+    METRIC_ID_COLUMN,
+    YEAR_COLUMN,
+)
 from country_compare.prediction.errors import PredictionException
 from country_compare.prediction.models import (
     BacktestResult,
@@ -20,10 +25,6 @@ from country_compare.prediction.output import (
     PREDICTION_METHOD_COLUMN,
 )
 from country_compare.prediction.registry import list_forecasters, resolve_forecaster
-
-YEAR_COLUMN = "year"
-COUNTRY_CODE_COLUMN = "country_code"
-METRIC_ID_COLUMN = "metric_id"
 
 
 def list_available_prediction_methods() -> list[dict[str, Any]]:

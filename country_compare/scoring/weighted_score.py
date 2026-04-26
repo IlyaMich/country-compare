@@ -19,11 +19,15 @@ from country_compare.config.validator import (
     resolve_profile_options,
     resolve_profile_weights,
 )
+from country_compare.data.contract import (
+    COUNTRY_CODE_COLUMN,
+    COUNTRY_NAME_COLUMN,
+    INCOME_GROUP_COLUMN,
+    METRIC_ID_COLUMN,
+    REGION_COLUMN,
+)
 from country_compare.metrics.normalization import NORMALIZED_VALUE_COLUMN
 
-COUNTRY_CODE_COLUMN = "country_code"
-COUNTRY_NAME_COLUMN = "country_name"
-METRIC_ID_COLUMN = "metric_id"
 WEIGHTED_SCORE_COLUMN = "weighted_score"
 SCORE_RANK_COLUMN = "score_rank"
 SCORE_RANK_METHOD_COLUMN = "score_rank_method"
@@ -38,9 +42,10 @@ YEAR_STRATEGY_COLUMN = "year_strategy"
 DEFAULT_COUNTRY_METADATA_COLUMNS: tuple[str, ...] = (
     COUNTRY_CODE_COLUMN,
     COUNTRY_NAME_COLUMN,
-    "region",
-    "income_group",
+    INCOME_GROUP_COLUMN,
+    REGION_COLUMN,
 )
+
 DEFAULT_SCORE_RANK_METHOD = "competition_min"
 
 

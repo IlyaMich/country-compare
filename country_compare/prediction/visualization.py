@@ -2,6 +2,15 @@ from __future__ import annotations
 
 import pandas as pd
 
+from country_compare.data.contract import (
+    COUNTRY_CODE_COLUMN,
+    COUNTRY_NAME_COLUMN,
+    METRIC_ID_COLUMN,
+    METRIC_NAME_COLUMN,
+    UNIT_COLUMN,
+    VALUE_COLUMN,
+    YEAR_COLUMN,
+)
 from country_compare.prediction.models import PredictionResult
 from country_compare.prediction.output import (
     CONFIDENCE_LOWER_COLUMN,
@@ -13,14 +22,6 @@ from country_compare.prediction.output import (
     ROW_TYPE_COLUMN,
     SCENARIO_ID_COLUMN,
 )
-
-COUNTRY_CODE_COLUMN = "country_code"
-COUNTRY_NAME_COLUMN = "country_name"
-METRIC_ID_COLUMN = "metric_id"
-METRIC_NAME_COLUMN = "metric_name"
-YEAR_COLUMN = "year"
-VALUE_COLUMN = "value"
-UNIT_COLUMN = "unit"
 
 SERIES_LABEL_COLUMN = "series_label"
 OVERLAY_SERIES_LABEL_COLUMN = "overlay_series_label"

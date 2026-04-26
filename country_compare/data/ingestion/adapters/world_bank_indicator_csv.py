@@ -4,7 +4,7 @@ from typing import Any
 
 import pandas as pd
 
-from country_compare.data.contract import REQUIRED_COLUMNS
+from country_compare.data.contract import COUNTRY_CODE_COLUMN, REQUIRED_COLUMNS
 from country_compare.data.ingestion.base import SourceAdapter
 from country_compare.data.ingestion.registry import register_source_adapter
 from country_compare.data.ingestion.transforms.canonical import (
@@ -92,7 +92,7 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
         )
         country_code_column = find_column(
             list(frame.columns),
-            preferred=getattr(source_spec, "country_code_column", None),
+            preferred=getattr(source_spec, "country_code_column", COUNTRY_CODE_COLUMN),
             aliases=self.COUNTRY_CODE_ALIASES,
         )
         indicator_name_column = find_column(

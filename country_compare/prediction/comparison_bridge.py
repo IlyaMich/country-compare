@@ -13,6 +13,7 @@ from country_compare.comparison.single_metric import (
 )
 from country_compare.comparison.single_metric import compare_metric
 from country_compare.config.models import ScoringConfig, YearStrategy
+from country_compare.data.contract import YEAR_COLUMN
 from country_compare.prediction.errors import PredictionErrorCode, PredictionException
 from country_compare.prediction.models import (
     PredictedComparisonResult,
@@ -24,8 +25,6 @@ from country_compare.prediction.multi_metric import (
     predict_single_metric_for_countries,
 )
 from country_compare.prediction.output import FORECAST_HORIZON_COLUMN, ROW_TYPE_COLUMN
-
-YEAR_COLUMN = "year"
 
 
 def compare_predicted_single_metric(

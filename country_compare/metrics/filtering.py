@@ -5,10 +5,11 @@ from collections.abc import Iterable
 import pandas as pd
 
 from country_compare.config.models import YearStrategy
-
-COUNTRY_CODE_COLUMN = "country_code"
-METRIC_ID_COLUMN = "metric_id"
-YEAR_COLUMN = "year"
+from country_compare.data.contract import (
+    COUNTRY_CODE_COLUMN,
+    METRIC_ID_COLUMN,
+    YEAR_COLUMN,
+)
 
 
 def filter_countries(

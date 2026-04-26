@@ -7,6 +7,15 @@ from typing import Any
 
 import pandas as pd
 
+from country_compare.comparison.single_metric import RANK_COLUMN
+from country_compare.data.contract import (
+    COUNTRY_CODE_COLUMN,
+    COUNTRY_NAME_COLUMN,
+    METRIC_NAME_COLUMN,
+    UNIT_COLUMN,
+    VALUE_COLUMN,
+    YEAR_COLUMN,
+)
 from country_compare.services.results import (
     AppMessage,
     ComparisonResult,
@@ -210,14 +219,14 @@ class PresentationService:
             pass
 
         preferred_columns = [
-            "rank",
-            "country_code",
-            "country_name",
-            "metric_name",
-            "value",
+            RANK_COLUMN,
+            COUNTRY_CODE_COLUMN,
+            COUNTRY_NAME_COLUMN,
+            METRIC_NAME_COLUMN,
+            VALUE_COLUMN,
             "normalized_value",
-            "year",
-            "unit",
+            YEAR_COLUMN,
+            UNIT_COLUMN,
             "normalization_method",
         ]
         present_columns = [
@@ -264,11 +273,13 @@ class PresentationService:
             }
 
         best_row = self._resolve_top_row(
-            dataframe, rank_column="rank", value_column="normalized_value"
+            dataframe, rank_column=RANK_COLUMN, value_column="normalized_value"
         )
-        top_country = best_row.get("country_name") or best_row.get("country_code")
-        top_value = best_row.get("value")
-        top_rank = best_row.get("rank")
+        top_country = best_row.get(COUNTRY_NAME_COLUMN) or best_row.get(
+            COUNTRY_CODE_COLUMN
+        )
+        top_value = best_row.get(VALUE_COLUMN)
+        top_rank = best_row.get(RANK_COLUMN)
 
         return {
             "status": "success",
@@ -388,16 +399,18 @@ class PresentationService:
         top_country = "—"
         if {"country_code", "normalized_value"}.issubset(ranked.columns):
             summary_df = (
-                ranked.groupby(["country_code", "country_name"], dropna=False)[
-                    "normalized_value"
-                ]
+                ranked.groupby(
+                    [COUNTRY_CODE_COLUMN, COUNTRY_NAME_COLUMN], dropna=False
+                )["normalized_value"]
                 .mean()
                 .sort_values(ascending=False)
                 .reset_index()
             )
             if not summary_df.empty:
                 row = summary_df.iloc[0]
-                top_country = row.get("country_name") or row.get("country_code")
+                top_country = row.get(COUNTRY_NAME_COLUMN) or row.get(
+                    COUNTRY_CODE_COLUMN
+                )
 
         return {
             "status": "success",

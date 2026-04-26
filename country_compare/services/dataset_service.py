@@ -5,6 +5,15 @@ from pathlib import Path
 import pandas as pd
 
 from country_compare.data.access import load_metric_dataframe, metric_dataset_exists
+from country_compare.data.contract import (
+    CATEGORY_COLUMN,
+    COUNTRY_CODE_COLUMN,
+    COUNTRY_NAME_COLUMN,
+    METRIC_ID_COLUMN,
+    METRIC_NAME_COLUMN,
+    UNIT_COLUMN,
+    YEAR_COLUMN,
+)
 from country_compare.data.stores.registry import (
     create_metric_store,
     list_registered_backends,
@@ -79,13 +88,13 @@ class DatasetService:
                 dataset_path=str(dataset_path) if dataset_path is not None else None,
                 row_count=int(len(dataframe.index)),
                 country_count=(
-                    int(dataframe["country_code"].dropna().nunique())
-                    if "country_code" in dataframe.columns
+                    int(dataframe[COUNTRY_CODE_COLUMN].dropna().nunique())
+                    if COUNTRY_CODE_COLUMN in dataframe.columns
                     else 0
                 ),
                 metric_count=(
-                    int(dataframe["metric_id"].dropna().nunique())
-                    if "metric_id" in dataframe.columns
+                    int(dataframe[METRIC_ID_COLUMN].dropna().nunique())
+                    if METRIC_ID_COLUMN in dataframe.columns
                     else 0
                 ),
                 year_min=year_min,
@@ -117,10 +126,10 @@ class DatasetService:
             return ()
 
         unique_pairs = (
-            dataframe[["country_code", "country_name"]]
-            .dropna(subset=["country_code", "country_name"])
-            .drop_duplicates(subset=["country_code"])
-            .sort_values(["country_name", "country_code"])
+            dataframe[[COUNTRY_CODE_COLUMN, COUNTRY_NAME_COLUMN]]
+            .dropna(subset=[COUNTRY_CODE_COLUMN, COUNTRY_NAME_COLUMN])
+            .drop_duplicates(subset=[COUNTRY_CODE_COLUMN])
+            .sort_values([COUNTRY_NAME_COLUMN, COUNTRY_CODE_COLUMN])
         )
 
         return tuple(
@@ -135,17 +144,17 @@ class DatasetService:
             return ()
 
         available_columns = set(dataframe.columns)
-        subset_columns = ["metric_id", "metric_name"]
-        if "category" in available_columns:
-            subset_columns.append("category")
-        if "unit" in available_columns:
-            subset_columns.append("unit")
+        subset_columns = [METRIC_ID_COLUMN, METRIC_NAME_COLUMN]
+        if CATEGORY_COLUMN in available_columns:
+            subset_columns.append(CATEGORY_COLUMN)
+        if UNIT_COLUMN in available_columns:
+            subset_columns.append(UNIT_COLUMN)
 
         unique_metrics = (
             dataframe[subset_columns]
-            .dropna(subset=["metric_id", "metric_name"])
-            .drop_duplicates(subset=["metric_id"])
-            .sort_values(["metric_name", "metric_id"])
+            .dropna(subset=[METRIC_ID_COLUMN, METRIC_NAME_COLUMN])
+            .drop_duplicates(subset=[METRIC_ID_COLUMN])
+            .sort_values([METRIC_NAME_COLUMN, METRIC_ID_COLUMN])
         )
 
         return tuple(
@@ -168,11 +177,11 @@ class DatasetService:
 
     def list_years(self) -> tuple[int, ...]:
         dataframe = self.load_dataframe()
-        if dataframe.empty or "year" not in dataframe.columns:
+        if dataframe.empty or YEAR_COLUMN not in dataframe.columns:
             return ()
 
         year_values = (
-            pd.to_numeric(dataframe["year"], errors="coerce").dropna().astype(int)
+            pd.to_numeric(dataframe[YEAR_COLUMN], errors="coerce").dropna().astype(int)
         )
         return tuple(sorted(year_values.unique().tolist()))
 
@@ -183,17 +192,17 @@ class DatasetService:
     def _build_category_summaries(
         self, dataframe: pd.DataFrame
     ) -> tuple[CategorySummary, ...]:
-        required_columns = {"category", "country_code", "metric_id"}
+        required_columns = {CATEGORY_COLUMN, COUNTRY_CODE_COLUMN, METRIC_ID_COLUMN}
         if dataframe.empty or not required_columns.issubset(dataframe.columns):
             return ()
 
         grouped = (
-            dataframe.dropna(subset=["category"])
-            .groupby("category", dropna=True)
+            dataframe.dropna(subset=[CATEGORY_COLUMN])
+            .groupby(CATEGORY_COLUMN, dropna=True)
             .agg(
-                row_count=("category", "size"),
-                country_count=("country_code", "nunique"),
-                metric_count=("metric_id", "nunique"),
+                row_count=(CATEGORY_COLUMN, "size"),
+                country_count=(COUNTRY_CODE_COLUMN, "nunique"),
+                metric_count=(METRIC_ID_COLUMN, "nunique"),
             )
             .reset_index()
             .sort_values(["row_count", "category"], ascending=[False, True])
@@ -212,11 +221,11 @@ class DatasetService:
     def _extract_year_range(
         self, dataframe: pd.DataFrame
     ) -> tuple[int | None, int | None]:
-        if dataframe.empty or "year" not in dataframe.columns:
+        if dataframe.empty or YEAR_COLUMN not in dataframe.columns:
             return None, None
 
         numeric_years = (
-            pd.to_numeric(dataframe["year"], errors="coerce").dropna().astype(int)
+            pd.to_numeric(dataframe[YEAR_COLUMN], errors="coerce").dropna().astype(int)
         )
         if numeric_years.empty:
             return None, None

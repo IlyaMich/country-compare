@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 
 import pandas as pd
 
+from country_compare.data.contract import VALUE_COLUMN, YEAR_COLUMN
 from country_compare.prediction.errors import PredictionErrorCode, PredictionException
 from country_compare.prediction.models import (
     ForecastContext,
@@ -12,9 +13,6 @@ from country_compare.prediction.models import (
     ForecastPoint,
     RawForecastResult,
 )
-
-YEAR_COLUMN = "year"
-VALUE_COLUMN = "value"
 
 
 class BaseForecaster(ABC):

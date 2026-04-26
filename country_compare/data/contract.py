@@ -1,35 +1,55 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Final
 
-REQUIRED_COLUMNS: tuple[str, ...] = (
-    "country_code",
-    "country_name",
-    "metric_id",
-    "metric_name",
-    "value",
-    "year",
-    "unit",
-    "source_name",
-    "source_url",
-    "higher_is_better",
-    "category",
+COUNTRY_CODE_COLUMN: Final[str] = "country_code"
+COUNTRY_NAME_COLUMN: Final[str] = "country_name"
+METRIC_ID_COLUMN: Final[str] = "metric_id"
+METRIC_NAME_COLUMN: Final[str] = "metric_name"
+VALUE_COLUMN: Final[str] = "value"
+YEAR_COLUMN: Final[str] = "year"
+UNIT_COLUMN: Final[str] = "unit"
+SOURCE_NAME_COLUMN: Final[str] = "source_name"
+SOURCE_URL_COLUMN: Final[str] = "source_url"
+HIGHER_IS_BETTER_COLUMN: Final[str] = "higher_is_better"
+CATEGORY_COLUMN: Final[str] = "category"
+
+DATASET_VERSION_COLUMN: Final[str] = "dataset_version"
+REGION_COLUMN: Final[str] = "region"
+INCOME_GROUP_COLUMN: Final[str] = "income_group"
+NOTES_COLUMN: Final[str] = "notes"
+
+DEFAULT_MIN_YEAR: Final[int] = 1900
+DEFAULT_MAX_YEAR: Final[int] = 2100
+
+REQUIRED_COLUMNS: Final[tuple[str, ...]] = (
+    COUNTRY_CODE_COLUMN,
+    COUNTRY_NAME_COLUMN,
+    METRIC_ID_COLUMN,
+    METRIC_NAME_COLUMN,
+    VALUE_COLUMN,
+    YEAR_COLUMN,
+    UNIT_COLUMN,
+    SOURCE_NAME_COLUMN,
+    SOURCE_URL_COLUMN,
+    HIGHER_IS_BETTER_COLUMN,
+    CATEGORY_COLUMN,
 )
 
-OPTIONAL_COLUMNS: tuple[str, ...] = (
-    "dataset_version",
-    "region",
-    "income_group",
-    "notes",
+OPTIONAL_COLUMNS: Final[tuple[str, ...]] = (
+    DATASET_VERSION_COLUMN,
+    REGION_COLUMN,
+    INCOME_GROUP_COLUMN,
+    NOTES_COLUMN,
 )
 
-ALL_COLUMNS: tuple[str, ...] = REQUIRED_COLUMNS + OPTIONAL_COLUMNS
+ALL_COLUMNS: Final[tuple[str, ...]] = REQUIRED_COLUMNS + OPTIONAL_COLUMNS
 
-PRIMARY_KEY_COLUMNS: tuple[str, ...] = (
-    "country_code",
-    "metric_id",
-    "year",
+PRIMARY_KEY_COLUMNS: Final[tuple[str, ...]] = (
+    COUNTRY_CODE_COLUMN,
+    METRIC_ID_COLUMN,
+    YEAR_COLUMN,
 )
 
 
@@ -42,101 +62,97 @@ class ColumnSpec:
 
 
 CANONICAL_SCHEMA: dict[str, ColumnSpec] = {
-    "country_code": ColumnSpec(
-        name="country_code",
+    COUNTRY_CODE_COLUMN: ColumnSpec(
+        name=COUNTRY_CODE_COLUMN,
         pandas_dtype="string",
         nullable=False,
         description="ISO-3166-1 alpha-3 country code.",
     ),
-    "country_name": ColumnSpec(
-        name="country_name",
+    COUNTRY_NAME_COLUMN: ColumnSpec(
+        name=COUNTRY_NAME_COLUMN,
         pandas_dtype="string",
         nullable=False,
         description="Human-readable country name.",
     ),
-    "metric_id": ColumnSpec(
-        name="metric_id",
+    METRIC_ID_COLUMN: ColumnSpec(
+        name=METRIC_ID_COLUMN,
         pandas_dtype="string",
         nullable=False,
         description="Stable machine-readable metric identifier.",
     ),
-    "metric_name": ColumnSpec(
-        name="metric_name",
+    METRIC_NAME_COLUMN: ColumnSpec(
+        name=METRIC_NAME_COLUMN,
         pandas_dtype="string",
         nullable=False,
         description="Human-readable metric name.",
     ),
-    "value": ColumnSpec(
-        name="value",
+    VALUE_COLUMN: ColumnSpec(
+        name=VALUE_COLUMN,
         pandas_dtype="float64",
         nullable=False,
         description="Observed numeric value for country/metric/year.",
     ),
-    "year": ColumnSpec(
-        name="year",
+    YEAR_COLUMN: ColumnSpec(
+        name=YEAR_COLUMN,
         pandas_dtype="Int64",
         nullable=False,
         description="Observation year.",
     ),
-    "unit": ColumnSpec(
-        name="unit",
+    UNIT_COLUMN: ColumnSpec(
+        name=UNIT_COLUMN,
         pandas_dtype="string",
         nullable=False,
         description="Measurement unit, e.g. USD, index, score_0_10.",
     ),
-    "source_name": ColumnSpec(
-        name="source_name",
+    SOURCE_NAME_COLUMN: ColumnSpec(
+        name=SOURCE_NAME_COLUMN,
         pandas_dtype="string",
         nullable=False,
         description="Data source display name.",
     ),
-    "source_url": ColumnSpec(
-        name="source_url",
+    SOURCE_URL_COLUMN: ColumnSpec(
+        name=SOURCE_URL_COLUMN,
         pandas_dtype="string",
         nullable=False,
         description="Canonical source URL.",
     ),
-    "higher_is_better": ColumnSpec(
-        name="higher_is_better",
+    HIGHER_IS_BETTER_COLUMN: ColumnSpec(
+        name=HIGHER_IS_BETTER_COLUMN,
         pandas_dtype="boolean",
         nullable=False,
         description="Whether a higher value indicates better performance.",
     ),
-    "category": ColumnSpec(
-        name="category",
+    CATEGORY_COLUMN: ColumnSpec(
+        name=CATEGORY_COLUMN,
         pandas_dtype="string",
         nullable=False,
         description="Metric category such as economy or governance.",
     ),
-    "dataset_version": ColumnSpec(
-        name="dataset_version",
+    DATASET_VERSION_COLUMN: ColumnSpec(
+        name=DATASET_VERSION_COLUMN,
         pandas_dtype="string",
         nullable=True,
         description="Optional version of the processed dataset.",
     ),
-    "region": ColumnSpec(
-        name="region",
+    REGION_COLUMN: ColumnSpec(
+        name=REGION_COLUMN,
         pandas_dtype="string",
         nullable=True,
         description="Optional region classification.",
     ),
-    "income_group": ColumnSpec(
-        name="income_group",
+    INCOME_GROUP_COLUMN: ColumnSpec(
+        name=INCOME_GROUP_COLUMN,
         pandas_dtype="string",
         nullable=True,
         description="Optional income classification.",
     ),
-    "notes": ColumnSpec(
-        name="notes",
+    NOTES_COLUMN: ColumnSpec(
+        name=NOTES_COLUMN,
         pandas_dtype="string",
         nullable=True,
         description="Optional notes or caveats.",
     ),
 }
-
-
-DEFAULT_MIN_YEAR = 1900
-DEFAULT_MAX_YEAR = 2100
 
 
 def required_columns() -> list[str]:

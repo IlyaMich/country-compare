@@ -16,6 +16,15 @@ from country_compare.config.models import (
     ScoringConfig,
     YearStrategy,
 )
+from country_compare.data.contract import (
+    COUNTRY_CODE_COLUMN,
+    COUNTRY_NAME_COLUMN,
+    INCOME_GROUP_COLUMN,
+    METRIC_ID_COLUMN,
+    REGION_COLUMN,
+    VALUE_COLUMN,
+    YEAR_COLUMN,
+)
 from country_compare.metrics.filtering import filter_dataset
 from country_compare.metrics.normalization import (
     NORMALIZATION_BASIS_COLUMN,
@@ -25,12 +34,8 @@ from country_compare.metrics.normalization import (
     normalize_dataframe,
 )
 
-COUNTRY_CODE_COLUMN = "country_code"
-COUNTRY_NAME_COLUMN = "country_name"
-METRIC_ID_COLUMN = "metric_id"
-YEAR_COLUMN = "year"
 DEFAULT_WIDE_VALUE_COLUMNS: tuple[str, ...] = (
-    "value",
+    VALUE_COLUMN,
     NORMALIZED_VALUE_COLUMN,
     RANK_COLUMN,
     YEAR_COLUMN,
@@ -38,8 +43,8 @@ DEFAULT_WIDE_VALUE_COLUMNS: tuple[str, ...] = (
 DEFAULT_WIDE_COUNTRY_COLUMNS: tuple[str, ...] = (
     COUNTRY_CODE_COLUMN,
     COUNTRY_NAME_COLUMN,
-    "region",
-    "income_group",
+    REGION_COLUMN,
+    INCOME_GROUP_COLUMN,
 )
 
 

@@ -8,6 +8,7 @@ from country_compare.config.models import (
     ScoringConfig,
     WeightHandlingStrategy,
 )
+from country_compare.data.contract import METRIC_ID_COLUMN
 
 
 class ConfigurationValidationError(ValueError):
@@ -143,7 +144,7 @@ def validate_metrics_against_dataframe(
         dataframe[["metric_id", *shared_fields]].dropna(subset=["metric_id"]).copy()
     )
 
-    for metric_id, metric_df in deduped.groupby("metric_id"):
+    for metric_id, metric_df in deduped.groupby(METRIC_ID_COLUMN):
         metric_cfg = metrics.metrics[str(metric_id)]
 
         for field in shared_fields:

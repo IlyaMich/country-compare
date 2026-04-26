@@ -4,7 +4,13 @@ from collections.abc import Iterable
 
 import pandas as pd
 
-from country_compare.data.contract import REQUIRED_COLUMNS
+from country_compare.data.contract import (
+    COUNTRY_CODE_COLUMN,
+    METRIC_ID_COLUMN,
+    REQUIRED_COLUMNS,
+    VALUE_COLUMN,
+    YEAR_COLUMN,
+)
 from country_compare.prediction.errors import PredictionErrorCode, PredictionException
 from country_compare.prediction.models import (
     ForecastOptions,
@@ -12,10 +18,6 @@ from country_compare.prediction.models import (
     SingleMetricPredictionRequest,
 )
 
-COUNTRY_CODE_COLUMN = "country_code"
-METRIC_ID_COLUMN = "metric_id"
-YEAR_COLUMN = "year"
-VALUE_COLUMN = "value"
 DEFAULT_METHOD = PredictionMethod.LINEAR_TREND
 DEFAULT_FALLBACK_METHOD = PredictionMethod.LAST_OBSERVED
 

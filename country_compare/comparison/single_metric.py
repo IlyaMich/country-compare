@@ -10,6 +10,12 @@ from country_compare.config.models import (
     ScoringConfig,
     YearStrategy,
 )
+from country_compare.data.contract import (
+    COUNTRY_CODE_COLUMN,
+    COUNTRY_NAME_COLUMN,
+    METRIC_ID_COLUMN,
+    YEAR_COLUMN,
+)
 from country_compare.metrics.filtering import filter_dataset, filter_metrics
 from country_compare.metrics.normalization import (
     NORMALIZATION_BASIS_COLUMN,
@@ -20,10 +26,6 @@ from country_compare.metrics.normalization import (
     resolve_normalization_methods,
 )
 
-COUNTRY_CODE_COLUMN = "country_code"
-COUNTRY_NAME_COLUMN = "country_name"
-METRIC_ID_COLUMN = "metric_id"
-YEAR_COLUMN = "year"
 RANK_COLUMN = "rank"
 RANK_METHOD_COLUMN = "rank_method"
 DEFAULT_RANK_METHOD = "competition_min"
