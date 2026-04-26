@@ -11,7 +11,10 @@ from pydantic import ValidationError as PydanticValidationError
 
 from country_compare.comparison.single_metric import ComparisonError
 from country_compare.config import load_configuration_bundle
-from country_compare.config.models import MissingDataPolicy, YearStrategy
+from country_compare.config.models import (
+    MissingDataPolicy,
+    YearStrategy,
+)
 from country_compare.config.validator import (
     ConfigurationValidationError,
     resolve_profile_options,
