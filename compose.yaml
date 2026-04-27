@@ -1,0 +1,19 @@
+services:
+  country-compare:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: country-compare:local
+    container_name: country-compare
+    ports:
+      - "8501:8501"
+    environment:
+      COUNTRY_COMPARE_METRICS_CONFIG: /app/config/metrics.yaml
+      COUNTRY_COMPARE_SCORING_CONFIG: /app/config/scoring_profiles.yaml
+      COUNTRY_COMPARE_STORE_BACKEND: parquet
+      COUNTRY_COMPARE_STORE_PATH: /app/data/processed/metrics.parquet
+      COUNTRY_COMPARE_DEBUG: "false"
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+    restart: unless-stopped

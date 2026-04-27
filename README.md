@@ -113,6 +113,7 @@ country_compare/
 
 config/              # metrics, scoring profiles, source manifests, demo config
 data/examples/       # golden demo dataset
+data/exports/        # generated CSV / JSON / Markdown outputs
 docs/                # walkthroughs and screenshots
 scripts/             # demo and operational scripts
 tests/               # unit, integration, and smoke tests
@@ -163,6 +164,67 @@ python -m streamlit run country_compare/ui/app.py
 ```
 
 Streamlit apps are normally launched with `streamlit run` or `python -m streamlit run`, which starts a local app server in the browser.
+
+## Run with Docker or Podman
+
+Country Compare can also run as a single container. In this mode, the Streamlit UI and Python service layer run together in one container, matching the current application architecture.
+
+Build the image:
+
+```bash
+docker build -t country-compare:local .
+```
+
+Or with Podman:
+
+```bash
+podman build -t country-compare:local .
+```
+
+Run with Compose:
+
+```bash
+docker compose up --build
+```
+
+Or with Podman Compose:
+
+```bash
+podman compose up --build
+```
+
+Then open:
+
+```text
+http://localhost:8501
+```
+
+The container mounts local config and data directories:
+
+```text
+./config → /app/config
+./data   → /app/data
+```
+
+Generated exports are written under:
+
+```text
+data/exports/
+```
+
+The default processed dataset path inside the container is:
+
+```text
+/app/data/processed/metrics.parquet
+```
+
+If that file does not exist, the app can still start, but comparison and prediction workflows may show a missing-dataset state until a processed canonical dataset is generated or mounted.
+
+For full container usage, direct `docker run` / `podman run` commands, environment variables, and troubleshooting, see:
+
+```text
+docs/containerization.md
+```
 
 ## Run the golden demo
 
