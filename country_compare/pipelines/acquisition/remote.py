@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 from urllib.parse import unquote, urlparse
@@ -11,15 +11,19 @@ from urllib.request import Request, url2pathname, urlopen
 
 from country_compare.pipelines.acquisition.base import RawAcquirer
 from country_compare.pipelines.acquisition.directory import DirectoryRawAcquirer
-from country_compare.pipelines.errors import SourceNotFoundError, SourcePullError, UnsupportedFormatError
+from country_compare.pipelines.errors import (
+    SourceNotFoundError,
+    SourcePullError,
+    UnsupportedFormatError,
+)
 from country_compare.pipelines.models import AcquiredAsset, SourceSpec
 
 _SUPPORTED_SUFFIXES: Final[dict[str, str]] = {
-    '.csv': 'csv',
-    '.parquet': 'parquet',
-    '.pq': 'parquet',
-    '.xlsx': 'excel',
-    '.xls': 'excel',
+    ".csv": "csv",
+    ".parquet": "parquet",
+    ".pq": "parquet",
+    ".xlsx": "excel",
+    ".xls": "excel",
 }
 
 
@@ -32,16 +36,20 @@ class RemoteRawAcquirer(RawAcquirer):
         *,
         raw_root: Path | None = None,
     ) -> list[AcquiredAsset]:
-        remote_url = (source_spec.remote_url or '').strip()
+        remote_url = (source_spec.remote_url or "").strip()
         if not remote_url:
-            raise SourcePullError(f"source '{source_spec.source_id}' does not define remote_url")
+            raise SourcePullError(
+                f"source '{source_spec.source_id}' does not define remote_url"
+            )
 
         destination_dir = self._resolve_destination_dir(source_spec, raw_root=raw_root)
         destination_dir.mkdir(parents=True, exist_ok=True)
         destination_path = destination_dir / self._resolve_filename(source_spec)
 
         self._materialize_remote_file(remote_url, destination_path)
-        file_format = self._detect_file_format(destination_path, format_hint=source_spec.format_hint)
+        file_format = self._detect_file_format(
+            destination_path, format_hint=source_spec.format_hint
+        )
         stat = destination_path.stat()
         return [
             AcquiredAsset(
@@ -51,74 +59,90 @@ class RemoteRawAcquirer(RawAcquirer):
                 file_format=file_format,
                 file_size=int(stat.st_size),
                 checksum=self._sha256(destination_path),
-                modified_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
+                modified_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
                 metadata={
-                    'source_path': str(destination_path.resolve()),
-                    'remote_url': remote_url,
-                    'acquisition_mode': 'remote_pull',
+                    "source_path": str(destination_path.resolve()),
+                    "remote_url": remote_url,
+                    "acquisition_mode": "remote_pull",
                 },
             )
         ]
 
     @staticmethod
-    def _resolve_destination_dir(source_spec: SourceSpec, *, raw_root: Path | None) -> Path:
+    def _resolve_destination_dir(
+        source_spec: SourceSpec, *, raw_root: Path | None
+    ) -> Path:
         if raw_root is not None:
-            return Path(raw_root) / '.acquired' / source_spec.source_id
-        return Path(tempfile.gettempdir()) / 'country_compare' / 'acquired' / source_spec.source_id
+            return Path(raw_root) / ".acquired" / source_spec.source_id
+        return (
+            Path(tempfile.gettempdir())
+            / "country_compare"
+            / "acquired"
+            / source_spec.source_id
+        )
 
     @staticmethod
     def _resolve_filename(source_spec: SourceSpec) -> str:
         if source_spec.download_filename:
             return source_spec.download_filename
 
-        parsed = urlparse(source_spec.remote_url or '')
+        parsed = urlparse(source_spec.remote_url or "")
         candidate = Path(unquote(parsed.path)).name.strip()
         if candidate:
             return candidate
 
         suffix = {
-            'csv': '.csv',
-            'parquet': '.parquet',
-            'excel': '.xlsx',
-        }.get((source_spec.format_hint or '').strip().lower(), '.bin')
-        return f'{source_spec.source_id}{suffix}'
+            "csv": ".csv",
+            "parquet": ".parquet",
+            "excel": ".xlsx",
+        }.get((source_spec.format_hint or "").strip().lower(), ".bin")
+        return f"{source_spec.source_id}{suffix}"
 
     def _materialize_remote_file(self, remote_url: str, destination_path: Path) -> None:
         parsed = urlparse(remote_url)
         scheme = parsed.scheme.lower()
 
-        if scheme == 'file':
+        if scheme == "file":
             url_path = unquote(parsed.path)
 
             # Preserve UNC hosts if present, but ignore localhost.
-            if parsed.netloc and parsed.netloc.lower() != 'localhost':
+            if parsed.netloc and parsed.netloc.lower() != "localhost":
                 url_path = f"//{parsed.netloc}{url_path}"
 
             source_path = Path(url2pathname(url_path))
 
             if not source_path.exists() or not source_path.is_file():
-                raise SourceNotFoundError(f'remote file URL does not exist: {remote_url}')
+                raise SourceNotFoundError(
+                    f"remote file URL does not exist: {remote_url}"
+                )
 
             shutil.copyfile(source_path, destination_path)
             return
 
-        if scheme not in {'http', 'https'}:
+        if scheme not in {"http", "https"}:
             raise SourcePullError(
                 f"unsupported remote_url scheme '{parsed.scheme}' for source pull: {remote_url}"
             )
 
-        request = Request(remote_url, headers={'User-Agent': 'country-compare/processing-pipeline'})
+        request = Request(
+            remote_url, headers={"User-Agent": "country-compare/processing-pipeline"}
+        )
         try:
-            with urlopen(request, timeout=30) as response, destination_path.open('wb') as handle:
+            with (
+                urlopen(request, timeout=30) as response,
+                destination_path.open("wb") as handle,
+            ):
                 shutil.copyfileobj(response, handle)
         except Exception as exc:
-            raise SourcePullError(f'failed to download remote source: {remote_url}') from exc
+            raise SourcePullError(
+                f"failed to download remote source: {remote_url}"
+            ) from exc
 
     @staticmethod
     def _detect_file_format(path: Path, *, format_hint: str | None = None) -> str:
         if format_hint:
             normalized = str(format_hint).strip().lower()
-            if normalized in {'csv', 'parquet', 'excel'}:
+            if normalized in {"csv", "parquet", "excel"}:
                 return normalized
         try:
             return _SUPPORTED_SUFFIXES[path.suffix.lower()]
@@ -130,8 +154,8 @@ class RemoteRawAcquirer(RawAcquirer):
     @staticmethod
     def _sha256(path: Path) -> str:
         digest = hashlib.sha256()
-        with path.open('rb') as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
         return digest.hexdigest()
 

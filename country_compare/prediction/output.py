@@ -142,9 +142,13 @@ def build_combined_dataframe(
 
 def build_comparison_ready_dataframe(forecast_df: pd.DataFrame) -> pd.DataFrame:
     """Return canonical-like predicted rows suitable for existing comparison functions."""
-    missing = [column for column in REQUIRED_COLUMNS if column not in forecast_df.columns]
+    missing = [
+        column for column in REQUIRED_COLUMNS if column not in forecast_df.columns
+    ]
     if missing:
-        raise ValueError(f"forecast dataframe is missing required canonical columns: {missing}")
+        raise ValueError(
+            f"forecast dataframe is missing required canonical columns: {missing}"
+        )
     return order_prediction_columns(forecast_df.copy(deep=True))
 
 

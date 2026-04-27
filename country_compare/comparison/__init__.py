@@ -6,9 +6,9 @@ from country_compare.comparison.multi_metric import (
     rank_multi_metric,
 )
 from country_compare.comparison.single_metric import (
-    ComparisonError,
     RANK_COLUMN,
     RANK_METHOD_COLUMN,
+    ComparisonError,
     compare_metric,
     prepare_single_metric_slice,
     rank_metric,

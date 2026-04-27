@@ -11,7 +11,6 @@ from country_compare.pipelines.manifests import (
 )
 from country_compare.pipelines.models import ProcessingRequest, ProcessingResult
 
-
 ManifestInput = SourceManifest | str | Path
 
 

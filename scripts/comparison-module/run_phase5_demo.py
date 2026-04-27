@@ -1,13 +1,13 @@
-from country_compare.data.examples import build_example_metric_dataframe
-from country_compare.config.models import YearStrategy
-from country_compare.metrics.filtering import (
-    filter_countries,
-    filter_metrics,
-    apply_year_strategy,
-    filter_dataset,
-)
-
 import pandas as pd
+
+from country_compare.config.models import YearStrategy
+from country_compare.data.examples import build_example_metric_dataframe
+from country_compare.metrics.filtering import (
+    apply_year_strategy,
+    filter_countries,
+    filter_dataset,
+    filter_metrics,
+)
 
 
 def print_section(title: str, df: pd.DataFrame):

@@ -52,34 +52,66 @@ def build_selection_state_from_query_params(
     return build_compare_selection_state_from_query_params(params)
 
 
-def build_compare_selection_state_from_query_params(params: Mapping[str, Any]) -> dict[str, Any]:
+def build_compare_selection_state_from_query_params(
+    params: Mapping[str, Any],
+) -> dict[str, Any]:
     active_mode = _coerce_compare_mode(_first_value(params.get(MODE_PARAM)))
     year_strategy = _coerce_year_strategy(_first_value(params.get(YEAR_STRATEGY_PARAM)))
     target_year = _coerce_int(_first_value(params.get(TARGET_YEAR_PARAM)))
 
     return {
         "active_mode": active_mode,
-        "selected_countries": _split_csv_codes(_first_value(params.get(COUNTRIES_PARAM))),
-        "single_metric_id": _clean_text(_first_value(params.get(SINGLE_METRIC_PARAM))) or None,
-        "multi_metric_ids": _split_csv_values(_first_value(params.get(MULTI_METRICS_PARAM))),
-        "weighted_profile_name": _clean_text(_first_value(params.get(PROFILE_PARAM))) or None,
+        "selected_countries": _split_csv_codes(
+            _first_value(params.get(COUNTRIES_PARAM))
+        ),
+        "single_metric_id": _clean_text(_first_value(params.get(SINGLE_METRIC_PARAM)))
+        or None,
+        "multi_metric_ids": _split_csv_values(
+            _first_value(params.get(MULTI_METRICS_PARAM))
+        ),
+        "weighted_profile_name": _clean_text(_first_value(params.get(PROFILE_PARAM)))
+        or None,
         "year_strategy": year_strategy.value,
         "target_year": target_year,
     }
 
 
-def build_prediction_selection_state_from_query_params(params: Mapping[str, Any]) -> dict[str, Any]:
-    prediction_mode = _coerce_prediction_mode(_first_value(params.get(PREDICTION_MODE_PARAM)))
-    prediction_country = _clean_text(_first_value(params.get(PREDICTION_COUNTRY_PARAM))).upper() or None
-    prediction_countries = _split_csv_codes(_first_value(params.get(PREDICTION_COUNTRIES_PARAM)))
-    prediction_metric = _clean_text(_first_value(params.get(PREDICTION_METRIC_PARAM))) or None
-    prediction_metrics = _split_csv_values(_first_value(params.get(PREDICTION_METRICS_PARAM)))
-    prediction_profile = _clean_text(_first_value(params.get(PREDICTION_PROFILE_PARAM))) or None
-    prediction_method = _clean_text(_first_value(params.get(PREDICTION_METHOD_PARAM))) or "linear_trend"
-    prediction_horizon_years = _coerce_int(_first_value(params.get(PREDICTION_HORIZON_YEARS_PARAM))) or 3
-    prediction_forecast_year = _coerce_int(_first_value(params.get(PREDICTION_FORECAST_YEAR_PARAM)))
-    prediction_forecast_horizon = _coerce_int(_first_value(params.get(PREDICTION_FORECAST_HORIZON_PARAM))) or 1
-    prediction_holdout_years = _coerce_int(_first_value(params.get(PREDICTION_HOLDOUT_YEARS_PARAM))) or 2
+def build_prediction_selection_state_from_query_params(
+    params: Mapping[str, Any],
+) -> dict[str, Any]:
+    prediction_mode = _coerce_prediction_mode(
+        _first_value(params.get(PREDICTION_MODE_PARAM))
+    )
+    prediction_country = (
+        _clean_text(_first_value(params.get(PREDICTION_COUNTRY_PARAM))).upper() or None
+    )
+    prediction_countries = _split_csv_codes(
+        _first_value(params.get(PREDICTION_COUNTRIES_PARAM))
+    )
+    prediction_metric = (
+        _clean_text(_first_value(params.get(PREDICTION_METRIC_PARAM))) or None
+    )
+    prediction_metrics = _split_csv_values(
+        _first_value(params.get(PREDICTION_METRICS_PARAM))
+    )
+    prediction_profile = (
+        _clean_text(_first_value(params.get(PREDICTION_PROFILE_PARAM))) or None
+    )
+    prediction_method = (
+        _clean_text(_first_value(params.get(PREDICTION_METHOD_PARAM))) or "linear_trend"
+    )
+    prediction_horizon_years = (
+        _coerce_int(_first_value(params.get(PREDICTION_HORIZON_YEARS_PARAM))) or 3
+    )
+    prediction_forecast_year = _coerce_int(
+        _first_value(params.get(PREDICTION_FORECAST_YEAR_PARAM))
+    )
+    prediction_forecast_horizon = (
+        _coerce_int(_first_value(params.get(PREDICTION_FORECAST_HORIZON_PARAM))) or 1
+    )
+    prediction_holdout_years = (
+        _coerce_int(_first_value(params.get(PREDICTION_HOLDOUT_YEARS_PARAM))) or 2
+    )
 
     return {
         "prediction_active_mode": prediction_mode,
@@ -96,7 +128,9 @@ def build_prediction_selection_state_from_query_params(params: Mapping[str, Any]
     }
 
 
-def build_query_params(*, selected_page: str, selection_state: Mapping[str, Any]) -> dict[str, str]:
+def build_query_params(
+    *, selected_page: str, selection_state: Mapping[str, Any]
+) -> dict[str, str]:
     params: dict[str, str] = {PAGE_PARAM: str(selected_page)}
     if str(selected_page) == "Compare":
         params.update(build_compare_query_params(selection_state=selection_state))
@@ -133,19 +167,41 @@ def build_compare_query_params(*, selection_state: Mapping[str, Any]) -> dict[st
     return params
 
 
-def build_prediction_query_params(*, selection_state: Mapping[str, Any]) -> dict[str, str]:
+def build_prediction_query_params(
+    *, selection_state: Mapping[str, Any]
+) -> dict[str, str]:
     params: dict[str, str] = {}
-    prediction_mode = _coerce_prediction_mode(selection_state.get("prediction_active_mode"))
-    prediction_country_code = _clean_text(selection_state.get("prediction_country_code")).upper()
-    prediction_country_codes = _split_csv_codes(selection_state.get("prediction_country_codes"))
+    prediction_mode = _coerce_prediction_mode(
+        selection_state.get("prediction_active_mode")
+    )
+    prediction_country_code = _clean_text(
+        selection_state.get("prediction_country_code")
+    ).upper()
+    prediction_country_codes = _split_csv_codes(
+        selection_state.get("prediction_country_codes")
+    )
     prediction_metric_id = _clean_text(selection_state.get("prediction_metric_id"))
-    prediction_metric_ids = _split_csv_values(selection_state.get("prediction_metric_ids"))
-    prediction_profile_name = _clean_text(selection_state.get("prediction_profile_name"))
-    prediction_method = _clean_text(selection_state.get("prediction_method")) or "linear_trend"
-    prediction_horizon_years = _coerce_int(selection_state.get("prediction_horizon_years")) or 3
-    prediction_forecast_year = _coerce_int(selection_state.get("prediction_forecast_year"))
-    prediction_forecast_horizon = _coerce_int(selection_state.get("prediction_forecast_horizon"))
-    prediction_holdout_years = _coerce_int(selection_state.get("prediction_holdout_years")) or 2
+    prediction_metric_ids = _split_csv_values(
+        selection_state.get("prediction_metric_ids")
+    )
+    prediction_profile_name = _clean_text(
+        selection_state.get("prediction_profile_name")
+    )
+    prediction_method = (
+        _clean_text(selection_state.get("prediction_method")) or "linear_trend"
+    )
+    prediction_horizon_years = (
+        _coerce_int(selection_state.get("prediction_horizon_years")) or 3
+    )
+    prediction_forecast_year = _coerce_int(
+        selection_state.get("prediction_forecast_year")
+    )
+    prediction_forecast_horizon = _coerce_int(
+        selection_state.get("prediction_forecast_horizon")
+    )
+    prediction_holdout_years = (
+        _coerce_int(selection_state.get("prediction_holdout_years")) or 2
+    )
 
     params[PREDICTION_MODE_PARAM] = prediction_mode
     params[PREDICTION_METHOD_PARAM] = prediction_method
@@ -181,15 +237,23 @@ def apply_query_params_once() -> None:
     state.set_selected_page(selected_page)
 
     if selected_page == "Compare":
-        state.set_selection_state(build_compare_selection_state_from_query_params(raw_params))
+        state.set_selection_state(
+            build_compare_selection_state_from_query_params(raw_params)
+        )
     elif selected_page == "Prediction":
-        state.set_selection_state(build_prediction_selection_state_from_query_params(raw_params))
+        state.set_selection_state(
+            build_prediction_selection_state_from_query_params(raw_params)
+        )
 
     _mark_query_state_initialized(True)
 
 
-def sync_query_params_from_state(*, selected_page: str, selection_state: Mapping[str, Any]) -> None:
-    target = build_query_params(selected_page=selected_page, selection_state=selection_state)
+def sync_query_params_from_state(
+    *, selected_page: str, selection_state: Mapping[str, Any]
+) -> None:
+    target = build_query_params(
+        selected_page=selected_page, selection_state=selection_state
+    )
     current = {key: _first_value(value) for key, value in st.query_params.items()}
     if current == target:
         return

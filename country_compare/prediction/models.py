@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal
 
 import pandas as pd
@@ -9,13 +9,13 @@ import pandas as pd
 from country_compare.prediction.errors import PredictionErrorCode
 
 
-class PredictionMethod(str, Enum):
+class PredictionMethod(StrEnum):
     LAST_OBSERVED = "last_observed"
     LINEAR_TREND = "linear_trend"
     MOVING_AVERAGE = "moving_average"
 
 
-class PredictionDiagnosticStatus(str, Enum):
+class PredictionDiagnosticStatus(StrEnum):
     OK = "ok"
     WARNING = "warning"
     FAILED = "failed"

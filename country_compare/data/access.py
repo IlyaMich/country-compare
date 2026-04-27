@@ -5,7 +5,10 @@ import pandas as pd
 from country_compare.data.models import MetricDataset
 from country_compare.data.stores.base import MetricStore
 from country_compare.data.stores.registry import get_default_metric_store
-from country_compare.data.validation import dataframe_to_metric_dataset, metric_dataset_to_dataframe
+from country_compare.data.validation import (
+    dataframe_to_metric_dataset,
+    metric_dataset_to_dataframe,
+)
 
 
 def _resolve_store(store: MetricStore | None = None) -> MetricStore:

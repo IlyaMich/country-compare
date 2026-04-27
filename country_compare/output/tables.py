@@ -116,7 +116,6 @@ def make_single_metric_table(
     )
 
 
-
 def make_multi_metric_long_table(
     df: pd.DataFrame,
     *,
@@ -144,7 +143,6 @@ def make_multi_metric_long_table(
         top_n=top_n,
         context="multi metric long table",
     )
-
 
 
 def make_multi_metric_wide_table(
@@ -186,7 +184,6 @@ def make_multi_metric_wide_table(
     )
 
 
-
 def make_weighted_score_table(
     df: pd.DataFrame,
     *,
@@ -216,7 +213,6 @@ def make_weighted_score_table(
     )
 
 
-
 def _make_table(
     df: pd.DataFrame,
     *,
@@ -234,8 +230,14 @@ def _make_table(
 
     result = df.copy(deep=True)
 
-    resolved_columns = list(columns) if columns is not None else _available_columns(result, default_columns)
-    missing_selected = [column for column in resolved_columns if column not in result.columns]
+    resolved_columns = (
+        list(columns)
+        if columns is not None
+        else _available_columns(result, default_columns)
+    )
+    missing_selected = [
+        column for column in resolved_columns if column not in result.columns
+    ]
     if missing_selected:
         raise ValueError(
             f"{context} requested columns that are not present in the dataframe: {missing_selected}"
@@ -245,13 +247,19 @@ def _make_table(
 
     if sort_by is not None:
         sort_columns = [sort_by] if isinstance(sort_by, str) else list(sort_by)
-        missing_sort_columns = [column for column in sort_columns if column not in result.columns]
+        missing_sort_columns = [
+            column for column in sort_columns if column not in result.columns
+        ]
         if missing_sort_columns:
             raise ValueError(
                 f"{context} cannot sort by missing columns: {missing_sort_columns}"
             )
-        resolved_ascending = _normalize_ascending(ascending, expected_length=len(sort_columns))
-        result = result.sort_values(by=sort_columns, ascending=resolved_ascending, kind="stable")
+        resolved_ascending = _normalize_ascending(
+            ascending, expected_length=len(sort_columns)
+        )
+        result = result.sort_values(
+            by=sort_columns, ascending=resolved_ascending, kind="stable"
+        )
 
     if top_n is not None:
         if top_n < 0:
@@ -262,7 +270,9 @@ def _make_table(
         result = _round_numeric_columns(result, round_ndigits)
 
     if rename_columns:
-        missing_rename_columns = [column for column in rename_columns if column not in result.columns]
+        missing_rename_columns = [
+            column for column in rename_columns if column not in result.columns
+        ]
         if missing_rename_columns:
             raise ValueError(
                 f"{context} cannot rename missing columns: {missing_rename_columns}"
@@ -273,13 +283,11 @@ def _make_table(
     return result
 
 
-
 def _resolve_wide_default_columns(df: pd.DataFrame) -> list[str]:
     id_columns = [column for column in DEFAULT_WIDE_ID_COLUMNS if column in df.columns]
     metric_columns = [column for column in df.columns if column not in id_columns]
     metric_columns.sort()
     return [*id_columns, *metric_columns]
-
 
 
 def _available_columns(df: pd.DataFrame, columns: Sequence[str]) -> list[str]:
@@ -307,21 +315,20 @@ def _normalize_ascending(
     )
 
 
-
 def _require_columns(df: pd.DataFrame, columns: Sequence[str], *, context: str) -> None:
     missing = [column for column in columns if column not in df.columns]
     if missing:
         raise ValueError(f"{context} requires columns that are missing: {missing}")
 
 
-
-def _require_any_columns(df: pd.DataFrame, columns: Sequence[str], *, context: str) -> None:
+def _require_any_columns(
+    df: pd.DataFrame, columns: Sequence[str], *, context: str
+) -> None:
     if any(column in df.columns for column in columns):
         return
     raise ValueError(
         f"{context} requires at least one of the following columns: {list(columns)}"
     )
-
 
 
 def _round_numeric_columns(
@@ -340,7 +347,9 @@ def _round_numeric_columns(
 
     numeric_columns = result.select_dtypes(include=["number"]).columns.tolist()
     if numeric_columns:
-        result.loc[:, numeric_columns] = result.loc[:, numeric_columns].round(int(round_ndigits))
+        result.loc[:, numeric_columns] = result.loc[:, numeric_columns].round(
+            int(round_ndigits)
+        )
     return result
 
 

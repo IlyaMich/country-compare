@@ -6,11 +6,11 @@ import pandas as pd
 
 from country_compare.prediction.errors import PredictionErrorCode, PredictionException
 from country_compare.prediction.models import (
-    ForecastOptions,
     ForecasterInfo,
+    ForecastOptions,
     MultiSeriesPredictionRequest,
-    PredictionDiagnosticStatus,
     PredictionDiagnostics,
+    PredictionDiagnosticStatus,
     PredictionError,
     PredictionMethod,
     PredictionResult,
@@ -152,7 +152,9 @@ def _predict_multi_series(
                 scenario_id=request.scenario_id,
             )
             try:
-                result = predict_single_metric(canonical_df, single_request, options=options)
+                result = predict_single_metric(
+                    canonical_df, single_request, options=options
+                )
             except PredictionException as exc:
                 if request.fail_fast:
                     raise
@@ -162,7 +164,9 @@ def _predict_multi_series(
                         requested_method=request.method,
                     )
                 )
-                failed_pairs.append({"country_code": country_code, "metric_id": metric_id})
+                failed_pairs.append(
+                    {"country_code": country_code, "metric_id": metric_id}
+                )
                 continue
 
             forecast_parts.append(
@@ -188,7 +192,9 @@ def _predict_multi_series(
             )
             diagnostics.extend(result.diagnostics)
             forecaster_info.extend(result.forecaster_info)
-            successful_pairs.append({"country_code": country_code, "metric_id": metric_id})
+            successful_pairs.append(
+                {"country_code": country_code, "metric_id": metric_id}
+            )
 
     forecast_df = _concat_prediction_frames(forecast_parts)
     combined_df = _concat_prediction_frames(combined_parts)
@@ -255,7 +261,9 @@ def _diagnostics_from_exception(
         status=PredictionDiagnosticStatus.FAILED,
         country_code=exc.country_code,
         metric_id=exc.metric_id,
-        method_requested=str(requested_method) if requested_method is not None else None,
+        method_requested=(
+            str(requested_method) if requested_method is not None else None
+        ),
         method_used=None,
         fallback_used=False,
         history_observation_count=0,

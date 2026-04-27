@@ -53,7 +53,10 @@ def _register_builtin_world_bank_indicator_csv() -> None:
     register_source_adapter(
         WORLD_BANK_INDICATOR_CSV_ADAPTER_ID,
         WorldBankIndicatorCsvAdapter,
-        description="World Bank indicator-page CSV adapter with indicator validation and supported-country filtering.",
+        description=(
+            "World Bank indicator-page CSV adapter with indicator validation and "
+            "supported-country filtering."
+        ),
         replace=True,
     )
 
@@ -63,7 +66,11 @@ def _ensure_builtin_adapters_registered() -> None:
     if _BUILTINS_REGISTERED:
         return
 
-    for registrar in (_register_builtin_passthrough, _register_builtin_wide_year_metric_csv, _register_builtin_world_bank_indicator_csv):
+    for registrar in (
+        _register_builtin_passthrough,
+        _register_builtin_wide_year_metric_csv,
+        _register_builtin_world_bank_indicator_csv,
+    ):
         try:
             registrar()
         except Exception:

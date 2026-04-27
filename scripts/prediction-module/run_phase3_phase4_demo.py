@@ -115,19 +115,24 @@ def main() -> None:
         country_codes=["ISR", "FRA"],
         horizon_years=2,
     )
-    print("successful_series_count:", single_metric_batch.metadata["successful_series_count"])
+    print(
+        "successful_series_count:",
+        single_metric_batch.metadata["successful_series_count"],
+    )
     print("failed_series_count:", single_metric_batch.metadata["failed_series_count"])
-    print(single_metric_batch.forecast_df[
-        [
-            "country_code",
-            "metric_id",
-            "year",
-            "value",
-            "forecast_horizon",
-            "prediction_method",
-            "prediction_run_id",
-        ]
-    ].to_string(index=False))
+    print(
+        single_metric_batch.forecast_df[
+            [
+                "country_code",
+                "metric_id",
+                "year",
+                "value",
+                "forecast_horizon",
+                "prediction_method",
+                "prediction_run_id",
+            ]
+        ].to_string(index=False)
+    )
 
     _header("2) Batch prediction: multiple metrics for one country")
     metrics_for_country = predict_metrics_for_country(
@@ -136,16 +141,18 @@ def main() -> None:
         metric_ids=["gdp_per_capita", "unemployment_pct"],
         horizon_years=1,
     )
-    print(metrics_for_country.forecast_df[
-        [
-            "country_code",
-            "metric_id",
-            "year",
-            "value",
-            "forecast_horizon",
-            "prediction_method",
-        ]
-    ].to_string(index=False))
+    print(
+        metrics_for_country.forecast_df[
+            [
+                "country_code",
+                "metric_id",
+                "year",
+                "value",
+                "forecast_horizon",
+                "prediction_method",
+            ]
+        ].to_string(index=False)
+    )
 
     _header("3) Batch prediction: full metric-country grid")
     grid_result = predict_metric_country_grid(
@@ -156,16 +163,18 @@ def main() -> None:
     )
     print("successful_series_count:", grid_result.metadata["successful_series_count"])
     print("comparison_ready rows:", len(grid_result.comparison_ready_df))
-    print(grid_result.comparison_ready_df[
-        [
-            "country_code",
-            "metric_id",
-            "year",
-            "value",
-            "row_type",
-            "is_predicted",
-        ]
-    ].to_string(index=False))
+    print(
+        grid_result.comparison_ready_df[
+            [
+                "country_code",
+                "metric_id",
+                "year",
+                "value",
+                "row_type",
+                "is_predicted",
+            ]
+        ].to_string(index=False)
+    )
 
     _header("4) Comparison bridge: predicted single-metric comparison by forecast year")
     single_metric_comparison = compare_predicted_single_metric(
@@ -177,18 +186,22 @@ def main() -> None:
         comparison_options={"normalization_method": "minmax"},
     )
     print("selected_forecast_year:", single_metric_comparison.selected_forecast_year)
-    print(single_metric_comparison.comparison_df[
-        [
-            "country_code",
-            "metric_id",
-            "year",
-            "value",
-            "normalized_value",
-            "rank",
-        ]
-    ].to_string(index=False))
+    print(
+        single_metric_comparison.comparison_df[
+            [
+                "country_code",
+                "metric_id",
+                "year",
+                "value",
+                "normalized_value",
+                "rank",
+            ]
+        ].to_string(index=False)
+    )
 
-    _header("5) Comparison bridge: predicted multi-metric comparison by forecast horizon")
+    _header(
+        "5) Comparison bridge: predicted multi-metric comparison by forecast horizon"
+    )
     multi_metric_comparison = compare_predicted_multi_metric(
         canonical_df,
         metric_ids=["gdp_per_capita", "unemployment_pct"],
@@ -197,17 +210,21 @@ def main() -> None:
         horizon_years=2,
         comparison_options={"normalization_method": "minmax"},
     )
-    print("selected_forecast_horizon:", multi_metric_comparison.selected_forecast_horizon)
-    print(multi_metric_comparison.comparison_df[
-        [
-            "country_code",
-            "metric_id",
-            "year",
-            "value",
-            "normalized_value",
-            "rank",
-        ]
-    ].to_string(index=False))
+    print(
+        "selected_forecast_horizon:", multi_metric_comparison.selected_forecast_horizon
+    )
+    print(
+        multi_metric_comparison.comparison_df[
+            [
+                "country_code",
+                "metric_id",
+                "year",
+                "value",
+                "normalized_value",
+                "rank",
+            ]
+        ].to_string(index=False)
+    )
 
     _header("6) Comparison bridge: predicted profile comparison")
     profile_comparison = compare_predicted_profile(
@@ -219,16 +236,18 @@ def main() -> None:
         horizon_years=1,
     )
     print("selected_forecast_year:", profile_comparison.selected_forecast_year)
-    print(profile_comparison.comparison_df[
-        [
-            "country_code",
-            "metric_id",
-            "year",
-            "value",
-            "normalized_value",
-            "rank",
-        ]
-    ].to_string(index=False))
+    print(
+        profile_comparison.comparison_df[
+            [
+                "country_code",
+                "metric_id",
+                "year",
+                "value",
+                "normalized_value",
+                "rank",
+            ]
+        ].to_string(index=False)
+    )
 
     _header("7) Partial failure path with fail_fast=False")
     partial_failure = predict_single_metric_for_countries(
@@ -238,7 +257,9 @@ def main() -> None:
         horizon_years=1,
         fail_fast=False,
     )
-    print("successful_series_count:", partial_failure.metadata["successful_series_count"])
+    print(
+        "successful_series_count:", partial_failure.metadata["successful_series_count"]
+    )
     print("failed_series_count:", partial_failure.metadata["failed_series_count"])
     for diagnostic in partial_failure.diagnostics:
         if diagnostic.status.value == "failed":

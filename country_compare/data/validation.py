@@ -9,6 +9,7 @@ from country_compare.data.contract import (
     CANONICAL_SCHEMA,
     DEFAULT_MAX_YEAR,
     DEFAULT_MIN_YEAR,
+    METRIC_ID_COLUMN,
     PRIMARY_KEY_COLUMNS,
     REQUIRED_COLUMNS,
 )
@@ -214,7 +215,7 @@ def validate_metric_consistency(df: pd.DataFrame) -> list[ValidationIssue]:
 
     issues: list[ValidationIssue] = []
 
-    for metric_id, group in df.groupby("metric_id", dropna=False):
+    for metric_id, group in df.groupby(METRIC_ID_COLUMN, dropna=False):
         if pd.isna(metric_id):
             continue
 

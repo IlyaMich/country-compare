@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pandas as pd
 
-from country_compare.prediction.models import ForecastContext, PreparedTimeSeries, SingleMetricPredictionRequest
+from country_compare.prediction.models import (
+    ForecastContext,
+    PreparedTimeSeries,
+    SingleMetricPredictionRequest,
+)
 from country_compare.prediction.validation import (
     COUNTRY_CODE_COLUMN,
     METRIC_ID_COLUMN,
@@ -54,11 +58,15 @@ def prepare_metric_time_series(
 
     if request.history_start_year is not None:
         series_df = series_df.loc[
-            pd.to_numeric(series_df[YEAR_COLUMN], errors="coerce").ge(int(request.history_start_year))
+            pd.to_numeric(series_df[YEAR_COLUMN], errors="coerce").ge(
+                int(request.history_start_year)
+            )
         ].copy()
     if request.history_end_year is not None:
         series_df = series_df.loc[
-            pd.to_numeric(series_df[YEAR_COLUMN], errors="coerce").le(int(request.history_end_year))
+            pd.to_numeric(series_df[YEAR_COLUMN], errors="coerce").le(
+                int(request.history_end_year)
+            )
         ].copy()
 
     validate_non_empty_series(
@@ -67,7 +75,9 @@ def prepare_metric_time_series(
         metric_id=request.metric_id,
     )
 
-    series_df[YEAR_COLUMN] = pd.to_numeric(series_df[YEAR_COLUMN], errors="coerce").astype("Int64")
+    series_df[YEAR_COLUMN] = pd.to_numeric(
+        series_df[YEAR_COLUMN], errors="coerce"
+    ).astype("Int64")
     validate_series_uniqueness(
         series_df,
         country_code=request.country_code,
@@ -79,19 +89,24 @@ def prepare_metric_time_series(
         country_code=request.country_code,
         metric_id=request.metric_id,
     )
-    series_df = series_df.sort_values(by=YEAR_COLUMN, kind="mergesort").reset_index(drop=True)
+    series_df = series_df.sort_values(by=YEAR_COLUMN, kind="mergesort").reset_index(
+        drop=True
+    )
 
     years = [int(year) for year in series_df[YEAR_COLUMN].dropna().tolist()]
     missing_years = identify_missing_internal_years(years)
     warnings: list[str] = []
     if missing_years:
         warnings.append(
-            "series has missing internal years: " + ", ".join(str(year) for year in missing_years)
+            "series has missing internal years: "
+            + ", ".join(str(year) for year in missing_years)
         )
 
     latest_row = series_df.iloc[-1]
     origin_year = int(latest_row[YEAR_COLUMN])
-    future_years = [origin_year + step for step in range(1, int(request.horizon_years) + 1)]
+    future_years = [
+        origin_year + step for step in range(1, int(request.horizon_years) + 1)
+    ]
 
     context_payload = {
         "country_code": request.country_code.upper(),

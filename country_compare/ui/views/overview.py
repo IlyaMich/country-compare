@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from country_compare.services import AppFacade, AppError
+from country_compare.services import AppError, AppFacade
 
 
 def render_page(facade: AppFacade, *, debug: bool = False) -> None:
@@ -43,7 +43,9 @@ def render_page(facade: AppFacade, *, debug: bool = False) -> None:
 def _render_dataset_section(dataset, *, facade: AppFacade, debug: bool) -> None:
     backend_col, path_col = st.columns([1, 3])
     backend_col.metric("Backend", dataset.backend)
-    path_col.text_input("Dataset path", value=dataset.dataset_path or "(not resolved)", disabled=True)
+    path_col.text_input(
+        "Dataset path", value=dataset.dataset_path or "(not resolved)", disabled=True
+    )
 
     if dataset.error is not None:
         _render_error(dataset.error, debug=debug)
@@ -57,7 +59,11 @@ def _render_dataset_section(dataset, *, facade: AppFacade, debug: bool) -> None:
     col3.metric("Metrics", dataset.metric_count)
     col4.metric(
         "Year range",
-        f"{dataset.year_min}–{dataset.year_max}" if dataset.year_min is not None and dataset.year_max is not None else "N/A",
+        (
+            f"{dataset.year_min}–{dataset.year_max}"
+            if dataset.year_min is not None and dataset.year_max is not None
+            else "N/A"
+        ),
     )
 
     if dataset.categories:
@@ -81,7 +87,12 @@ def _render_dataset_section(dataset, *, facade: AppFacade, debug: bool) -> None:
             st.write("No countries found.")
         else:
             st.dataframe(
-                pd.DataFrame([{"country_code": item.code, "country_name": item.name} for item in countries]),
+                pd.DataFrame(
+                    [
+                        {"country_code": item.code, "country_name": item.name}
+                        for item in countries
+                    ]
+                ),
                 use_container_width=True,
                 hide_index=True,
             )
@@ -110,8 +121,12 @@ def _render_dataset_section(dataset, *, facade: AppFacade, debug: bool) -> None:
 
 def _render_config_section(config, *, debug: bool) -> None:
     path_col1, path_col2 = st.columns(2)
-    path_col1.text_input("Metrics config", value=config.metrics_config_path, disabled=True)
-    path_col2.text_input("Scoring config", value=config.scoring_config_path, disabled=True)
+    path_col1.text_input(
+        "Metrics config", value=config.metrics_config_path, disabled=True
+    )
+    path_col2.text_input(
+        "Scoring config", value=config.scoring_config_path, disabled=True
+    )
 
     if config.error is not None:
         _render_error(config.error, debug=debug)

@@ -86,7 +86,9 @@ def render_compare_view(context: AppContext) -> None:
             default=selection_state.get("selected_countries", []),
         )
         year_strategy = render_year_strategy_selector(
-            default=selection_state.get("year_strategy", YearStrategy.LATEST_PER_METRIC),
+            default=selection_state.get(
+                "year_strategy", YearStrategy.LATEST_PER_METRIC
+            ),
         )
         target_year = render_target_year_input(
             catalog_state["years"],
@@ -113,7 +115,9 @@ def render_compare_view(context: AppContext) -> None:
         )
         set_selection_state({"single_metric_id": metric_id})
 
-        if st.button("Run single-metric comparison", type="primary", key="run_single_metric"):
+        if st.button(
+            "Run single-metric comparison", type="primary", key="run_single_metric"
+        ):
             set_selection_state({"active_mode": "single_metric"})
             _run_single_metric_flow(
                 selected_countries=selected_countries,
@@ -142,7 +146,9 @@ def render_compare_view(context: AppContext) -> None:
         )
         set_selection_state({"multi_metric_ids": metric_ids})
 
-        if st.button("Run multi-metric comparison", type="primary", key="run_multi_metric"):
+        if st.button(
+            "Run multi-metric comparison", type="primary", key="run_multi_metric"
+        ):
             set_selection_state({"active_mode": "multi_metric"})
             _run_multi_metric_flow(
                 selected_countries=selected_countries,
@@ -171,7 +177,9 @@ def render_compare_view(context: AppContext) -> None:
         )
         set_selection_state({"weighted_profile_name": profile_name})
 
-        if st.button("Run weighted-score comparison", type="primary", key="run_weighted_score"):
+        if st.button(
+            "Run weighted-score comparison", type="primary", key="run_weighted_score"
+        ):
             set_selection_state({"active_mode": "weighted_score"})
             _run_weighted_score_flow(
                 selected_countries=selected_countries,
@@ -196,7 +204,6 @@ def render_compare_view(context: AppContext) -> None:
         selected_page="Compare",
         selection_state=get_selection_state(),
     )
-
 
 
 def _run_single_metric_flow(
@@ -242,12 +249,17 @@ def _run_single_metric_flow(
     )
     compare_result = comparison_service.run_single_metric(request)
     if compare_result.ok:
-        presentation = presentation_service.build_single_metric_presentation(compare_result)
-        set_compare_presentation(compare_result=compare_result, presentation=presentation, mode="single_metric")
+        presentation = presentation_service.build_single_metric_presentation(
+            compare_result
+        )
+        set_compare_presentation(
+            compare_result=compare_result,
+            presentation=presentation,
+            mode="single_metric",
+        )
         set_compare_error(None, mode="single_metric")
     else:
         set_compare_error(compare_result.error, mode="single_metric")
-
 
 
 def _run_multi_metric_flow(
@@ -291,12 +303,17 @@ def _run_multi_metric_flow(
     )
     compare_result = comparison_service.run_multi_metric(request)
     if compare_result.ok:
-        presentation = presentation_service.build_multi_metric_presentation(compare_result)
-        set_compare_presentation(compare_result=compare_result, presentation=presentation, mode="multi_metric")
+        presentation = presentation_service.build_multi_metric_presentation(
+            compare_result
+        )
+        set_compare_presentation(
+            compare_result=compare_result,
+            presentation=presentation,
+            mode="multi_metric",
+        )
         set_compare_error(None, mode="multi_metric")
     else:
         set_compare_error(compare_result.error, mode="multi_metric")
-
 
 
 def _run_weighted_score_flow(
@@ -307,7 +324,9 @@ def _run_weighted_score_flow(
     comparison_service,
     presentation_service,
 ) -> None:
-    normalized_profile_name = str(profile_name).strip() if profile_name is not None else ""
+    normalized_profile_name = (
+        str(profile_name).strip() if profile_name is not None else ""
+    )
 
     if len(selected_countries) < 2:
         set_compare_error(
@@ -340,8 +359,14 @@ def _run_weighted_score_flow(
     )
     compare_result = comparison_service.run_weighted_score(request)
     if compare_result.ok:
-        presentation = presentation_service.build_weighted_score_presentation(compare_result)
-        set_compare_presentation(compare_result=compare_result, presentation=presentation, mode="weighted_score")
+        presentation = presentation_service.build_weighted_score_presentation(
+            compare_result
+        )
+        set_compare_presentation(
+            compare_result=compare_result,
+            presentation=presentation,
+            mode="weighted_score",
+        )
         set_compare_error(None, mode="weighted_score")
     else:
         set_compare_error(compare_result.error, mode="weighted_score")

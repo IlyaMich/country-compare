@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
+import math
+from collections.abc import Mapping, Sequence
 from dataclasses import fields, is_dataclass
 from datetime import date, datetime, time
 from enum import Enum
-import json
-import math
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import pandas as pd
 
@@ -36,7 +37,9 @@ def serialize_dataframe(
     }
     if include_records:
         limited = dataframe.head(max_records)
-        payload["records"] = to_jsonable(limited.to_dict(orient="records"), max_records=max_records)
+        payload["records"] = to_jsonable(
+            limited.to_dict(orient="records"), max_records=max_records
+        )
         payload["records_truncated"] = bool(len(dataframe.index) > max_records)
     return payload
 
@@ -49,7 +52,9 @@ def serialize_error(error: Any) -> dict[str, Any] | None:
         "title": getattr(error, "title", None),
         "user_message": getattr(error, "user_message", str(error)),
         "technical_detail": getattr(error, "technical_detail", None),
-        "field_errors": to_jsonable(getattr(error, "field_errors", None), dataframe_records=False),
+        "field_errors": to_jsonable(
+            getattr(error, "field_errors", None), dataframe_records=False
+        ),
     }
 
 
@@ -63,13 +68,33 @@ def serialize_comparison_result(
     return {
         "mode": getattr(result, "mode", None),
         "ok": bool(getattr(result, "ok", False)),
-        "request": to_jsonable(getattr(result, "request", None), dataframe_records=False, max_records=max_records),
-        "dataframe": None
-        if not isinstance(dataframe, pd.DataFrame)
-        else serialize_dataframe(dataframe, include_records=include_records, max_records=max_records),
-        "metadata": to_jsonable(getattr(result, "metadata", {}), dataframe_records=False, max_records=max_records),
-        "diagnostics": to_jsonable(getattr(result, "diagnostics", {}), dataframe_records=False, max_records=max_records),
-        "warnings": to_jsonable(getattr(result, "warnings", []), dataframe_records=False, max_records=max_records),
+        "request": to_jsonable(
+            getattr(result, "request", None),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "dataframe": (
+            None
+            if not isinstance(dataframe, pd.DataFrame)
+            else serialize_dataframe(
+                dataframe, include_records=include_records, max_records=max_records
+            )
+        ),
+        "metadata": to_jsonable(
+            getattr(result, "metadata", {}),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "diagnostics": to_jsonable(
+            getattr(result, "diagnostics", {}),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "warnings": to_jsonable(
+            getattr(result, "warnings", []),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
         "error": serialize_error(getattr(result, "error", None)),
     }
 
@@ -92,21 +117,49 @@ def serialize_presentation_result(
             dataframe_records=False,
             max_records=max_records,
         ),
-        "summary": to_jsonable(getattr(presentation, "summary", {}), dataframe_records=False, max_records=max_records),
-        "table": None
-        if not isinstance(table, pd.DataFrame)
-        else serialize_dataframe(table, include_records=include_records, max_records=max_records),
+        "summary": to_jsonable(
+            getattr(presentation, "summary", {}),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "table": (
+            None
+            if not isinstance(table, pd.DataFrame)
+            else serialize_dataframe(
+                table, include_records=include_records, max_records=max_records
+            )
+        ),
         "tables": {
-            str(name): serialize_dataframe(dataframe, include_records=include_records, max_records=max_records)
+            str(name): serialize_dataframe(
+                dataframe, include_records=include_records, max_records=max_records
+            )
             for name, dataframe in extra_tables.items()
             if isinstance(dataframe, pd.DataFrame)
         },
         "chart": _serialize_chart(getattr(presentation, "chart", None)),
-        "charts": {str(name): _serialize_chart(chart) for name, chart in extra_charts.items()},
-        "metadata": to_jsonable(getattr(presentation, "metadata", {}), dataframe_records=False, max_records=max_records),
-        "diagnostics": to_jsonable(getattr(presentation, "diagnostics", {}), dataframe_records=False, max_records=max_records),
-        "warnings": to_jsonable(getattr(presentation, "warnings", []), dataframe_records=False, max_records=max_records),
-        "messages": to_jsonable(getattr(presentation, "messages", []), dataframe_records=False, max_records=max_records),
+        "charts": {
+            str(name): _serialize_chart(chart) for name, chart in extra_charts.items()
+        },
+        "metadata": to_jsonable(
+            getattr(presentation, "metadata", {}),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "diagnostics": to_jsonable(
+            getattr(presentation, "diagnostics", {}),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "warnings": to_jsonable(
+            getattr(presentation, "warnings", []),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "messages": to_jsonable(
+            getattr(presentation, "messages", []),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
         "error": serialize_error(getattr(presentation, "error", None)),
     }
 
@@ -125,21 +178,51 @@ def serialize_prediction_service_result(
     return {
         "mode": getattr(result, "mode", None),
         "ok": bool(getattr(result, "ok", False)),
-        "request": to_jsonable(getattr(result, "request", None), dataframe_records=False, max_records=max_records),
-        "dataframe": None
-        if not isinstance(dataframe, pd.DataFrame)
-        else serialize_dataframe(dataframe, include_records=include_records, max_records=max_records),
-        "summary": to_jsonable(getattr(result, "summary", {}), dataframe_records=False, max_records=max_records),
-        "metadata": to_jsonable(getattr(result, "metadata", {}), dataframe_records=False, max_records=max_records),
-        "diagnostics": to_jsonable(getattr(result, "diagnostics", {}), dataframe_records=False, max_records=max_records),
-        "warnings": to_jsonable(getattr(result, "warnings", []), dataframe_records=False, max_records=max_records),
-        "prediction_result": to_jsonable(prediction_result, dataframe_records=include_records, max_records=max_records),
+        "request": to_jsonable(
+            getattr(result, "request", None),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "dataframe": (
+            None
+            if not isinstance(dataframe, pd.DataFrame)
+            else serialize_dataframe(
+                dataframe, include_records=include_records, max_records=max_records
+            )
+        ),
+        "summary": to_jsonable(
+            getattr(result, "summary", {}),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "metadata": to_jsonable(
+            getattr(result, "metadata", {}),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "diagnostics": to_jsonable(
+            getattr(result, "diagnostics", {}),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "warnings": to_jsonable(
+            getattr(result, "warnings", []),
+            dataframe_records=False,
+            max_records=max_records,
+        ),
+        "prediction_result": to_jsonable(
+            prediction_result,
+            dataframe_records=include_records,
+            max_records=max_records,
+        ),
         "predicted_comparison_result": to_jsonable(
             predicted_comparison_result,
             dataframe_records=include_records,
             max_records=max_records,
         ),
-        "backtest_result": to_jsonable(backtest_result, dataframe_records=include_records, max_records=max_records),
+        "backtest_result": to_jsonable(
+            backtest_result, dataframe_records=include_records, max_records=max_records
+        ),
         "error": serialize_error(getattr(result, "error", None)),
     }
 
@@ -155,7 +238,9 @@ serialize_request = serialize_dataset_summary
 
 
 def dumps_json(payload: Any) -> str:
-    return json.dumps(to_jsonable(payload), indent=2, ensure_ascii=False, sort_keys=True)
+    return json.dumps(
+        to_jsonable(payload), indent=2, ensure_ascii=False, sort_keys=True
+    )
 
 
 def to_jsonable(
@@ -177,7 +262,9 @@ def to_jsonable(
         return None if math.isnan(value) or math.isinf(value) else value
 
     if np is not None and isinstance(value, np.generic):
-        return to_jsonable(value.item(), dataframe_records=dataframe_records, max_records=max_records)
+        return to_jsonable(
+            value.item(), dataframe_records=dataframe_records, max_records=max_records
+        )
 
     if isinstance(value, Path):
         return str(value)
@@ -192,17 +279,25 @@ def to_jsonable(
         return None
 
     if isinstance(value, pd.DataFrame):
-        return serialize_dataframe(value, include_records=dataframe_records, max_records=max_records)
+        return serialize_dataframe(
+            value, include_records=dataframe_records, max_records=max_records
+        )
 
     if isinstance(value, pd.Series):
-        return to_jsonable(value.to_list(), dataframe_records=dataframe_records, max_records=max_records)
+        return to_jsonable(
+            value.to_list(),
+            dataframe_records=dataframe_records,
+            max_records=max_records,
+        )
 
     if Figure is not None and isinstance(value, Figure):
         return _serialize_chart(value)
 
     if isinstance(value, Mapping):
         return {
-            str(key): to_jsonable(item, dataframe_records=dataframe_records, max_records=max_records)
+            str(key): to_jsonable(
+                item, dataframe_records=dataframe_records, max_records=max_records
+            )
             for key, item in value.items()
         }
 
@@ -218,18 +313,24 @@ def to_jsonable(
 
     if hasattr(value, "model_dump"):
         dumped = value.model_dump(mode="json")
-        return to_jsonable(dumped, dataframe_records=dataframe_records, max_records=max_records)
+        return to_jsonable(
+            dumped, dataframe_records=dataframe_records, max_records=max_records
+        )
 
     if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray)):
         return [
-            to_jsonable(item, dataframe_records=dataframe_records, max_records=max_records)
+            to_jsonable(
+                item, dataframe_records=dataframe_records, max_records=max_records
+            )
             for item in value
         ]
 
     public_dict = getattr(value, "__dict__", None)
     if isinstance(public_dict, dict):
         return {
-            str(key): to_jsonable(item, dataframe_records=dataframe_records, max_records=max_records)
+            str(key): to_jsonable(
+                item, dataframe_records=dataframe_records, max_records=max_records
+            )
             for key, item in public_dict.items()
             if not str(key).startswith("_")
         }

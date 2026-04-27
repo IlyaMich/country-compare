@@ -1,19 +1,41 @@
-.PHONY: install format format-check lint lint-fix test
+.PHONY: install format format-check lint lint-fix test type-check check check-strict container-build container-up container-down container-logs
+
+PYTHON := python
+PACKAGE_DIRS := country_compare tests scripts
 
 install:
-	python -m pip install -r requirements-dev.txt
+	$(PYTHON) -m pip install -r requirements-dev.txt
 
 format:
-	python -m black country_compare tests
+	$(PYTHON) -m black $(PACKAGE_DIRS)
 
 format-check:
-	python -m black --check country_compare tests
+	$(PYTHON) -m black --check $(PACKAGE_DIRS)
 
 lint:
-	python -m ruff check country_compare tests
+	$(PYTHON) -m ruff check $(PACKAGE_DIRS)
 
 lint-fix:
-	python -m ruff check --fix country_compare tests
+	$(PYTHON) -m ruff check --fix $(PACKAGE_DIRS)
 
 test:
-	python -m pytest
+	$(PYTHON) -m pytest
+
+type-check:
+	$(PYTHON) -m mypy country_compare
+
+check: format-check lint test
+
+check-strict: check type-check
+
+container-build:
+	podman build -t country-compare:latest .
+
+container-up:
+	podman compose up --build
+
+container-down:
+	podman compose down
+
+container-logs:
+	podman compose logs -f

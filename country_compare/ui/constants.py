@@ -1,0 +1,13 @@
+from __future__ import annotations
+
+from country_compare.settings.defaults import (
+    DEFAULT_UI_APP_TITLE,
+    DEFAULT_UI_LAYOUT,
+    DEFAULT_UI_PAGE_ICON,
+    DEFAULT_UI_PAGE_TITLE,
+)
+
+APP_TITLE = DEFAULT_UI_APP_TITLE
+PAGE_TITLE = DEFAULT_UI_PAGE_TITLE
+PAGE_ICON = DEFAULT_UI_PAGE_ICON
+PAGE_LAYOUT = DEFAULT_UI_LAYOUT

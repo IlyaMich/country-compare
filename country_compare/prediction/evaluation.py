@@ -10,10 +10,8 @@ from country_compare.prediction.models import (
     BacktestRequest,
     BacktestResult,
     ForecastOptions,
-    ForecasterInfo,
-    PredictionDiagnosticStatus,
     PredictionDiagnostics,
-    PredictionError,
+    PredictionDiagnosticStatus,
     PredictionMethod,
     SingleMetricPredictionRequest,
 )
@@ -30,7 +28,10 @@ from country_compare.prediction.output import (
     new_prediction_run_id,
     prediction_created_at_now,
 )
-from country_compare.prediction.registry import ForecasterRegistryError, resolve_forecaster
+from country_compare.prediction.registry import (
+    ForecasterRegistryError,
+    resolve_forecaster,
+)
 from country_compare.prediction.timeseries import prepare_metric_time_series
 from country_compare.prediction.validation import (
     VALUE_COLUMN,
@@ -144,7 +145,9 @@ def _backtest_series_from_request(
     train_end_year = int(pd.to_numeric(train_df[YEAR_COLUMN], errors="coerce").max())
     holdout_year_values = [
         int(year)
-        for year in pd.to_numeric(holdout_df[YEAR_COLUMN], errors="coerce").dropna().tolist()
+        for year in pd.to_numeric(holdout_df[YEAR_COLUMN], errors="coerce")
+        .dropna()
+        .tolist()
     ]
 
     train_prepared = prepare_metric_time_series(
@@ -200,7 +203,11 @@ def _backtest_series_from_request(
             "forecaster was evaluated directly on observed holdout years"
         )
 
-    status = PredictionDiagnosticStatus.WARNING if warnings else PredictionDiagnosticStatus.OK
+    status = (
+        PredictionDiagnosticStatus.WARNING
+        if warnings
+        else PredictionDiagnosticStatus.OK
+    )
     diagnostics = PredictionDiagnostics(
         status=status,
         country_code=request.country_code,
@@ -226,7 +233,9 @@ def _backtest_series_from_request(
         )
     except PredictionException:
         raise
-    except Exception as exc:  # pragma: no cover - defensive guard for future forecasters
+    except (
+        Exception
+    ) as exc:  # pragma: no cover - defensive guard for future forecasters
         raise PredictionException(
             PredictionErrorCode.EVALUATION_FAILED,
             str(exc),
@@ -257,7 +266,11 @@ def _backtest_series_from_request(
     actual_vs_predicted_df = _build_actual_vs_predicted_dataframe(
         holdout_df,
         raw_points=[
-            {"year": point.year, "predicted_value": point.value, "forecast_horizon": point.horizon}
+            {
+                "year": point.year,
+                "predicted_value": point.value,
+                "forecast_horizon": point.horizon,
+            }
             for point in raw_forecast.points
         ],
         context_metadata=_context_metadata(train_prepared.context),
@@ -287,7 +300,9 @@ def _backtest_series_from_request(
     )
 
 
-def _validate_backtest_request(request: BacktestRequest, *, options: ForecastOptions) -> None:
+def _validate_backtest_request(
+    request: BacktestRequest, *, options: ForecastOptions
+) -> None:
     if request.holdout_years <= 0:
         raise PredictionException(
             PredictionErrorCode.INVALID_HORIZON,
@@ -363,15 +378,16 @@ def _select_forecaster(
         )
         if fallback_supported:
             warnings.append(
-                f"method '{requested_method.value}' was unsupported for this backtest training series; "
-                f"used fallback method '{fallback_method.value}'"
+                f"method '{requested_method.value}' was unsupported for this backtest training "
+                f"series; used fallback method '{fallback_method.value}'"
             )
             warnings.extend(support_reasons)
             return fallback_forecaster, True, warnings
 
         raise PredictionException(
             PredictionErrorCode.INSUFFICIENT_HISTORY,
-            "; ".join(fallback_reasons) or "fallback method does not support this training series",
+            "; ".join(fallback_reasons)
+            or "fallback method does not support this training series",
             country_code=diagnostics_context.country_code,
             metric_id=diagnostics_context.metric_id,
             details={
@@ -384,7 +400,8 @@ def _select_forecaster(
 
     raise PredictionException(
         PredictionErrorCode.INSUFFICIENT_HISTORY,
-        "; ".join(support_reasons) or "requested method does not support this training series",
+        "; ".join(support_reasons)
+        or "requested method does not support this training series",
         country_code=diagnostics_context.country_code,
         metric_id=diagnostics_context.metric_id,
         details={"method": requested_method.value, "reasons": support_reasons},
@@ -436,7 +453,9 @@ def _build_actual_vs_predicted_dataframe(
     scenario_id: str,
 ) -> pd.DataFrame:
     predicted = pd.DataFrame(raw_points)
-    predicted[YEAR_COLUMN] = pd.to_numeric(predicted[YEAR_COLUMN], errors="coerce").astype("Int64")
+    predicted[YEAR_COLUMN] = pd.to_numeric(
+        predicted[YEAR_COLUMN], errors="coerce"
+    ).astype("Int64")
     predicted[PREDICTED_VALUE_COLUMN] = pd.to_numeric(
         predicted[PREDICTED_VALUE_COLUMN],
         errors="coerce",
@@ -447,8 +466,12 @@ def _build_actual_vs_predicted_dataframe(
     ).astype("Int64")
 
     actual = holdout_df.copy(deep=True)
-    actual[YEAR_COLUMN] = pd.to_numeric(actual[YEAR_COLUMN], errors="coerce").astype("Int64")
-    actual[ACTUAL_VALUE_COLUMN] = pd.to_numeric(actual[VALUE_COLUMN], errors="coerce").astype("float64")
+    actual[YEAR_COLUMN] = pd.to_numeric(actual[YEAR_COLUMN], errors="coerce").astype(
+        "Int64"
+    )
+    actual[ACTUAL_VALUE_COLUMN] = pd.to_numeric(
+        actual[VALUE_COLUMN], errors="coerce"
+    ).astype("float64")
 
     merged = actual.merge(
         predicted,
@@ -461,8 +484,12 @@ def _build_actual_vs_predicted_dataframe(
     merged[ABSOLUTE_ERROR_COLUMN] = merged[ERROR_COLUMN].abs()
     merged[SQUARED_ERROR_COLUMN] = merged[ERROR_COLUMN] ** 2
 
-    nonzero_actual_mask = merged[ACTUAL_VALUE_COLUMN].ne(0) & merged[ACTUAL_VALUE_COLUMN].notna()
-    merged[ABSOLUTE_PERCENTAGE_ERROR_COLUMN] = pd.Series(pd.NA, index=merged.index, dtype="Float64")
+    nonzero_actual_mask = (
+        merged[ACTUAL_VALUE_COLUMN].ne(0) & merged[ACTUAL_VALUE_COLUMN].notna()
+    )
+    merged[ABSOLUTE_PERCENTAGE_ERROR_COLUMN] = pd.Series(
+        pd.NA, index=merged.index, dtype="Float64"
+    )
     merged.loc[nonzero_actual_mask, ABSOLUTE_PERCENTAGE_ERROR_COLUMN] = (
         merged.loc[nonzero_actual_mask, ABSOLUTE_ERROR_COLUMN]
         / merged.loc[nonzero_actual_mask, ACTUAL_VALUE_COLUMN].abs()
@@ -491,13 +518,21 @@ def _compute_metrics(
     squared_error = pd.to_numeric(dataframe[SQUARED_ERROR_COLUMN], errors="coerce")
     actual_values = pd.to_numeric(dataframe[ACTUAL_VALUE_COLUMN], errors="coerce")
 
-    mae = float(absolute_error.mean()) if not absolute_error.dropna().empty else math.nan
-    rmse = float(math.sqrt(float(squared_error.mean()))) if not squared_error.dropna().empty else math.nan
+    mae = (
+        float(absolute_error.mean()) if not absolute_error.dropna().empty else math.nan
+    )
+    rmse = (
+        float(math.sqrt(float(squared_error.mean())))
+        if not squared_error.dropna().empty
+        else math.nan
+    )
 
     if actual_values.eq(0).any():
         mape = None
     else:
-        ape = pd.to_numeric(dataframe[ABSOLUTE_PERCENTAGE_ERROR_COLUMN], errors="coerce")
+        ape = pd.to_numeric(
+            dataframe[ABSOLUTE_PERCENTAGE_ERROR_COLUMN], errors="coerce"
+        )
         mape = float(ape.mean()) if not ape.dropna().empty else None
 
     years = pd.to_numeric(dataframe[YEAR_COLUMN], errors="coerce").dropna().astype(int)

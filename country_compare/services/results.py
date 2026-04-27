@@ -49,8 +49,12 @@ class PresentationResult:
     @property
     def ok(self) -> bool:
         return self.error is None and (
-            self.table is not None or bool(self.tables) or self.chart is not None or bool(self.charts)
+            self.table is not None
+            or bool(self.tables)
+            or self.chart is not None
+            or bool(self.charts)
         )
+
 
 @dataclass(slots=True)
 class PredictionServiceResult:

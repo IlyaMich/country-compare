@@ -1,0 +1,65 @@
+country_code,country_name,metric_id,metric_name,value,year,unit,source_name,source_url,higher_is_better,category,dataset_version,region,income_group,notes
+ISR,Israel,gdp_per_capita,GDP per capita,42000,2020,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Middle East,High income,synthetic demo value
+ISR,Israel,gdp_per_capita,GDP per capita,44000,2021,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Middle East,High income,synthetic demo value
+ISR,Israel,gdp_per_capita,GDP per capita,46000,2022,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Middle East,High income,synthetic demo value
+ISR,Israel,gdp_per_capita,GDP per capita,48000,2023,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Middle East,High income,synthetic demo value
+FRA,France,gdp_per_capita,GDP per capita,41000,2020,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Europe,High income,synthetic demo value
+FRA,France,gdp_per_capita,GDP per capita,42000,2021,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Europe,High income,synthetic demo value
+FRA,France,gdp_per_capita,GDP per capita,43000,2022,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Europe,High income,synthetic demo value
+FRA,France,gdp_per_capita,GDP per capita,44500,2023,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,gdp_per_capita,GDP per capita,47000,2020,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,gdp_per_capita,GDP per capita,48500,2021,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,gdp_per_capita,GDP per capita,50000,2022,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,gdp_per_capita,GDP per capita,51500,2023,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Europe,High income,synthetic demo value
+SGP,Singapore,gdp_per_capita,GDP per capita,62000,2020,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Asia,High income,synthetic demo value
+SGP,Singapore,gdp_per_capita,GDP per capita,64000,2021,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Asia,High income,synthetic demo value
+SGP,Singapore,gdp_per_capita,GDP per capita,66500,2022,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Asia,High income,synthetic demo value
+SGP,Singapore,gdp_per_capita,GDP per capita,69000,2023,USD,Golden demo dataset,https://example.org/country-compare/golden-demo,true,economy,golden-demo-v1,Asia,High income,synthetic demo value
+ISR,Israel,life_expectancy,Life expectancy,82.7,2020,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Middle East,High income,synthetic demo value
+ISR,Israel,life_expectancy,Life expectancy,82.8,2021,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Middle East,High income,synthetic demo value
+ISR,Israel,life_expectancy,Life expectancy,82.9,2022,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Middle East,High income,synthetic demo value
+ISR,Israel,life_expectancy,Life expectancy,83.0,2023,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Middle East,High income,synthetic demo value
+FRA,France,life_expectancy,Life expectancy,82.3,2020,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Europe,High income,synthetic demo value
+FRA,France,life_expectancy,Life expectancy,82.4,2021,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Europe,High income,synthetic demo value
+FRA,France,life_expectancy,Life expectancy,82.5,2022,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Europe,High income,synthetic demo value
+FRA,France,life_expectancy,Life expectancy,82.6,2023,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,life_expectancy,Life expectancy,81.1,2020,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,life_expectancy,Life expectancy,81.2,2021,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,life_expectancy,Life expectancy,81.3,2022,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,life_expectancy,Life expectancy,81.4,2023,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Europe,High income,synthetic demo value
+SGP,Singapore,life_expectancy,Life expectancy,83.1,2020,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Asia,High income,synthetic demo value
+SGP,Singapore,life_expectancy,Life expectancy,83.2,2021,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Asia,High income,synthetic demo value
+SGP,Singapore,life_expectancy,Life expectancy,83.3,2022,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Asia,High income,synthetic demo value
+SGP,Singapore,life_expectancy,Life expectancy,83.5,2023,years,Golden demo dataset,https://example.org/country-compare/golden-demo,true,health,golden-demo-v1,Asia,High income,synthetic demo value
+ISR,Israel,unemployment_pct,Unemployment rate,4.5,2020,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Middle East,High income,synthetic demo value
+ISR,Israel,unemployment_pct,Unemployment rate,4.3,2021,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Middle East,High income,synthetic demo value
+ISR,Israel,unemployment_pct,Unemployment rate,4.1,2022,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Middle East,High income,synthetic demo value
+ISR,Israel,unemployment_pct,Unemployment rate,3.9,2023,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Middle East,High income,synthetic demo value
+FRA,France,unemployment_pct,Unemployment rate,8.0,2020,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Europe,High income,synthetic demo value
+FRA,France,unemployment_pct,Unemployment rate,7.8,2021,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Europe,High income,synthetic demo value
+FRA,France,unemployment_pct,Unemployment rate,7.4,2022,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Europe,High income,synthetic demo value
+FRA,France,unemployment_pct,Unemployment rate,7.1,2023,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,unemployment_pct,Unemployment rate,3.8,2020,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,unemployment_pct,Unemployment rate,3.6,2021,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,unemployment_pct,Unemployment rate,3.4,2022,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,unemployment_pct,Unemployment rate,3.2,2023,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Europe,High income,synthetic demo value
+SGP,Singapore,unemployment_pct,Unemployment rate,2.7,2020,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Asia,High income,synthetic demo value
+SGP,Singapore,unemployment_pct,Unemployment rate,2.5,2021,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Asia,High income,synthetic demo value
+SGP,Singapore,unemployment_pct,Unemployment rate,2.3,2022,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Asia,High income,synthetic demo value
+SGP,Singapore,unemployment_pct,Unemployment rate,2.1,2023,percent,Golden demo dataset,https://example.org/country-compare/golden-demo,false,economy,golden-demo-v1,Asia,High income,synthetic demo value
+ISR,Israel,governance_score,Governance score,74,2020,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Middle East,High income,synthetic demo value
+ISR,Israel,governance_score,Governance score,75,2021,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Middle East,High income,synthetic demo value
+ISR,Israel,governance_score,Governance score,75,2022,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Middle East,High income,synthetic demo value
+ISR,Israel,governance_score,Governance score,76,2023,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Middle East,High income,synthetic demo value
+FRA,France,governance_score,Governance score,78,2020,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Europe,High income,synthetic demo value
+FRA,France,governance_score,Governance score,79,2021,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Europe,High income,synthetic demo value
+FRA,France,governance_score,Governance score,79,2022,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Europe,High income,synthetic demo value
+FRA,France,governance_score,Governance score,80,2023,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,governance_score,Governance score,84,2020,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,governance_score,Governance score,85,2021,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,governance_score,Governance score,86,2022,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Europe,High income,synthetic demo value
+DEU,Germany,governance_score,Governance score,87,2023,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Europe,High income,synthetic demo value
+SGP,Singapore,governance_score,Governance score,89,2020,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Asia,High income,synthetic demo value
+SGP,Singapore,governance_score,Governance score,90,2021,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Asia,High income,synthetic demo value
+SGP,Singapore,governance_score,Governance score,91,2022,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Asia,High income,synthetic demo value
+SGP,Singapore,governance_score,Governance score,92,2023,score_0_100,Golden demo dataset,https://example.org/country-compare/golden-demo,true,governance,golden-demo-v1,Asia,High income,synthetic demo value

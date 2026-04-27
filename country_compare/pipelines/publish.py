@@ -18,7 +18,9 @@ def publish_dataframe(
     target_backend = None
     target_path = None
     if store is not None:
-        target_backend = getattr(store, "backend_name", None) or getattr(store, "backend", None)
+        target_backend = getattr(store, "backend_name", None) or getattr(
+            store, "backend", None
+        )
         path_value = getattr(store, "path", None)
         target_path = str(path_value) if path_value is not None else None
 

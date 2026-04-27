@@ -4,47 +4,37 @@ metrics:
     category: economy
     higher_is_better: true
     default_weight: 1.0
-    description: GDP per capita in current international dollars or equivalent standardized unit.
+    description: Annual GDP per capita in USD for the golden demo dataset.
     unit: USD
-    source: World Bank
-    normalization_method: log-minmax
-
-  rule_of_law:
-    display_name: Rule of Law
-    category: governance
-    higher_is_better: true
-    default_weight: 1.0
-    description: Rule of law composite index.
-    unit: index
-    source: World Justice Project
-    normalization_method: minmax
-
-  democracy_index:
-    display_name: Democracy Index
-    category: governance
-    higher_is_better: true
-    default_weight: 1.0
-    description: Democracy score from a recognized public source.
-    unit: score_0_10
-    source: Economist Intelligence Unit
+    source: Golden demo dataset
     normalization_method: minmax
 
   life_expectancy:
-    display_name: Life Expectancy
+    display_name: Life expectancy
     category: health
     higher_is_better: true
     default_weight: 1.0
-    description: Life expectancy at birth.
+    description: Life expectancy in years for the golden demo dataset.
     unit: years
-    source: World Bank
-    normalization_method: percentile
+    source: Golden demo dataset
+    normalization_method: minmax
 
-  inflation:
-    display_name: Inflation
+  unemployment_pct:
+    display_name: Unemployment rate
     category: economy
     higher_is_better: false
-    default_weight: 0.75
-    description: Annual inflation rate. Lower is better for broad stability comparisons.
+    default_weight: 1.0
+    description: Unemployment rate percentage for the golden demo dataset.
     unit: percent
-    source: World Bank
-    normalization_method: rank
+    source: Golden demo dataset
+    normalization_method: minmax
+
+  governance_score:
+    display_name: Governance score
+    category: governance
+    higher_is_better: true
+    default_weight: 1.0
+    description: Synthetic governance score from 0 to 100 for the golden demo dataset.
+    unit: score_0_100
+    source: Golden demo dataset
+    normalization_method: minmax

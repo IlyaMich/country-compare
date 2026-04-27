@@ -15,5 +15,7 @@ def add_optional_columns(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 def order_canonical_columns(dataframe: pd.DataFrame) -> pd.DataFrame:
     ordered_columns = [column for column in ALL_COLUMNS if column in dataframe.columns]
-    remaining_columns = [column for column in dataframe.columns if column not in ordered_columns]
+    remaining_columns = [
+        column for column in dataframe.columns if column not in ordered_columns
+    ]
     return dataframe.loc[:, [*ordered_columns, *remaining_columns]].copy(deep=True)

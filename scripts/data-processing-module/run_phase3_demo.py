@@ -90,7 +90,9 @@ class DemoIssueAdapter(SourceAdapter):
             warnings=["dropped one invalid raw row during harmonization"],
         )
 
-    def to_standardized_dataframe(self) -> pd.DataFrame:  # pragma: no cover - compat path only
+    def to_standardized_dataframe(
+        self,
+    ) -> pd.DataFrame:  # pragma: no cover - compat path only
         raise NotImplementedError
 
 
@@ -150,7 +152,9 @@ def main() -> None:
 
         _make_valid_dataframe().to_csv(valid_path, index=False)
         _make_invalid_dataframe().to_csv(invalid_path, index=False)
-        pd.DataFrame({"Country Name": ["Israel", "Germany"], "2023": [54000.0, "n/a"]}).to_csv(
+        pd.DataFrame(
+            {"Country Name": ["Israel", "Germany"], "2023": [54000.0, "n/a"]}
+        ).to_csv(
             issue_raw_path,
             index=False,
         )
@@ -197,12 +201,25 @@ def main() -> None:
         )
         success_result = PipelineEngine().run(success_request)
         print("result.ok:", success_result.ok)
-        print("validation ok:", success_result.validation_report.ok if success_result.validation_report else None)
+        print(
+            "validation ok:",
+            (
+                success_result.validation_report.ok
+                if success_result.validation_report
+                else None
+            ),
+        )
         print(
             "publication ok:",
-            success_result.publication_report.ok if success_result.publication_report else None,
+            (
+                success_result.publication_report.ok
+                if success_result.publication_report
+                else None
+            ),
         )
-        print("published rows:", 0 if store.written is None else len(store.written.index))
+        print(
+            "published rows:", 0 if store.written is None else len(store.written.index)
+        )
         _print_audit_paths(success_result)
 
         _print_section("4) Issue/rejected-row audit export")
@@ -227,7 +244,16 @@ def main() -> None:
             print("issue rows exported:", len(issues_df.index))
             print("rejected rows exported:", len(rejected_df.index))
             print("source summary:")
-            print(json.dumps(json.loads((issue_audit_dir / "source_summary.json").read_text(encoding="utf-8")), indent=2))
+            print(
+                json.dumps(
+                    json.loads(
+                        (issue_audit_dir / "source_summary.json").read_text(
+                            encoding="utf-8"
+                        )
+                    ),
+                    indent=2,
+                )
+            )
 
         _print_section("5) Duplicate merge failure with audit")
         duplicate_audit_dir = root / "audit_duplicate"
@@ -276,11 +302,20 @@ def main() -> None:
             "adapter_registered": has_source_adapter("canonical_tabular_passthrough"),
             "acquisition_found_file": len(assets) == 1,
             "success_flow_ok": success_result.ok,
-            "publish_flow_ok": bool(success_result.publication_report and success_result.publication_report.ok),
-            "success_audit_written": bool(success_result.audit_report and success_result.audit_report.written),
-            "issue_export_written": bool(issue_result.audit_report and issue_result.audit_report.written),
-            "duplicate_detected": (duplicate_result.ok is False) and bool(duplicate_result.error),
-            "invalid_input_detected": (invalid_result.ok is False) and bool(invalid_result.warnings or invalid_result.error),
+            "publish_flow_ok": bool(
+                success_result.publication_report
+                and success_result.publication_report.ok
+            ),
+            "success_audit_written": bool(
+                success_result.audit_report and success_result.audit_report.written
+            ),
+            "issue_export_written": bool(
+                issue_result.audit_report and issue_result.audit_report.written
+            ),
+            "duplicate_detected": (duplicate_result.ok is False)
+            and bool(duplicate_result.error),
+            "invalid_input_detected": (invalid_result.ok is False)
+            and bool(invalid_result.warnings or invalid_result.error),
         }
         for key, value in checks.items():
             print(f"{key}: {value}")

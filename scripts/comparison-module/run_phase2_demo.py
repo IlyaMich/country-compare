@@ -1,6 +1,6 @@
 from country_compare.data.examples import build_example_metric_dataframe
-from country_compare.data.validation import validate_and_parse_dataframe
 from country_compare.data.stores.parquet_store import ParquetMetricStore
+from country_compare.data.validation import validate_and_parse_dataframe
 
 
 def main() -> None:

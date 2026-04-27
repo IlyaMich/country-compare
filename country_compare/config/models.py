@@ -1,30 +1,29 @@
 from __future__ import annotations
 
-from enum import Enum
-from typing import Dict, Optional
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
-class MissingDataPolicy(str, Enum):
+class MissingDataPolicy(StrEnum):
     RENORMALIZE_WEIGHTS = "renormalize_weights"
     DROP_COUNTRY = "drop_country"
 
 
-class YearStrategy(str, Enum):
+class YearStrategy(StrEnum):
     LATEST_PER_METRIC = "latest_per_metric"
     TARGET_YEAR = "target_year"
     COMMON_YEAR = "common_year"
 
 
-class NormalizationMethod(str, Enum):
+class NormalizationMethod(StrEnum):
     MINMAX = "minmax"
     PERCENTILE = "percentile"
     RANK = "rank"
     LOG_MINMAX = "log-minmax"
 
 
-class WeightHandlingStrategy(str, Enum):
+class WeightHandlingStrategy(StrEnum):
     NORMALIZE = "normalize"
     REQUIRE_SUM_TO_ONE = "require_sum_to_one"
 
@@ -40,9 +39,9 @@ class MetricConfig(BaseModel):
     category: str
     higher_is_better: bool
     default_weight: float = Field(gt=0)
-    description: Optional[str] = None
-    unit: Optional[str] = None
-    source: Optional[str] = None
+    description: str | None = None
+    unit: str | None = None
+    source: str | None = None
     normalization_method: NormalizationMethod = NormalizationMethod.MINMAX
 
     @field_validator("display_name", "category")
@@ -61,24 +60,30 @@ class MetricsConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    metrics: Dict[str, MetricConfig]
+    metrics: dict[str, MetricConfig]
 
     @field_validator("metrics")
     @classmethod
-    def validate_metrics_not_empty(cls, value: Dict[str, MetricConfig]) -> Dict[str, MetricConfig]:
+    def validate_metrics_not_empty(
+        cls, value: dict[str, MetricConfig]
+    ) -> dict[str, MetricConfig]:
         if not value:
             raise ValueError("metrics config must define at least one metric")
         return value
 
     @field_validator("metrics")
     @classmethod
-    def validate_metric_ids(cls, value: Dict[str, MetricConfig]) -> Dict[str, MetricConfig]:
+    def validate_metric_ids(
+        cls, value: dict[str, MetricConfig]
+    ) -> dict[str, MetricConfig]:
         for metric_id in value:
             if not metric_id:
                 raise ValueError("metric_id must not be empty")
             normalized = metric_id.strip()
             if normalized != metric_id:
-                raise ValueError(f"metric_id '{metric_id}' must not contain leading/trailing whitespace")
+                raise ValueError(
+                    f"metric_id '{metric_id}' must not contain leading/trailing whitespace"
+                )
             if " " in metric_id:
                 raise ValueError(f"metric_id '{metric_id}' must not contain spaces")
         return value
@@ -93,11 +98,13 @@ class ScoringProfile(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     metrics: list[str] = Field(min_length=1)
-    weights: Dict[str, float] = Field(default_factory=dict)
-    normalization_overrides: Dict[str, NormalizationMethod] = Field(default_factory=dict)
-    year_strategy: Optional[YearStrategy] = None
-    missing_data_policy: Optional[MissingDataPolicy] = None
-    description: Optional[str] = None
+    weights: dict[str, float] = Field(default_factory=dict)
+    normalization_overrides: dict[str, NormalizationMethod] = Field(
+        default_factory=dict
+    )
+    year_strategy: YearStrategy | None = None
+    missing_data_policy: MissingDataPolicy | None = None
+    description: str | None = None
 
     @field_validator("metrics")
     @classmethod
@@ -105,7 +112,6 @@ class ScoringProfile(BaseModel):
         if len(set(value)) != len(value):
             raise ValueError("profile metrics must be unique")
         return value
-
 
     @field_validator("metrics")
     @classmethod
@@ -115,10 +121,9 @@ class ScoringProfile(BaseModel):
                 raise ValueError("profile metric_id must not be empty")
         return value
 
-
     @field_validator("weights")
     @classmethod
-    def validate_weights_positive(cls, value: Dict[str, float]) -> Dict[str, float]:
+    def validate_weights_positive(cls, value: dict[str, float]) -> dict[str, float]:
         for metric_id, weight in value.items():
             if weight <= 0:
                 raise ValueError(f"weight for metric '{metric_id}' must be > 0")
@@ -136,18 +141,22 @@ class ScoringConfig(BaseModel):
     default_profile: str
     weight_handling: WeightHandlingStrategy = WeightHandlingStrategy.NORMALIZE
     default_year_strategy: YearStrategy = YearStrategy.LATEST_PER_METRIC
-    default_missing_data_policy: MissingDataPolicy = MissingDataPolicy.RENORMALIZE_WEIGHTS
-    profiles: Dict[str, ScoringProfile]
+    default_missing_data_policy: MissingDataPolicy = (
+        MissingDataPolicy.RENORMALIZE_WEIGHTS
+    )
+    profiles: dict[str, ScoringProfile]
 
     @field_validator("profiles")
     @classmethod
-    def validate_profiles_not_empty(cls, value: Dict[str, ScoringProfile]) -> Dict[str, ScoringProfile]:
+    def validate_profiles_not_empty(
+        cls, value: dict[str, ScoringProfile]
+    ) -> dict[str, ScoringProfile]:
         if not value:
             raise ValueError("must define at least one scoring profile")
         return value
 
     @model_validator(mode="after")
-    def validate_default_profile_exists(self) -> "ScoringConfig":
+    def validate_default_profile_exists(self) -> ScoringConfig:
         if self.default_profile not in self.profiles:
             raise ValueError(
                 f"default_profile '{self.default_profile}' is not defined in profiles"

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class PredictionErrorCode(str, Enum):
+class PredictionErrorCode(StrEnum):
     """Stable error codes for prediction request, preparation, and forecasting failures."""
 
     INVALID_HORIZON = "invalid_horizon"

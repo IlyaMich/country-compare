@@ -10,7 +10,10 @@ from country_compare.prediction import (
     predict_single_metric,
     predict_single_metric_for_countries,
 )
-from country_compare.prediction.models import PredictionMethod, SingleMetricPredictionRequest
+from country_compare.prediction.models import (
+    PredictionMethod,
+    SingleMetricPredictionRequest,
+)
 
 
 def print_section(title: str) -> None:
@@ -72,7 +75,9 @@ def make_demo_canonical_df() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def show_frame(df: pd.DataFrame, columns: list[str] | None = None, max_rows: int = 20) -> None:
+def show_frame(
+    df: pd.DataFrame, columns: list[str] | None = None, max_rows: int = 20
+) -> None:
     if columns is not None:
         existing_columns = [column for column in columns if column in df.columns]
         df = df.loc[:, existing_columns]
@@ -242,8 +247,12 @@ def main() -> None:
     print(f"multi-country line rows: {len(multi_country_line_df)}")
     print(f"grid line rows: {len(grid_line_df)}")
     print(f"grid forecast table rows: {len(grid_forecast_table_df)}")
-    print(f"grid successful_series_count: {grid_result.metadata.get('successful_series_count')}")
-    print(f"grid failed_series_count: {grid_result.metadata.get('failed_series_count')}")
+    print(
+        f"grid successful_series_count: {grid_result.metadata.get('successful_series_count')}"
+    )
+    print(
+        f"grid failed_series_count: {grid_result.metadata.get('failed_series_count')}"
+    )
 
     print_section("Expected interpretation")
     print(

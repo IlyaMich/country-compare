@@ -2,6 +2,15 @@ from __future__ import annotations
 
 import pandas as pd
 
+from country_compare.data.contract import (
+    COUNTRY_CODE_COLUMN,
+    COUNTRY_NAME_COLUMN,
+    METRIC_ID_COLUMN,
+    METRIC_NAME_COLUMN,
+    UNIT_COLUMN,
+    VALUE_COLUMN,
+    YEAR_COLUMN,
+)
 from country_compare.prediction.models import PredictionResult
 from country_compare.prediction.output import (
     CONFIDENCE_LOWER_COLUMN,
@@ -13,14 +22,6 @@ from country_compare.prediction.output import (
     ROW_TYPE_COLUMN,
     SCENARIO_ID_COLUMN,
 )
-
-COUNTRY_CODE_COLUMN = "country_code"
-COUNTRY_NAME_COLUMN = "country_name"
-METRIC_ID_COLUMN = "metric_id"
-METRIC_NAME_COLUMN = "metric_name"
-YEAR_COLUMN = "year"
-VALUE_COLUMN = "value"
-UNIT_COLUMN = "unit"
 
 SERIES_LABEL_COLUMN = "series_label"
 OVERLAY_SERIES_LABEL_COLUMN = "overlay_series_label"
@@ -107,7 +108,9 @@ def build_forecast_table_dataframe(result: PredictionResult) -> pd.DataFrame:
             errors="coerce",
         ).astype("Int64")
     else:
-        dataframe[FORECAST_YEAR_COLUMN] = pd.Series(index=dataframe.index, dtype="Int64")
+        dataframe[FORECAST_YEAR_COLUMN] = pd.Series(
+            index=dataframe.index, dtype="Int64"
+        )
 
     if VALUE_COLUMN in dataframe.columns:
         dataframe[PREDICTED_VALUE_COLUMN] = pd.to_numeric(
@@ -115,16 +118,22 @@ def build_forecast_table_dataframe(result: PredictionResult) -> pd.DataFrame:
             errors="coerce",
         ).astype("float64")
     else:
-        dataframe[PREDICTED_VALUE_COLUMN] = pd.Series(index=dataframe.index, dtype="float64")
+        dataframe[PREDICTED_VALUE_COLUMN] = pd.Series(
+            index=dataframe.index, dtype="float64"
+        )
 
     dataframe = _sort_visualization_dataframe(dataframe)
     return _select_preferred_columns(dataframe, FORECAST_TABLE_COLUMNS)
 
 
-def _copy_result_dataframe(result: PredictionResult, attribute_name: str) -> pd.DataFrame:
+def _copy_result_dataframe(
+    result: PredictionResult, attribute_name: str
+) -> pd.DataFrame:
     dataframe = getattr(result, attribute_name, None)
     if dataframe is None:
-        raise ValueError(f"prediction result is missing dataframe attribute: {attribute_name}")
+        raise ValueError(
+            f"prediction result is missing dataframe attribute: {attribute_name}"
+        )
     if not isinstance(dataframe, pd.DataFrame):
         raise TypeError(
             f"prediction result attribute {attribute_name!r} must be a pandas DataFrame"
@@ -141,7 +150,9 @@ def _with_visualization_labels(
     _ensure_columns(result, LINE_CHART_COLUMNS)
     if result.empty:
         result[SERIES_LABEL_COLUMN] = pd.Series(index=result.index, dtype="string")
-        result[OVERLAY_SERIES_LABEL_COLUMN] = pd.Series(index=result.index, dtype="string")
+        result[OVERLAY_SERIES_LABEL_COLUMN] = pd.Series(
+            index=result.index, dtype="string"
+        )
         result[SERIES_GROUP_COLUMN] = pd.Series(index=result.index, dtype="string")
         return result
 
@@ -226,7 +237,11 @@ def _ensure_columns(dataframe: pd.DataFrame, columns: tuple[str, ...]) -> None:
     for column in columns:
         if column in dataframe.columns:
             continue
-        if column in {YEAR_COLUMN, FORECAST_HORIZON_COLUMN, FORECAST_ORIGIN_YEAR_COLUMN}:
+        if column in {
+            YEAR_COLUMN,
+            FORECAST_HORIZON_COLUMN,
+            FORECAST_ORIGIN_YEAR_COLUMN,
+        }:
             dataframe[column] = pd.Series(index=dataframe.index, dtype="Int64")
         elif column in {VALUE_COLUMN, CONFIDENCE_LOWER_COLUMN, CONFIDENCE_UPPER_COLUMN}:
             dataframe[column] = pd.Series(index=dataframe.index, dtype="float64")
@@ -239,10 +254,15 @@ def _sort_visualization_dataframe(dataframe: pd.DataFrame) -> pd.DataFrame:
         return dataframe.copy(deep=True)
 
     result = dataframe.copy(deep=True)
-    if SERIES_GROUP_COLUMN not in result.columns or result[SERIES_GROUP_COLUMN].isna().all():
+    if (
+        SERIES_GROUP_COLUMN not in result.columns
+        or result[SERIES_GROUP_COLUMN].isna().all()
+    ):
         return result.reset_index(drop=True)
 
-    result["_series_sort_order"] = result.groupby(SERIES_GROUP_COLUMN, sort=False).ngroup()
+    result["_series_sort_order"] = result.groupby(
+        SERIES_GROUP_COLUMN, sort=False
+    ).ngroup()
     result["_row_type_sort_order"] = (
         result.get(ROW_TYPE_COLUMN, pd.Series(index=result.index, dtype="string"))
         .astype("string")

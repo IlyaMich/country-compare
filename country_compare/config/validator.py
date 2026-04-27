@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict
-
 import pandas as pd
 
 from country_compare.config.models import (
@@ -10,6 +8,8 @@ from country_compare.config.models import (
     ScoringConfig,
     WeightHandlingStrategy,
 )
+from country_compare.data.contract import METRIC_ID_COLUMN
+
 
 class ConfigurationValidationError(ValueError):
     """Raised when configuration is internally inconsistent."""
@@ -23,15 +23,15 @@ def validate_configuration_bundle(bundle: ConfigurationBundle) -> None:
 def validate_scoring_references(metrics: MetricsConfig, scoring: ScoringConfig) -> None:
     known_metric_ids = set(metrics.metrics.keys())
 
-    for profile_name, profile in scoring.profiles.items():
-        unknown_profile_metrics = set(profile.metrics) - known_metric_ids
+    for profile_name, _profile in scoring.profiles.items():
+        unknown_profile_metrics = set(_profile.metrics) - known_metric_ids
         if unknown_profile_metrics:
             unknown = ", ".join(sorted(unknown_profile_metrics))
             raise ConfigurationValidationError(
                 f"profile '{profile_name}' references undefined metrics: {unknown}"
             )
 
-        unknown_weight_metrics = set(profile.weights.keys()) - set(profile.metrics)
+        unknown_weight_metrics = set(_profile.weights.keys()) - set(_profile.metrics)
         if unknown_weight_metrics:
             unknown = ", ".join(sorted(unknown_weight_metrics))
             raise ConfigurationValidationError(
@@ -39,7 +39,9 @@ def validate_scoring_references(metrics: MetricsConfig, scoring: ScoringConfig) 
                 f"in its metrics list: {unknown}"
             )
 
-        unknown_override_metrics = set(profile.normalization_overrides.keys()) - set(profile.metrics)
+        unknown_override_metrics = set(_profile.normalization_overrides.keys()) - set(
+            _profile.metrics
+        )
         if unknown_override_metrics:
             unknown = ", ".join(sorted(unknown_override_metrics))
             raise ConfigurationValidationError(
@@ -52,7 +54,7 @@ def validate_weight_handling(metrics: MetricsConfig, scoring: ScoringConfig) -> 
     if scoring.weight_handling != WeightHandlingStrategy.REQUIRE_SUM_TO_ONE:
         return
 
-    for profile_name, profile in scoring.profiles.items():
+    for profile_name, _profile in scoring.profiles.items():
         resolved = resolve_profile_weights(metrics, scoring, profile_name)
         total = sum(resolved.values())
         if abs(total - 1.0) > 1e-9:
@@ -65,13 +67,13 @@ def resolve_profile_weights(
     metrics: MetricsConfig,
     scoring: ScoringConfig,
     profile_name: str,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     if profile_name not in scoring.profiles:
         raise ConfigurationValidationError(f"unknown scoring profile: {profile_name}")
 
     profile = scoring.profiles[profile_name]
 
-    raw_weights: Dict[str, float] = {}
+    raw_weights: dict[str, float] = {}
     for metric_id in profile.metrics:
         if metric_id in profile.weights:
             raw_weights[metric_id] = profile.weights[metric_id]
@@ -129,18 +131,20 @@ def validate_metrics_against_dataframe(
             f"dataset contains metric_ids not defined in config: {missing}"
         )
 
-    shared_fields = [field for field in ["category", "unit", "higher_is_better"] if field in dataframe.columns]
+    shared_fields = [
+        field
+        for field in ["category", "unit", "higher_is_better"]
+        if field in dataframe.columns
+    ]
 
     if not shared_fields:
         return
 
     deduped = (
-        dataframe[["metric_id", *shared_fields]]
-        .dropna(subset=["metric_id"])
-        .copy()
+        dataframe[["metric_id", *shared_fields]].dropna(subset=["metric_id"]).copy()
     )
 
-    for metric_id, metric_df in deduped.groupby("metric_id"):
+    for metric_id, metric_df in deduped.groupby(METRIC_ID_COLUMN):
         metric_cfg = metrics.metrics[str(metric_id)]
 
         for field in shared_fields:
