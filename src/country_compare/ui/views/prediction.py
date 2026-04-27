@@ -6,6 +6,14 @@ import streamlit as st
 
 from country_compare.services import AppContext
 from country_compare.services.errors import AppError
+from country_compare.settings.defaults import (
+    DEFAULT_MAX_PREDICTION_HOLDOUT_YEARS,
+    DEFAULT_MAX_PREDICTION_HORIZON,
+    DEFAULT_PREDICTION_FORECAST_HORIZON,
+    DEFAULT_PREDICTION_HOLDOUT_YEARS,
+    DEFAULT_PREDICTION_HORIZON_YEARS,
+    DEFAULT_PREDICTION_METHOD,
+)
 from country_compare.ui.bootstrap import get_ui_services
 from country_compare.ui.components.messages import render_app_error
 from country_compare.ui.components.prediction_result_panels import (
@@ -31,9 +39,6 @@ from country_compare.ui.state import (
     set_prediction_result,
     set_selection_state,
 )
-
-MAX_FORECAST_HORIZON = 10
-MAX_HOLDOUT_YEARS = 10
 
 
 def render_prediction_view(context: AppContext) -> None:
@@ -161,9 +166,12 @@ def _render_single_forecast_tab(
         )
         horizon_years = render_positive_integer_input(
             "Forecast horizon (years)",
-            default=int(selection_state.get("prediction_horizon_years") or 3),
+            default=int(
+                selection_state.get("prediction_horizon_years")
+                or DEFAULT_PREDICTION_HORIZON_YEARS
+            ),
             min_value=1,
-            max_value=MAX_FORECAST_HORIZON,
+            max_value=DEFAULT_MAX_PREDICTION_HORIZON,
             key="prediction_single_horizon_years",
         )
 
@@ -222,9 +230,12 @@ def _render_multi_country_forecast_tab(
         )
         horizon_years = render_positive_integer_input(
             "Forecast horizon (years)",
-            default=int(selection_state.get("prediction_horizon_years") or 3),
+            default=int(
+                selection_state.get("prediction_horizon_years")
+                or DEFAULT_PREDICTION_HORIZON_YEARS
+            ),
             min_value=1,
-            max_value=MAX_FORECAST_HORIZON,
+            max_value=DEFAULT_MAX_PREDICTION_HORIZON,
             key="prediction_multi_horizon_years",
         )
 
@@ -304,9 +315,12 @@ def _render_predicted_comparison_tab(
         )
         horizon_years = render_positive_integer_input(
             "Forecast horizon (years)",
-            default=int(selection_state.get("prediction_horizon_years") or 3),
+            default=int(
+                selection_state.get("prediction_horizon_years")
+                or DEFAULT_PREDICTION_HORIZON_YEARS
+            ),
             min_value=1,
-            max_value=MAX_FORECAST_HORIZON,
+            max_value=DEFAULT_MAX_PREDICTION_HORIZON,
             key="prediction_compare_horizon_years",
         )
 
@@ -323,7 +337,10 @@ def _render_predicted_comparison_tab(
         if selection_mode == "Horizon":
             forecast_horizon = render_positive_integer_input(
                 "Forecast horizon to compare",
-                default=int(selection_state.get("prediction_forecast_horizon") or 1),
+                default=int(
+                    selection_state.get("prediction_forecast_horizon")
+                    or DEFAULT_PREDICTION_FORECAST_HORIZON
+                ),
                 min_value=1,
                 max_value=horizon_years,
                 key="prediction_compare_forecast_horizon",
@@ -432,9 +449,12 @@ def _render_backtest_tab(catalog_state: dict[str, Any], prediction_service) -> N
         )
         holdout_years = render_positive_integer_input(
             "Holdout years",
-            default=int(selection_state.get("prediction_holdout_years") or 2),
+            default=int(
+                selection_state.get("prediction_holdout_years")
+                or DEFAULT_PREDICTION_HOLDOUT_YEARS
+            ),
             min_value=1,
-            max_value=MAX_HOLDOUT_YEARS,
+            max_value=DEFAULT_MAX_PREDICTION_HOLDOUT_YEARS,
             key="prediction_backtest_holdout_years",
         )
 
@@ -445,7 +465,7 @@ def _render_backtest_tab(catalog_state: dict[str, Any], prediction_service) -> N
                 "prediction_metric_id": metric_id or None,
                 "prediction_method": method_id
                 or selection_state.get("prediction_method")
-                or "linear_trend",
+                or DEFAULT_PREDICTION_METHOD,
                 "prediction_holdout_years": holdout_years,
             }
         )
