@@ -43,15 +43,15 @@ jobs:
 
       - name: Check formatting
         run: |
-          python -m black --check country_compare tests scripts
+          python -m black --check src/country_compare tests scripts
 
       - name: Run lint checks
         run: |
-          python -m ruff check country_compare tests scripts
+          python -m ruff check src/country_compare tests scripts
 
       - name: Run type checks
         run: |
-          python -m mypy country_compare
+          python -m mypy src/country_compare
 
       - name: Run tests
         run: |

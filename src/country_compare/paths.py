@@ -1,7 +1,20 @@
 from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
-PROJECT_ROOT = PACKAGE_ROOT.parent
+
+
+def _resolve_project_root(package_root: Path) -> Path:
+    """Resolve the repository root for both root and /src package layouts."""
+
+    package_parent = package_root.parent
+
+    if package_parent.name == "src":
+        return package_parent.parent
+
+    return package_parent
+
+
+PROJECT_ROOT = _resolve_project_root(PACKAGE_ROOT)
 
 DATA_DIR = PROJECT_ROOT / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"

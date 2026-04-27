@@ -9,15 +9,15 @@ description = "Country comparison toolkit using standardized long-format metric 
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "pandas>=3.0.2",
-    "pyarrow>=23.0.1",
-    "PyYAML>=6.0.3",
-    "pydantic>=2.13.2",
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.30.0",
-    "httpx>=0.27.0",
-    "matplotlib>=3.10.8",
-    "streamlit>=1.56.0",
+  "pandas>=3.0.2",
+  "pyarrow>=23.0.1",
+  "PyYAML>=6.0.3",
+  "pydantic>=2.13.2",
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.30.0",
+  "httpx>=0.27.0",
+  "matplotlib>=3.10.8",
+  "streamlit>=1.56.0",
 ]
 
 [project.scripts]
@@ -26,26 +26,26 @@ country-compare-ui = "country_compare.cli.ui:main"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0",
-    "ruff>=0.3.0",
-    "black>=24.0.0",
-    "mypy>=1.8.0",
-    "types-PyYAML>=6.0.12",
+  "pytest>=8.0.0",
+  "ruff>=0.3.0",
+  "black>=24.0.0",
+  "mypy>=1.8.0",
+  "types-PyYAML>=6.0.12",
 ]
 
 [tool.setuptools]
-package-dir = {"" = "."}
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["country_compare*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
- "unit: fast isolated tests",
- "integration: multi-module or filesystem tests",
- "smoke: high-level demo/app smoke tests",
+  "unit: fast isolated tests",
+  "integration: multi-module or filesystem tests",
+  "smoke: high-level demo/app smoke tests",
 ]
 
 [tool.ruff]

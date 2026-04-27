@@ -107,29 +107,29 @@ notes
 ## Repository layout
 
 ```text
-country_compare/
-  api/                # FastAPI app, schemas, routes, and API serialization
-  clients/            # UI-facing local/HTTP client abstraction
-  cli/                # CLI entrypoints
-  comparison/         # single- and multi-metric comparison workflows
-  config/             # config models, loaders, and validators
-  data/               # canonical contract, validation, access, stores, ingestion
-  exports/            # reusable CSV / JSON / Markdown export helpers
-  metrics/            # filtering and normalization helpers
-  output/             # charts and output helpers
-  pipelines/          # processing engine, acquisition, manifests, audit, publish
-  prediction/         # forecasting, backtesting, comparison bridge, visualization data
-  scoring/            # weighted-score workflows
-  services/           # app-facing orchestration and result models
-  settings/           # centralized application settings
-  ui/                 # Streamlit app, views, state, components
-
-config/               # metrics, scoring profiles, source manifests, demo config
-data/examples/        # golden demo dataset
-docs/                 # walkthroughs and API docs
-notebooks/            # exploratory notebooks
-scripts/              # demo and operational scripts
-tests/                # unit, integration, and smoke tests
+src/
+  country_compare/
+    api/          # FastAPI app, schemas, routes, and API serialization
+    clients/      # UI-facing local/HTTP client abstraction
+    cli/          # CLI entrypoints
+    comparison/   # single- and multi-metric comparison workflows
+    config/       # config models, loaders, and validators
+    data/         # canonical contract, validation, access, stores, ingestion
+    exports/      # reusable CSV / JSON / Markdown export helpers
+    metrics/      # filtering and normalization helpers
+    output/       # charts and output helpers
+    pipelines/    # processing engine, acquisition, manifests, audit, publish
+    prediction/   # forecasting, backtesting, comparison bridge, visualization data
+    scoring/      # weighted-score workflows
+    services/     # app-facing orchestration and result models
+    settings/     # centralized application settings
+    ui/           # Streamlit app, views, state, components
+config/           # metrics, scoring profiles, source manifests, demo config
+data/examples/    # golden demo dataset
+docs/             # walkthroughs and API docs
+notebooks/        # exploratory notebooks
+scripts/          # demo and operational scripts
+tests/            # unit, integration, and smoke tests
 ```
 
 ## Installation
@@ -175,7 +175,7 @@ country-compare ui
 Or run Streamlit directly:
 
 ```bash
-python -m streamlit run country_compare/ui/app.py
+python -m streamlit run src/country_compare/ui/app.py
 ```
 
 When `COUNTRY_COMPARE_API_URL` is not set, the UI uses local in-process services directly. This is the default local development mode.
@@ -210,14 +210,14 @@ Windows PowerShell:
 
 ```powershell
 $env:COUNTRY_COMPARE_API_URL = "http://localhost:8000"
-python -m streamlit run country_compare/ui/app.py
+python -m streamlit run src/country_compare/ui/app.py
 ```
 
 macOS/Linux:
 
 ```bash
 export COUNTRY_COMPARE_API_URL=http://localhost:8000
-python -m streamlit run country_compare/ui/app.py
+python -m streamlit run src/country_compare/ui/app.py
 ```
 
 Selection rule:
@@ -433,16 +433,16 @@ python -m pytest tests/smoke
 Run formatting, linting, and type checks:
 
 ```bash
-python -m black --check country_compare tests scripts
-python -m ruff check country_compare tests scripts
-python -m mypy country_compare
+python -m black --check src/country_compare tests scripts
+python -m ruff check src/country_compare tests scripts
+python -m mypy src/country_compare
 ```
 
 Format locally:
 
 ```bash
-python -m black country_compare tests scripts
-python -m ruff check country_compare tests scripts --fix
+python -m black src/country_compare tests scripts
+python -m ruff check src/country_compare tests scripts --fix
 ```
 
 Build containers:
@@ -455,9 +455,9 @@ Recommended full local verification before pushing:
 
 ```bash
 python -m pytest
-python -m ruff check country_compare tests scripts
-python -m black --check country_compare tests scripts
-python -m mypy country_compare
+python -m ruff check src/country_compare tests scripts
+python -m black --check src/country_compare tests scripts
+python -m mypy src/country_compare
 docker compose build
 ```
 
@@ -509,7 +509,7 @@ Recommended loop:
 
 ```bash
 python -m pytest
-python -m ruff check country_compare tests scripts
-python -m black --check country_compare tests scripts
-python -m mypy country_compare
+python -m ruff check src/country_compare tests scripts
+python -m black --check src/country_compare tests scripts
+python -m mypy src/country_compare
 ```

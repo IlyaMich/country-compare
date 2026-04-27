@@ -75,7 +75,7 @@ http://localhost:8000/docs
 The UI container runs:
 
 ```bash
-python -m streamlit run country_compare/ui/app.py --server.address=0.0.0.0 --server.port=8501
+python -m streamlit run src/country_compare/ui/app.py --server.address=0.0.0.0 --server.port=8501
 ```
 
 Published host port:
@@ -308,7 +308,7 @@ make container-up DOCKER=podman
 Local Streamlit mode:
 
 ```bash
-python -m streamlit run country_compare/ui/app.py
+python -m streamlit run src/country_compare/ui/app.py
 ```
 
 In this mode, leave `COUNTRY_COMPARE_API_URL` unset. The UI calls the local service layer directly.
@@ -322,7 +322,7 @@ python -m uvicorn country_compare.api.main:app --host 0.0.0.0 --port 8000
 Local UI against local backend:
 
 ```bash
-COUNTRY_COMPARE_API_URL=http://localhost:8000 python -m streamlit run country_compare/ui/app.py
+COUNTRY_COMPARE_API_URL=http://localhost:8000 python -m streamlit run src/country_compare/ui/app.py
 ```
 
 Docker Compose mode:
@@ -476,9 +476,9 @@ Run local checks:
 
 ```bash
 python -m pytest
-python -m ruff check country_compare tests scripts
-python -m black --check country_compare tests scripts
-python -m mypy country_compare
+python -m ruff check src/country_compare tests scripts
+python -m black --check src/country_compare tests scripts
+python -m mypy src/country_compare
 ```
 
 Build containers:
