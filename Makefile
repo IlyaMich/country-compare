@@ -3,7 +3,7 @@
 PYTHON := python
 DOCKER ?= docker
 COMPOSE ?= $(DOCKER) compose
-PACKAGE_DIRS := country_compare tests scripts
+PACKAGE_DIRS := src/country_compare tests scripts
 
 install:
 	$(PYTHON) -m pip install -r requirements-dev.txt
@@ -24,7 +24,7 @@ test:
 	$(PYTHON) -m pytest
 
 type-check:
-	$(PYTHON) -m mypy country_compare
+	$(PYTHON) -m mypy src/country_compare
 
 check: format-check lint test
 
