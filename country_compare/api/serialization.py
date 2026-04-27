@@ -202,7 +202,75 @@ def _extract_tables(payload: Mapping[str, Any]) -> dict[str, TablePayload]:
         for name, table_payload in extra_tables.items():
             tables[str(name)] = TablePayload.model_validate(table_payload)
 
+    _add_prediction_result_tables(tables, payload.get("prediction_result"))
+    _add_predicted_comparison_result_tables(
+        tables,
+        payload.get("predicted_comparison_result"),
+    )
+    _add_backtest_result_tables(tables, payload.get("backtest_result"))
+
     return tables
+
+
+def _add_prediction_result_tables(
+    tables: dict[str, TablePayload],
+    prediction_result: Any,
+) -> None:
+    if not isinstance(prediction_result, Mapping):
+        return
+
+    _add_table(tables, "forecast", prediction_result.get("forecast_df"))
+    _add_table(
+        tables,
+        "actual_and_forecast",
+        prediction_result.get("combined_df"),
+    )
+    _add_table(
+        tables,
+        "comparison_ready",
+        prediction_result.get("comparison_ready_df"),
+    )
+
+
+def _add_predicted_comparison_result_tables(
+    tables: dict[str, TablePayload],
+    predicted_comparison_result: Any,
+) -> None:
+    if not isinstance(predicted_comparison_result, Mapping):
+        return
+
+    _add_table(
+        tables,
+        "predicted_comparison",
+        predicted_comparison_result.get("comparison_df"),
+    )
+    _add_prediction_result_tables(
+        tables,
+        predicted_comparison_result.get("prediction_result"),
+    )
+
+
+def _add_backtest_result_tables(
+    tables: dict[str, TablePayload],
+    backtest_result: Any,
+) -> None:
+    if not isinstance(backtest_result, Mapping):
+        return
+
+    _add_table(
+        tables,
+        "actual_vs_predicted",
+        backtest_result.get("actual_vs_predicted_df"),
+    )
+
+
+def _add_table(
+    tables: dict[str, TablePayload],
+    name: str,
+    table_payload: Any,
+) -> None:
+    if table_payload is not None and name not in tables:
+        tables[name] = TablePayload.model_validate(table_payload)
 
 
 def _extract_charts(payload: Mapping[str, Any]) -> dict[str, Any]:
