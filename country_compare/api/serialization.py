@@ -74,6 +74,9 @@ def serialize_error(error: Any) -> ErrorDetail | None:
     if isinstance(error, ErrorDetail):
         return error
 
+    if isinstance(error, Mapping):
+        return _error_detail_from_mapping(error)
+
     if isinstance(error, AppError):
         return ErrorDetail.from_app_error(error)
 
