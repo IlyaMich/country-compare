@@ -2,12 +2,6 @@ from __future__ import annotations
 
 from typing import Final
 
-SIDEBAR_TITLE = "Country Compare"
-PAGE_RADIO_LABEL = "Page"
-DEBUG_CHECKBOX_LABEL = "Debug mode"
-RESERVED_PAGE_INFO = "This page is reserved for a later UI phase."
-
-
 SIDEBAR_TITLE: Final[str] = "Country Compare"
 PAGE_RADIO_LABEL: Final[str] = "Page"
 DEBUG_CHECKBOX_LABEL: Final[str] = "Debug mode"
