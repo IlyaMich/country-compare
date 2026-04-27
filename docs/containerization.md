@@ -500,3 +500,9 @@ http://localhost:8000/health
 http://localhost:8000/ready
 http://localhost:8501
 ```
+
+For more details, see:
+
+```text
+docs/containerization.md
+```
