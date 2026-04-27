@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -229,9 +230,9 @@ def _resolve_figure_and_axes(
     figsize: tuple[float, float],
 ) -> tuple[Figure, Axes]:
     if ax is not None:
-        return ax.figure, ax
+        return cast(Figure, ax.figure), ax
     figure, axes = plt.subplots(figsize=figsize)
-    return figure, axes
+    return cast(Figure, figure), cast(Axes, axes)
 
 
 def _resolve_label_column(df: pd.DataFrame, *, preferred: str | None) -> str:

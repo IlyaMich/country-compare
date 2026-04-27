@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 import streamlit as st
 
 from country_compare.settings import load_app_settings
@@ -27,13 +29,19 @@ from country_compare.ui.views.config_editor import render_config_editor_view
 from country_compare.ui.views.overview import render_page as render_overview_page
 from country_compare.ui.views.prediction import render_prediction_view
 
+_StreamlitLayout = Literal["centered", "wide"]
+
+
+def _streamlit_layout(value: object) -> _StreamlitLayout:
+    return "wide" if str(value).strip().lower() == "wide" else "centered"
+
 
 def main() -> None:
     app_settings = load_app_settings()
     st.set_page_config(
         page_title=app_settings.ui.page_title,
         page_icon=app_settings.ui.page_icon,
-        layout=app_settings.ui.layout,
+        layout=_streamlit_layout(app_settings.ui.layout),
     )
 
     context, facade = bootstrap_app(settings=app_settings)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -123,6 +123,12 @@ def load_source_manifest(path: str | Path) -> SourceManifest:
     sources_raw = raw.get("sources") or []
     if not isinstance(sources_raw, list):
         raise ValueError("source manifest field 'sources' must be a list")
+    source_payloads: list[dict[str, Any]] = []
+    for source in sources_raw:
+        if not isinstance(source, Mapping):
+            raise ValueError("each source manifest item must be a mapping")
+        source_payloads.append(dict(cast(Mapping[str, Any], source)))
+
     return SourceManifest(
         name=raw.get("name"),
         raw_root=raw.get("raw_root"),
@@ -131,7 +137,7 @@ def load_source_manifest(path: str | Path) -> SourceManifest:
         tags=tuple(raw.get("tags") or ()),
         labels=dict(raw.get("labels") or {}),
         metadata=dict(raw.get("metadata") or {}),
-        sources=[dict(source) for source in sources_raw],
+        sources=cast(list[SourceSpec], source_payloads),
     )
 
 

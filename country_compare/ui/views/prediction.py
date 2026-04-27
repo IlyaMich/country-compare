@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import streamlit as st
 
@@ -43,9 +43,9 @@ def render_prediction_view(context: AppContext) -> None:
     )
 
     services = get_ui_services(context)
-    dataset_service = services["dataset_service"]
-    config_service = services["config_service"]
-    prediction_service = services["prediction_service"]
+    dataset_service = cast(Any, services["dataset_service"])
+    config_service = cast(Any, services["config_service"])
+    prediction_service = cast(Any, services["prediction_service"])
 
     dataset_error = _get_dataset_availability_error(dataset_service)
     if dataset_error is not None:

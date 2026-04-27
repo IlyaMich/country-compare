@@ -4,7 +4,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import streamlit as st
@@ -146,8 +146,8 @@ def _ensure_suffix(file_name: str, suffix: str) -> str:
 
 
 def _to_jsonable(value: Any) -> Any:
-    if is_dataclass(value):
-        return _to_jsonable(asdict(value))
+    if is_dataclass(value) and not isinstance(value, type):
+        return _to_jsonable(asdict(cast(Any, value)))
 
     if isinstance(value, Enum):
         return value.value

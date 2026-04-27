@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import streamlit as st
@@ -41,7 +41,7 @@ def render_config_editor_view(context) -> None:
     )
 
     services = get_ui_services(context)
-    config_service = services["config_service"]
+    config_service = cast(Any, services["config_service"])
 
     load_error = _ensure_editor_state_loaded(config_service)
     if load_error is not None:
@@ -284,6 +284,8 @@ def _render_metrics_editor(editor_state: dict[str, Any]) -> None:
     if control_cols[2].button(
         "Delete metric draft", disabled=delete_disabled, use_container_width=True
     ):
+        if selected_metric_id is None:
+            return
         metrics_data, scoring_data, next_metric_id = _delete_metric_from_draft(
             metrics_data=metrics_data,
             scoring_data=scoring_data,
@@ -505,6 +507,8 @@ def _render_scoring_editor(editor_state: dict[str, Any]) -> None:
     if control_cols[2].button(
         "Delete profile draft", disabled=delete_disabled, use_container_width=True
     ):
+        if selected_profile_name is None:
+            return
         scoring_data, next_profile_name = _delete_profile_from_draft(
             scoring_data=scoring_data,
             profile_name=selected_profile_name,

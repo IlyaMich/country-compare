@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import inspect
-from dataclasses import asdict, is_dataclass
+from collections.abc import Mapping
+from dataclasses import fields, is_dataclass
+from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -30,17 +32,21 @@ from country_compare.services.requests import (
 )
 from country_compare.services.results import ComparisonResult
 
+
+class _FallbackScoringError(ValueError):
+    """Fallback scoring error when the scoring module is unavailable."""
+
+
+_ScoringError: type[Exception] = _FallbackScoringError
+_resolve_scoring_profile: Any = None
+
 try:  # pragma: no cover - package availability depends on project state
-    from country_compare.scoring.weighted_score import (
-        ScoringError,
-        resolve_scoring_profile,
-    )
-except Exception:  # pragma: no cover
-
-    class ScoringError(ValueError):
-        """Fallback scoring error when the scoring module is unavailable."""
-
-    resolve_scoring_profile = None
+    _weighted_score_module = import_module("country_compare.scoring.weighted_score")
+except Exception:
+    pass
+else:
+    _ScoringError = _weighted_score_module.ScoringError
+    _resolve_scoring_profile = _weighted_score_module.resolve_scoring_profile
 
 
 class ComparisonService:
@@ -434,9 +440,7 @@ class ComparisonService:
             value = getattr(raw_output, dataframe_attr, None)
             if isinstance(value, pd.DataFrame):
                 metadata = getattr(raw_output, "metadata", {}) or {}
-                if is_dataclass(metadata):
-                    metadata = asdict(metadata)
-                return value.copy(), dict(metadata)
+                return value.copy(), _metadata_to_dict(metadata)
 
         raise TypeError(
             "comparison call returned an unsupported result type. Expected a DataFrame, "
@@ -505,7 +509,7 @@ class ComparisonService:
             "metric_display_name": metric_cfg.display_name,
             "metric_category": metric_cfg.category,
             "metric_unit": metric_cfg.unit,
-            "year_strategy": request.year_strategy.value,
+            "year_strategy": _enum_value(request.year_strategy),
             "target_year": (
                 request.target_year
                 if request.year_strategy == YearStrategy.TARGET_YEAR
@@ -533,7 +537,7 @@ class ComparisonService:
             "metric_ids": list(request.metric_ids),
             "metric_labels": metric_labels,
             "selected_countries": list(request.countries),
-            "year_strategy": request.year_strategy.value,
+            "year_strategy": _enum_value(request.year_strategy),
             "target_year": (
                 request.target_year
                 if request.year_strategy == YearStrategy.TARGET_YEAR
@@ -561,13 +565,13 @@ class ComparisonService:
         return {
             "profile_name": request.profile_name,
             "selected_countries": list(request.countries),
-            "profile_year_strategy": resolved_profile.year_strategy.value,
+            "profile_year_strategy": _enum_value(resolved_profile.year_strategy),
             "target_year": (
                 request.target_year
                 if resolved_profile.year_strategy == YearStrategy.TARGET_YEAR
                 else None
             ),
-            "missing_data_policy": resolved_profile.missing_data_policy.value,
+            "missing_data_policy": _enum_value(resolved_profile.missing_data_policy),
             "resolved_weights": dict(resolved_profile.weights),
             "result_row_count": int(len(dataframe)),
             "countries_returned": self._extract_string_values(
@@ -650,8 +654,8 @@ class ComparisonService:
         }
 
     def _resolve_weighted_profile(self, bundle: Any, profile_name: str) -> Any:
-        if resolve_scoring_profile is not None:
-            return resolve_scoring_profile(
+        if _resolve_scoring_profile is not None:
+            return _resolve_scoring_profile(
                 bundle.metrics,
                 bundle.scoring,
                 profile_name=profile_name,
@@ -692,7 +696,7 @@ class ComparisonService:
                 title="Request validation failed",
                 user_message="One or more request values are invalid.",
                 technical_detail=str(exc),
-                field_errors=field_errors or None,
+                field_errors=field_errors,
             )
 
         if isinstance(exc, ConfigurationValidationError):
@@ -703,7 +707,7 @@ class ComparisonService:
                 technical_detail=str(exc),
             )
 
-        if isinstance(exc, ScoringError):
+        if isinstance(exc, _ScoringError):
             return AppError(
                 code="scoring_failed",
                 title="Weighted scoring failed",
@@ -728,6 +732,22 @@ class ComparisonService:
                 "The comparison could not be completed because an unexpected error occurred."
             ),
         )
+
+
+def _enum_value(value: Any) -> Any:
+    return getattr(value, "value", value)
+
+
+def _metadata_to_dict(value: Any) -> dict[str, Any]:
+    if is_dataclass(value) and not isinstance(value, type):
+        return _dataclass_to_dict(value)
+    if isinstance(value, Mapping):
+        return {str(key): item for key, item in value.items()}
+    return {}
+
+
+def _dataclass_to_dict(value: Any) -> dict[str, Any]:
+    return {field.name: getattr(value, field.name) for field in fields(value)}
 
 
 def _invoke_callable_with_supported_kwargs(func: Any, aliases: dict[str, Any]) -> Any:

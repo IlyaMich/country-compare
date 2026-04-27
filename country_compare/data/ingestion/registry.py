@@ -89,7 +89,11 @@ def _make_factory(
         return adapter
 
     if isinstance(adapter, SourceAdapter):
-        return lambda adapter=adapter: copy.deepcopy(adapter)
+
+        def factory() -> SourceAdapter:
+            return copy.deepcopy(adapter)
+
+        return factory
 
     if callable(adapter):
         return adapter

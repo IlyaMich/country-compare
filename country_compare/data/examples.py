@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 import pandas as pd
 
 from country_compare.data.validation import (
@@ -248,8 +250,12 @@ def build_example_metric_dataframe() -> pd.DataFrame:
                 source_url=str(metric_meta["source_url"]),
                 higher_is_better=bool(metric_meta["higher_is_better"]),
                 category=str(metric_meta["category"]),
-                yearly_values=dict(metric_meta["yearly_values"]),
-                notes_by_year=dict(metric_meta.get("notes_by_year", {})),
+                yearly_values=dict(
+                    cast(dict[int, dict[str, float]], metric_meta["yearly_values"])
+                ),
+                notes_by_year=dict(
+                    cast(dict[int, str], metric_meta.get("notes_by_year", {}))
+                ),
             )
         )
 
