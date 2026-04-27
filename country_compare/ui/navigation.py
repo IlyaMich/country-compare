@@ -1,27 +1,32 @@
 from __future__ import annotations
 
+from typing import Final
+
 from country_compare.settings.defaults import DEFAULT_UI_DEFAULT_PAGE
 
-OVERVIEW_PAGE = "Overview"
-COMPARE_PAGE = "Compare"
-PREDICTION_PAGE = "Prediction"
-CONFIG_EDITOR_PAGE = "Config Editor"
+OVERVIEW_PAGE: Final[str] = "Overview"
+COMPARE_PAGE: Final[str] = "Compare"
+PREDICTION_PAGE: Final[str] = "Prediction"
+CONFIG_EDITOR_PAGE: Final[str] = "Config Editor"
 
-AVAILABLE_PAGES = (
+AVAILABLE_PAGES: Final[tuple[str, ...]] = (
     OVERVIEW_PAGE,
     COMPARE_PAGE,
     PREDICTION_PAGE,
     CONFIG_EDITOR_PAGE,
 )
-DEFAULT_PAGE = DEFAULT_UI_DEFAULT_PAGE
+DEFAULT_PAGE: Final[str] = DEFAULT_UI_DEFAULT_PAGE
 
 
 def page_index(selected_page: str) -> int:
-    try:
+    """Return the sidebar radio index for a selected page.
+
+    Falls back safely when state/config references an unknown page.
+    """
+    if selected_page in AVAILABLE_PAGES:
         return AVAILABLE_PAGES.index(selected_page)
-    except ValueError:
-        return (
-            AVAILABLE_PAGES.index(DEFAULT_PAGE)
-            if DEFAULT_PAGE in AVAILABLE_PAGES
-            else 0
-        )
+
+    if DEFAULT_PAGE in AVAILABLE_PAGES:
+        return AVAILABLE_PAGES.index(DEFAULT_PAGE)
+
+    return 0

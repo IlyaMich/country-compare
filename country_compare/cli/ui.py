@@ -5,7 +5,6 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-
 _HELP_TEXT = """\
 usage: country-compare-ui [OPTIONS] [-- STREAMLIT_ARGS...]
 

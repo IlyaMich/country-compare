@@ -14,7 +14,8 @@ DEFAULT_AUDIT_DIR = CONFIG_DIR.parent / "data" / "audit" / "world_bank_update"
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Build the processed parquet metric dataset from a manifest-driven raw-source refresh."
+        description="Build the processed parquet metric dataset from a manifest-driven"
+        "raw-source refresh."
     )
     parser.add_argument(
         "--manifest",
