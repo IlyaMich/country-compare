@@ -1,0 +1,91 @@
+from __future__ import annotations
+
+import pandas as pd
+
+from country_compare.ui.components.result_panels import (
+    build_comparison_chart_dataframe,
+    build_comparison_table_summary,
+)
+
+
+def test_build_comparison_table_summary_uses_rank_column() -> None:
+    dataframe = pd.DataFrame(
+        [
+            {"country_name": "Israel", "score": 88.0, "rank": 2},
+            {"country_name": "France", "score": 91.5, "rank": 1},
+        ]
+    )
+
+    summary = build_comparison_table_summary(dataframe)
+
+    assert summary is not None
+    assert summary.row_count == 2
+    assert summary.top_label == "France"
+    assert summary.top_value == 91.5
+    assert summary.value_column == "score"
+    assert summary.rank_column == "rank"
+
+
+def test_build_comparison_table_summary_falls_back_to_value_sort() -> None:
+    dataframe = pd.DataFrame(
+        [
+            {"country_code": "ISR", "value": 40.0},
+            {"country_code": "FRA", "value": 42.0},
+        ]
+    )
+
+    summary = build_comparison_table_summary(dataframe)
+
+    assert summary is not None
+    assert summary.top_label == "FRA"
+    assert summary.top_value == 42.0
+    assert summary.value_column == "value"
+    assert summary.rank_column is None
+
+
+def test_build_comparison_table_summary_handles_empty_dataframe() -> None:
+    dataframe = pd.DataFrame(columns=["country_name", "score", "rank"])
+
+    assert build_comparison_table_summary(dataframe) is None
+
+
+def test_build_comparison_chart_dataframe_shapes_ranked_values() -> None:
+    dataframe = pd.DataFrame(
+        [
+            {"country_name": "Israel", "score": 88.0, "rank": 2},
+            {"country_name": "France", "score": 91.5, "rank": 1},
+        ]
+    )
+
+    chart_dataframe = build_comparison_chart_dataframe(dataframe)
+
+    assert list(chart_dataframe.index) == ["France", "Israel"]
+    assert list(chart_dataframe.columns) == ["score"]
+    assert chart_dataframe.loc["France", "score"] == 91.5
+
+
+def test_build_comparison_chart_dataframe_limits_rows() -> None:
+    dataframe = pd.DataFrame(
+        [
+            {"country_name": "A", "score": 5.0},
+            {"country_name": "B", "score": 4.0},
+            {"country_name": "C", "score": 3.0},
+        ]
+    )
+
+    chart_dataframe = build_comparison_chart_dataframe(dataframe, max_rows=2)
+
+    assert list(chart_dataframe.index) == ["A", "B"]
+
+
+def test_build_comparison_chart_dataframe_handles_missing_value_column() -> None:
+    dataframe = pd.DataFrame(
+        [
+            {"country_name": "Israel", "rank": 2},
+            {"country_name": "France", "rank": 1},
+        ]
+    )
+
+    chart_dataframe = build_comparison_chart_dataframe(dataframe)
+
+    assert chart_dataframe.empty
