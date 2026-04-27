@@ -4,6 +4,9 @@ from pathlib import Path
 
 import streamlit as st
 
+from country_compare.clients import build_country_compare_client, resolve_api_url
+from country_compare.clients.base import CountryCompareClient
+from country_compare.clients.http import HttpCountryCompareClient
 from country_compare.services import AppContext, AppFacade
 from country_compare.services.comparison_service import ComparisonService
 from country_compare.services.config_service import ConfigService
@@ -30,6 +33,7 @@ def build_app_context(
         store_path=store_path,
         debug=debug,
     )
+
     return AppContext(
         metrics_config_path=base.paths.metrics_config_path,
         scoring_config_path=base.paths.scoring_config_path,
@@ -62,6 +66,7 @@ def _build_ui_services_cached(context: AppContext) -> dict[str, object]:
         config_service=config_service,
     )
     presentation_service = PresentationService()
+
     return {
         "context": context,
         "dataset_service": dataset_service,
@@ -72,7 +77,38 @@ def _build_ui_services_cached(context: AppContext) -> dict[str, object]:
     }
 
 
+@st.cache_resource(show_spinner=False)
+def _build_client_cached(
+    context: AppContext,
+    api_url: str | None,
+) -> CountryCompareClient:
+    facade = _build_facade_cached(context)
+    return build_country_compare_client(
+        context,
+        facade=facade,
+        api_url=api_url,
+    )
+
+
+@st.cache_resource(show_spinner=False)
+def _build_http_ui_services_cached(
+    context: AppContext,
+    api_url: str,
+) -> dict[str, object]:
+    client = _build_client_cached(context, api_url)
+    if not isinstance(client, HttpCountryCompareClient):
+        raise TypeError("Expected an HTTP country compare client.")
+    return client.as_ui_services()
+
+
+def get_country_compare_client(context: AppContext) -> CountryCompareClient:
+    return _build_client_cached(context, resolve_api_url())
+
+
 def get_ui_services(context: AppContext) -> dict[str, object]:
+    api_url = resolve_api_url()
+    if api_url is not None:
+        return _build_http_ui_services_cached(context, api_url)
     return _build_ui_services_cached(context)
 
 
@@ -83,6 +119,8 @@ def get_phase_b_services(context: AppContext) -> dict[str, object]:
 def refresh_cached_services() -> None:
     _build_facade_cached.clear()
     _build_ui_services_cached.clear()
+    _build_client_cached.clear()
+    _build_http_ui_services_cached.clear()
 
 
 def bootstrap_app(
@@ -102,6 +140,8 @@ def bootstrap_app(
         store_path=store_path,
         debug=debug,
     )
+
     state.initialize_session_state(default_debug=context.debug)
     facade = _build_facade_cached(context)
+
     return context, facade
