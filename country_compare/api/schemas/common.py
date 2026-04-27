@@ -11,6 +11,16 @@ class StrictBaseModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class TablePayload(StrictBaseModel):
+    """JSON-safe tabular payload exposed at the HTTP boundary."""
+
+    row_count: int
+    column_count: int
+    columns: list[str]
+    records: list[dict[str, Any]] = Field(default_factory=list)
+    records_truncated: bool = False
+
+
 class ErrorDetail(StrictBaseModel):
     code: str
     message: str
@@ -34,3 +44,24 @@ class ErrorDetail(StrictBaseModel):
 
 class ErrorResponse(StrictBaseModel):
     error: ErrorDetail
+
+
+class ResultEnvelope(StrictBaseModel):
+    """Common computation response envelope for future API routes.
+
+    Phase 2 only defines and tests the transport shape. Metadata,
+    comparison, scoring, and prediction routes will start returning this
+    envelope in later phases.
+    """
+
+    ok: bool
+    mode: str | None = None
+    request: dict[str, Any] = Field(default_factory=dict)
+    summary: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    diagnostics: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    messages: list[Any] = Field(default_factory=list)
+    tables: dict[str, TablePayload] = Field(default_factory=dict)
+    charts: dict[str, Any] = Field(default_factory=dict)
+    error: ErrorDetail | None = None
