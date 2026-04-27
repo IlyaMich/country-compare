@@ -1,6 +1,8 @@
-.PHONY: install format format-check lint lint-fix test type-check check check-strict container-build container-up container-down container-logs
+.PHONY: install format format-check lint lint-fix test type-check check check-strict container-build container-up container-down container-logs container-ps
 
 PYTHON := python
+DOCKER ?= docker
+COMPOSE ?= $(DOCKER) compose
 PACKAGE_DIRS := country_compare tests scripts
 
 install:
@@ -29,13 +31,16 @@ check: format-check lint test
 check-strict: check type-check
 
 container-build:
-	podman build -t country-compare:latest .
+	$(COMPOSE) build
 
 container-up:
-	podman compose up --build
+	$(COMPOSE) up --build
 
 container-down:
-	podman compose down
+	$(COMPOSE) down
 
 container-logs:
-	podman compose logs -f
+	$(COMPOSE) logs -f
+
+container-ps:
+	$(COMPOSE) ps

@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: country-compare-backend:latest
+    environment:
+      COUNTRY_COMPARE_API_ENABLE_DOCS: "true"
+      COUNTRY_COMPARE_STORE_BACKEND: parquet
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    image: country-compare-ui:latest
+    environment:
+      COUNTRY_COMPARE_API_URL: http://backend:8000
+      COUNTRY_COMPARE_STORE_BACKEND: parquet
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+    ports:
+      - "8501:8501"
+    depends_on:
+      backend:
+        condition: service_healthy

@@ -2,13 +2,15 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
-    name: Python ${{ matrix.python-version }}
+  python-quality:
+    name: Python quality checks (${{ matrix.python-version }})
     runs-on: ubuntu-latest
 
     strategy:
@@ -27,7 +29,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-dev.txt
 
       - name: Upgrade packaging tools
         run: |
@@ -39,12 +43,33 @@ jobs:
 
       - name: Check formatting
         run: |
-          python -m black --check country_compare tests scripts/demo_product_flow.py
+          python -m black --check country_compare tests scripts
 
       - name: Run lint checks
         run: |
-          python -m ruff check country_compare tests scripts/demo_product_flow.py
+          python -m ruff check country_compare tests scripts
+
+      - name: Run type checks
+        run: |
+          python -m mypy country_compare
 
       - name: Run tests
         run: |
           python -m pytest
+
+  docker-build:
+    name: Docker Compose build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show Docker versions
+        run: |
+          docker --version
+          docker compose version
+
+      - name: Build Compose services
+        run: |
+          docker compose build
