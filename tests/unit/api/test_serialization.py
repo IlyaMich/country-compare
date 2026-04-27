@@ -47,7 +47,7 @@ def test_to_jsonable_converts_common_non_json_values() -> None:
     assert isinstance(serialized["numpy_int"], int)
     assert serialized["numpy_float"] == 12.5
     assert isinstance(serialized["numpy_float"], float)
-    assert serialized["path"] == "data/processed/metrics.parquet"
+    assert serialized["path"] == str(Path("data/processed/metrics.parquet"))
     assert serialized["date"] == "2024-01-02"
     assert serialized["datetime"] == "2024-01-02T03:04:05"
     assert serialized["time"] == "03:04:05"

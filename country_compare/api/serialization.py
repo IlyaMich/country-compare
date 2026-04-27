@@ -17,10 +17,7 @@ def _normalize_pandas_missing(value: Any) -> Any:
         return None
 
     if isinstance(value, dict):
-        return {
-            key: _normalize_pandas_missing(item)
-            for key, item in value.items()
-        }
+        return {key: _normalize_pandas_missing(item) for key, item in value.items()}
 
     if isinstance(value, list):
         return [_normalize_pandas_missing(item) for item in value]
