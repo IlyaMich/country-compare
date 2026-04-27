@@ -120,6 +120,10 @@ class WorldBankIndicatorCsvAdapter(SourceAdapter):
                 f"world_bank_indicator_csv adapter could not resolve required raw columns: "
                 f"{missing}"
             )
+        assert country_name_column is not None
+        assert country_code_column is not None
+        assert indicator_name_column is not None
+        assert indicator_code_column is not None
 
         frame[country_code_column] = (
             frame[country_code_column].astype("string").str.strip().str.upper()

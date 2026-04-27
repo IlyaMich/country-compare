@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -37,7 +38,7 @@ class DatasetService:
     def get_registered_backends(self) -> tuple[str, ...]:
         return tuple(list_registered_backends())
 
-    def create_store(self):
+    def create_store(self) -> Any:
         kwargs: dict[str, object] = {}
         if self.context.store_path is not None:
             kwargs["path"] = self.context.store_path
@@ -189,6 +190,12 @@ class DatasetService:
         dataframe = self.load_dataframe()
         return self._build_category_summaries(dataframe)
 
+    def get_country_catalog(self) -> tuple[CountryOption, ...]:
+        return self.list_countries()
+
+    def get_metric_catalog(self) -> tuple[MetricOption, ...]:
+        return self.list_metrics()
+
     def _build_category_summaries(
         self, dataframe: pd.DataFrame
     ) -> tuple[CategorySummary, ...]:
@@ -245,19 +252,3 @@ class DatasetService:
         if raw_path is None:
             return None
         return Path(raw_path).resolve()
-
-
-def get_country_catalog(self):
-    if hasattr(self, "list_countries"):
-        return self.list_countries()
-    raise AttributeError(
-        "DatasetService must provide list_countries() or get_country_catalog()."
-    )
-
-
-def get_metric_catalog(self):
-    if hasattr(self, "list_metrics"):
-        return self.list_metrics()
-    raise AttributeError(
-        "DatasetService must provide list_metrics() or get_metric_catalog()."
-    )

@@ -11,15 +11,17 @@ from typing import Any
 
 import pandas as pd
 
+_np: Any
 try:  # pragma: no cover - optional dependency in some runtimes
-    import numpy as np
+    import numpy as _np
 except Exception:  # pragma: no cover
-    np = None
+    _np = None
 
+_Figure: Any
 try:  # pragma: no cover - optional import for serialization only
-    from matplotlib.figure import Figure
+    from matplotlib.figure import Figure as _Figure
 except Exception:  # pragma: no cover
-    Figure = None  # type: ignore[assignment]
+    _Figure = None
 
 DEFAULT_MAX_RECORDS = 500
 
@@ -261,7 +263,7 @@ def to_jsonable(
     if isinstance(value, float):
         return None if math.isnan(value) or math.isinf(value) else value
 
-    if np is not None and isinstance(value, np.generic):
+    if _np is not None and isinstance(value, _np.generic):
         return to_jsonable(
             value.item(), dataframe_records=dataframe_records, max_records=max_records
         )
@@ -290,7 +292,7 @@ def to_jsonable(
             max_records=max_records,
         )
 
-    if Figure is not None and isinstance(value, Figure):
+    if _Figure is not None and isinstance(value, _Figure):
         return _serialize_chart(value)
 
     if isinstance(value, Mapping):

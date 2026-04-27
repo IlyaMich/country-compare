@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict, is_dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 def export_diagnostics_json(
@@ -29,7 +29,7 @@ def export_diagnostics_json(
 
 def _to_jsonable(value: Any) -> Any:
     if is_dataclass(value):
-        return _to_jsonable(asdict(value))
+        return _to_jsonable(asdict(cast(Any, value)))
 
     if isinstance(value, Enum):
         return value.value

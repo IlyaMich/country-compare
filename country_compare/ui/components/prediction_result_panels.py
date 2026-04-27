@@ -342,11 +342,7 @@ def _render_diagnostics(
             st.json(
                 [
                     {
-                        "status": (
-                            getattr(item, "status", None).value
-                            if getattr(item, "status", None) is not None
-                            else None
-                        ),
+                        "status": _enum_value(getattr(item, "status", None)),
                         "country_code": getattr(item, "country_code", None),
                         "metric_id": getattr(item, "metric_id", None),
                         "method_requested": getattr(item, "method_requested", None),
@@ -355,11 +351,7 @@ def _render_diagnostics(
                         "warnings": list(getattr(item, "warnings", []) or []),
                         "errors": [
                             {
-                                "code": (
-                                    getattr(error, "code", None).value
-                                    if getattr(error, "code", None) is not None
-                                    else None
-                                ),
+                                "code": _enum_value(getattr(error, "code", None)),
                                 "message": getattr(error, "message", None),
                                 "details": getattr(error, "details", None),
                             }
@@ -410,6 +402,10 @@ def _render_summary_json(*, summary: Mapping[str, Any], debug: bool) -> None:
         return
     with st.expander("Summary JSON", expanded=False):
         st.json(summary)
+
+
+def _enum_value(value: Any) -> Any:
+    return getattr(value, "value", value)
 
 
 def _row_count(dataframe: Any) -> int | None:

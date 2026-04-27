@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from typing import Any
 
 import pandas as pd
 
@@ -37,7 +38,7 @@ def compare_predicted_single_metric(
     horizon_years: int,
     method: PredictionMethod | str | None = None,
     fallback_method: PredictionMethod | str | None = PredictionMethod.LAST_OBSERVED,
-    comparison_options: Mapping[str, object] | None = None,
+    comparison_options: Mapping[str, Any] | None = None,
 ) -> PredictedComparisonResult:
     resolved_country_codes = list(country_codes)
     prediction_result = predict_single_metric_for_countries(
@@ -76,8 +77,8 @@ def compare_predicted_single_metric(
         comparison_df=comparison_df,
         prediction_result=prediction_result,
         diagnostics=prediction_result.diagnostics,
-        selected_forecast_year=selection["selected_forecast_year"],
-        selected_forecast_horizon=selection["selected_forecast_horizon"],
+        selected_forecast_year=_optional_int(selection["selected_forecast_year"]),
+        selected_forecast_horizon=_optional_int(selection["selected_forecast_horizon"]),
         metadata=selection,
     )
 
@@ -92,7 +93,7 @@ def compare_predicted_multi_metric(
     horizon_years: int,
     method: PredictionMethod | str | None = None,
     fallback_method: PredictionMethod | str | None = PredictionMethod.LAST_OBSERVED,
-    comparison_options: Mapping[str, object] | None = None,
+    comparison_options: Mapping[str, Any] | None = None,
 ) -> PredictedComparisonResult:
     resolved_metric_ids = list(metric_ids)
     resolved_country_codes = list(country_codes)
@@ -131,8 +132,8 @@ def compare_predicted_multi_metric(
         comparison_df=comparison_df,
         prediction_result=prediction_result,
         diagnostics=prediction_result.diagnostics,
-        selected_forecast_year=selection["selected_forecast_year"],
-        selected_forecast_horizon=selection["selected_forecast_horizon"],
+        selected_forecast_year=_optional_int(selection["selected_forecast_year"]),
+        selected_forecast_horizon=_optional_int(selection["selected_forecast_horizon"]),
         metadata=selection,
     )
 
@@ -148,7 +149,7 @@ def compare_predicted_profile(
     horizon_years: int,
     method: PredictionMethod | str | None = None,
     fallback_method: PredictionMethod | str | None = PredictionMethod.LAST_OBSERVED,
-    comparison_options: Mapping[str, object] | None = None,
+    comparison_options: Mapping[str, Any] | None = None,
 ) -> PredictedComparisonResult:
     if profile_name not in scoring_config.profiles:
         raise PredictionException(
@@ -195,8 +196,8 @@ def compare_predicted_profile(
         comparison_df=comparison_df,
         prediction_result=prediction_result,
         diagnostics=prediction_result.diagnostics,
-        selected_forecast_year=selection["selected_forecast_year"],
-        selected_forecast_horizon=selection["selected_forecast_horizon"],
+        selected_forecast_year=_optional_int(selection["selected_forecast_year"]),
+        selected_forecast_horizon=_optional_int(selection["selected_forecast_horizon"]),
         metadata=selection,
     )
 
@@ -207,7 +208,7 @@ def _select_predicted_rows(
     forecast_year: int | None,
     forecast_horizon: int | None,
     horizon_years: int,
-) -> tuple[pd.DataFrame, dict[str, object]]:
+) -> tuple[pd.DataFrame, dict[str, Any]]:
     if forecast_year is not None and forecast_horizon is not None:
         raise PredictionException(
             PredictionErrorCode.INVALID_FORECAST_SELECTION,
@@ -271,6 +272,13 @@ def _select_predicted_rows(
             "comparison_target_year": selected_year,
         }
 
+    if forecast_horizon is None:
+        raise PredictionException(
+            PredictionErrorCode.INVALID_FORECAST_SELECTION,
+            "forecast_horizon could not be resolved",
+            details={"horizon_years": horizon_years},
+        )
+
     selected_horizon = int(forecast_horizon)
     selected = working.loc[
         pd.to_numeric(working[FORECAST_HORIZON_COLUMN], errors="coerce").eq(
@@ -309,6 +317,12 @@ def _select_predicted_rows(
         "comparison_year_strategy": YearStrategy.LATEST_PER_METRIC,
         "comparison_target_year": None,
     }
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    return int(value)
 
 
 __all__ = [

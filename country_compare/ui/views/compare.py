@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Any, cast
+
 import streamlit as st
 
 from country_compare.config.models import YearStrategy
@@ -34,7 +37,7 @@ from country_compare.ui.state import (
 )
 
 
-def _as_list(value):
+def _as_list(value: Iterable[Any] | None) -> list[Any]:
     if value is None:
         return []
     if isinstance(value, list):
@@ -47,10 +50,10 @@ def render_compare_view(context: AppContext) -> None:
     st.caption("Run single-metric, multi-metric, and weighted-score comparisons.")
 
     services = get_ui_services(context)
-    dataset_service = services["dataset_service"]
-    config_service = services["config_service"]
-    comparison_service = services["comparison_service"]
-    presentation_service = services["presentation_service"]
+    dataset_service = cast(Any, services["dataset_service"])
+    config_service = cast(Any, services["config_service"])
+    comparison_service = cast(Any, services["comparison_service"])
+    presentation_service = cast(Any, services["presentation_service"])
 
     selection_state = get_selection_state()
 

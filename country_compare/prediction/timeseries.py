@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 
 from country_compare.prediction.models import (
@@ -107,29 +109,70 @@ def prepare_metric_time_series(
     future_years = [
         origin_year + step for step in range(1, int(request.horizon_years) + 1)
     ]
-
-    context_payload = {
-        "country_code": request.country_code.upper(),
-        "metric_id": request.metric_id,
-        "forecast_origin_year": origin_year,
-        "horizon_years": int(request.horizon_years),
-        "training_start_year": int(series_df[YEAR_COLUMN].min()),
-        "training_end_year": int(series_df[YEAR_COLUMN].max()),
-        "history_observation_count": int(len(series_df.index)),
-        "missing_years": missing_years,
-    }
-    for column in _METADATA_COLUMNS:
-        if column in series_df.columns:
-            value = latest_row.get(column)
-            if pd.isna(value):
-                value = None
-            elif hasattr(value, "item"):
-                value = value.item()
-            context_payload[column] = value
+    metadata = _extract_context_metadata(latest_row, series_df=series_df)
 
     return PreparedTimeSeries(
         series_df=series_df.copy(deep=True),
         future_years=future_years,
-        context=ForecastContext(**context_payload),
+        context=ForecastContext(
+            country_code=request.country_code.upper(),
+            metric_id=request.metric_id,
+            forecast_origin_year=origin_year,
+            horizon_years=int(request.horizon_years),
+            history_observation_count=int(len(series_df.index)),
+            country_name=_optional_str(metadata.get("country_name")),
+            metric_name=_optional_str(metadata.get("metric_name")),
+            unit=_optional_str(metadata.get("unit")),
+            category=_optional_str(metadata.get("category")),
+            higher_is_better=_optional_bool(metadata.get("higher_is_better")),
+            source_name=_optional_str(metadata.get("source_name")),
+            source_url=_optional_str(metadata.get("source_url")),
+            training_start_year=int(series_df[YEAR_COLUMN].min()),
+            training_end_year=int(series_df[YEAR_COLUMN].max()),
+            dataset_version=_optional_str(metadata.get("dataset_version")),
+            region=_optional_str(metadata.get("region")),
+            income_group=_optional_str(metadata.get("income_group")),
+            notes=_optional_str(metadata.get("notes")),
+            missing_years=missing_years,
+        ),
         warnings=warnings,
     )
+
+
+def _extract_context_metadata(
+    row: pd.Series[Any], *, series_df: pd.DataFrame
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    for column in _METADATA_COLUMNS:
+        if column not in series_df.columns:
+            continue
+        metadata[column] = _scalar_or_none(row.get(column))
+    return metadata
+
+
+def _scalar_or_none(value: Any) -> Any:
+    if pd.isna(value):
+        return None
+    if hasattr(value, "item"):
+        return value.item()
+    return value
+
+
+def _optional_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(value)
+
+
+def _optional_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "y"}:
+            return True
+        if lowered in {"false", "0", "no", "n"}:
+            return False
+    return bool(value)

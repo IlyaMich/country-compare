@@ -37,7 +37,11 @@ def _make_factory(
         return forecaster
 
     if isinstance(forecaster, BaseForecaster):
-        return lambda forecaster=forecaster: copy.deepcopy(forecaster)
+
+        def factory() -> BaseForecaster:
+            return copy.deepcopy(forecaster)
+
+        return factory
 
     if callable(forecaster):
         return forecaster

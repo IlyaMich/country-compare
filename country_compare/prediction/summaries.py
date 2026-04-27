@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import asdict, is_dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -194,8 +194,8 @@ def _dataframe_summary(dataframe: pd.DataFrame) -> dict[str, Any]:
 
 
 def _request_summary(request: Any) -> dict[str, Any]:
-    if is_dataclass(request):
-        return _json_safe_mapping(asdict(request))
+    if is_dataclass(request) and not isinstance(request, type):
+        return _json_safe_mapping(asdict(cast(Any, request)))
     public_dict = getattr(request, "__dict__", None)
     if isinstance(public_dict, dict):
         return _json_safe_mapping(
@@ -257,8 +257,8 @@ def _json_safe_value(value: Any) -> Any:
         return _json_safe_mapping(value)
     if isinstance(value, (list, tuple, set)):
         return [_json_safe_value(item) for item in value]
-    if is_dataclass(value):
-        return _json_safe_mapping(asdict(value))
+    if is_dataclass(value) and not isinstance(value, type):
+        return _json_safe_mapping(asdict(cast(Any, value)))
     return str(value)
 
 

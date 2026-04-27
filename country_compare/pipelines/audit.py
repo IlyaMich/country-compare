@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict, fields, is_dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -16,7 +16,7 @@ from country_compare.pipelines.models import (
 )
 
 
-def _json_default(value: Any):
+def _json_default(value: Any) -> Any:
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, datetime):
@@ -29,7 +29,7 @@ def _json_default(value: Any):
         except Exception:
             return str(value)
     if is_dataclass(value):
-        return asdict(value)
+        return asdict(cast(Any, value))
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 

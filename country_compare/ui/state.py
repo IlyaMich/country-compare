@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 
 import streamlit as st
 
@@ -27,7 +27,7 @@ class UIStateSnapshot:
     last_error_code: str | None
 
 
-DEFAULT_SELECTION_STATE = {
+DEFAULT_SELECTION_STATE: dict[str, Any] = {
     "active_mode": "single_metric",
     "selected_countries": [],
     "single_metric_id": None,
@@ -48,7 +48,7 @@ DEFAULT_SELECTION_STATE = {
     "prediction_holdout_years": 2,
 }
 
-DEFAULT_RESULT_STATE = {
+DEFAULT_RESULT_STATE: dict[str, Any] = {
     "latest_mode": "single_metric",
     "compare_result": None,
     "compare_presentation": None,
@@ -63,7 +63,7 @@ DEFAULT_RESULT_STATE = {
     "prediction_errors_by_mode": {},
 }
 
-DEFAULT_CONFIG_EDITOR_STATE = {
+DEFAULT_CONFIG_EDITOR_STATE: dict[str, Any] = {
     "loaded_metrics_data": None,
     "loaded_scoring_data": None,
     "draft_metrics_data": None,
@@ -80,7 +80,7 @@ DEFAULT_CONFIG_EDITOR_STATE = {
 
 
 def _session_state() -> dict[str, Any]:
-    return st.session_state
+    return cast(dict[str, Any], st.session_state)
 
 
 def _get_result_state() -> dict[str, Any]:
