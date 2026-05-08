@@ -12,6 +12,7 @@ services:
       COUNTRY_COMPARE_API_MAX_HOLDOUT_YEARS: "10"
       COUNTRY_COMPARE_API_MAX_TOP_N: "100"
       COUNTRY_COMPARE_API_KEY: ${COUNTRY_COMPARE_API_KEY:-}
+      COUNTRY_COMPARE_API_LOG_LEVEL: ${COUNTRY_COMPARE_API_LOG_LEVEL:-INFO}
       COUNTRY_COMPARE_STORE_BACKEND: parquet
     volumes:
       - ./config:/app/config:ro
@@ -27,6 +28,7 @@ services:
     environment:
       COUNTRY_COMPARE_API_URL: http://backend:8000
       COUNTRY_COMPARE_API_KEY: ${COUNTRY_COMPARE_API_KEY:-}
+      COUNTRY_COMPARE_API_LOG_LEVEL: ${COUNTRY_COMPARE_API_LOG_LEVEL:-INFO}
       COUNTRY_COMPARE_STORE_BACKEND: parquet
     volumes:
       - ./config:/app/config:ro

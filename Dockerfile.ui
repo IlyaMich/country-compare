@@ -1,20 +1,29 @@
 FROM python:3.11-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV PIP_NO_CACHE_DIR=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PORT=8501
 
 WORKDIR /app
 
-COPY . /app
+COPY pyproject.toml README.md /app/
+COPY src /app/src
+COPY config /app/config
+COPY data /app/data
 
-RUN python -m pip install --upgrade pip \
- && python -m pip install -e ".[ui]" \
- && mkdir -p /app/data/processed /app/data/audit /app/data/exports
+RUN python -m pip install --upgrade pip setuptools wheel \
+    && python -m pip install ".[ui]" \
+    && groupadd --system app \
+    && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app \
+    && mkdir -p /app/data/processed /app/data/audit /app/data/exports \
+    && chown -R app:app /app
+
+USER app
 
 EXPOSE 8501
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3).read()" || exit 1
+  CMD python -c "import os, urllib.request; port=os.environ.get('PORT','8501'); urllib.request.urlopen(f'http://127.0.0.1:{port}/_stcore/health', timeout=3).read()" || exit 1
 
-CMD ["python", "-m", "streamlit", "run", "src/country_compare/ui/app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+CMD ["sh", "-c", "python -m streamlit run src/country_compare/ui/app.py --server.address=0.0.0.0 --server.port=${PORT:-8501}"]
