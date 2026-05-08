@@ -428,15 +428,18 @@ class PredictionService:
         executor: Any,
     ) -> PredictionServiceResult:
         try:
-            result = executor(self._load_dataframe())
+            source_dataframe = self._load_dataframe()
+            result = executor(source_dataframe)
             summary = build_prediction_result_summary(result)
+            metadata = dict(result.metadata)
+            self._attach_dataset_identity(metadata, source_dataframe)
             return PredictionServiceResult(
                 mode=mode,
                 request=request,
                 prediction_result=result,
                 dataframe=result.forecast_df.copy(deep=True),
                 summary=summary,
-                metadata=dict(result.metadata),
+                metadata=metadata,
                 diagnostics=summary["diagnostics"],
                 warnings=list(summary["diagnostics"].get("warnings", [])),
             )
@@ -451,8 +454,11 @@ class PredictionService:
         executor: Any,
     ) -> PredictionServiceResult:
         try:
-            result = executor(self._load_dataframe())
+            source_dataframe = self._load_dataframe()
+            result = executor(source_dataframe)
             summary = build_predicted_comparison_result_summary(result)
+            metadata = dict(result.metadata)
+            self._attach_dataset_identity(metadata, source_dataframe)
             return PredictionServiceResult(
                 mode=mode,
                 request=request,
@@ -460,7 +466,7 @@ class PredictionService:
                 predicted_comparison_result=result,
                 dataframe=result.comparison_df.copy(deep=True),
                 summary=summary,
-                metadata=dict(result.metadata),
+                metadata=metadata,
                 diagnostics=summary["diagnostics"],
                 warnings=list(summary["diagnostics"].get("warnings", [])),
             )
@@ -475,20 +481,38 @@ class PredictionService:
         executor: Any,
     ) -> PredictionServiceResult:
         try:
-            result = executor(self._load_dataframe())
+            source_dataframe = self._load_dataframe()
+            result = executor(source_dataframe)
             summary = build_backtest_result_summary(result)
+            metadata = dict(result.metadata)
+            self._attach_dataset_identity(metadata, source_dataframe)
             return PredictionServiceResult(
                 mode=mode,
                 request=request,
                 backtest_result=result,
                 dataframe=result.actual_vs_predicted_df.copy(deep=True),
                 summary=summary,
-                metadata=dict(result.metadata),
+                metadata=metadata,
                 diagnostics=summary["diagnostics"],
                 warnings=list(summary["diagnostics"].get("warnings", [])),
             )
         except Exception as exc:
             return self._error_result(mode=mode, request=request, exc=exc)
+
+    def _attach_dataset_identity(
+        self, metadata: dict[str, Any], dataframe: pd.DataFrame
+    ) -> None:
+        if self.dataset_service is None or "dataset" in metadata:
+            return
+        identity_getter = getattr(self.dataset_service, "get_dataset_identity", None)
+        if identity_getter is None:
+            return
+        try:
+            identity = identity_getter(dataframe)
+        except Exception:
+            return
+        if identity:
+            metadata["dataset"] = identity
 
     def _error_result(
         self,

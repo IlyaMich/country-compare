@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypedDict
@@ -16,6 +15,12 @@ from country_compare.data.contract import (
     METRIC_NAME_COLUMN,
     UNIT_COLUMN,
     YEAR_COLUMN,
+)
+from country_compare.data.manifest import (
+    compute_file_sha256,
+    default_manifest_path_for_dataset,
+    read_manifest,
+    validate_manifest_against_dataset,
 )
 from country_compare.data.stores.registry import (
     create_metric_store,
@@ -66,6 +71,7 @@ class DatasetService:
 
     def get_dataset_summary(self) -> DatasetSummary:
         dataset_path = self._resolve_store_path()
+        manifest_path = self._resolve_manifest_path(dataset_path)
 
         try:
             store = self.create_store()
@@ -75,6 +81,14 @@ class DatasetService:
                     backend=self.context.store_backend,
                     dataset_path=(
                         str(dataset_path) if dataset_path is not None else None
+                    ),
+                    manifest_path=(
+                        str(manifest_path) if manifest_path is not None else None
+                    ),
+                    manifest_exists=(
+                        bool(manifest_path.exists())
+                        if manifest_path is not None
+                        else False
                     ),
                     error=AppError(
                         code="resource_not_found",
@@ -89,46 +103,41 @@ class DatasetService:
                 )
 
             dataframe = load_metric_dataframe(store=store)
-            categories = self._build_category_summaries(dataframe)
-            year_min, year_max = self._extract_year_range(dataframe)
-            schema_valid, schema_issues = self._validate_schema(dataframe)
-            dataset_versions = self._extract_dataset_versions(dataframe)
+            return self._build_dataset_summary_from_dataframe(
+                dataframe,
+                dataset_path=dataset_path,
+                manifest_path=manifest_path,
+            )
+        except Exception as exc:
             dataset_stat = self._build_dataset_file_metadata(dataset_path)
-
+            manifest_validation = self._validate_manifest(
+                dataset_path=dataset_path,
+                manifest_path=manifest_path,
+                dataframe=None,
+            )
+            manifest_issues = self._manifest_issue_messages(manifest_validation)
+            schema_issues = (str(exc),)
             return DatasetSummary(
-                exists=True,
+                exists=bool(dataset_path is not None and dataset_path.exists()),
                 backend=self.context.store_backend,
                 dataset_path=str(dataset_path) if dataset_path is not None else None,
-                row_count=int(len(dataframe.index)),
-                country_count=(
-                    int(dataframe[COUNTRY_CODE_COLUMN].dropna().nunique())
-                    if COUNTRY_CODE_COLUMN in dataframe.columns
-                    else 0
-                ),
-                metric_count=(
-                    int(dataframe[METRIC_ID_COLUMN].dropna().nunique())
-                    if METRIC_ID_COLUMN in dataframe.columns
-                    else 0
-                ),
-                year_min=year_min,
-                year_max=year_max,
-                available_columns=tuple(
-                    str(column) for column in dataframe.columns.tolist()
-                ),
-                categories=categories,
-                dataset_versions=dataset_versions,
                 dataset_checksum=dataset_stat["checksum"],
                 dataset_size_bytes=dataset_stat["size_bytes"],
                 dataset_modified_at=dataset_stat["modified_at"],
-                schema_valid=schema_valid,
+                manifest_path=str(manifest_path) if manifest_path is not None else None,
+                manifest_exists=(
+                    bool(manifest_path.exists()) if manifest_path is not None else False
+                ),
+                manifest_valid=(
+                    bool(manifest_validation.valid)
+                    if manifest_validation is not None
+                    else False
+                ),
+                manifest_issue_count=len(manifest_issues),
+                manifest_issues=manifest_issues,
+                schema_valid=False,
                 schema_issue_count=len(schema_issues),
                 schema_issues=schema_issues,
-            )
-        except Exception as exc:
-            return DatasetSummary(
-                exists=False,
-                backend=self.context.store_backend,
-                dataset_path=str(dataset_path) if dataset_path is not None else None,
                 error=error_from_exception(
                     exc,
                     default_title="Dataset error",
@@ -215,6 +224,155 @@ class DatasetService:
     def get_metric_catalog(self) -> tuple[MetricOption, ...]:
         return self.list_metrics()
 
+    def get_dataset_identity(
+        self, dataframe: pd.DataFrame | None = None
+    ) -> dict[str, Any]:
+        """Return a compact identity payload for computation metadata."""
+
+        dataset_path = self._resolve_store_path()
+        manifest_path = self._resolve_manifest_path(dataset_path)
+        identity: dict[str, Any] = {}
+
+        manifest = self._read_manifest_if_available(manifest_path)
+        if manifest:
+            field_map = {
+                "dataset_version": "dataset_version",
+                "dataset_sha256": "sha256",
+                "dataset_file": "dataset_file",
+                "dataset_created_at": "created_at",
+                "schema_version": "schema_version",
+            }
+            for output_key, manifest_key in field_map.items():
+                value = manifest.get(manifest_key)
+                if value is not None:
+                    identity[output_key] = value
+
+        if dataset_path is not None:
+            identity.setdefault("dataset_file", dataset_path.name)
+            if dataset_path.exists() and dataset_path.is_file():
+                identity.setdefault("dataset_sha256", compute_file_sha256(dataset_path))
+
+        if dataframe is not None:
+            versions = self._extract_dataset_versions(dataframe)
+            if versions:
+                identity.setdefault("dataset_versions", list(versions))
+                resolved_version = (
+                    versions[0] if len(versions) == 1 else ",".join(versions)
+                )
+                identity.setdefault("dataset_version", resolved_version)
+
+        return {key: value for key, value in identity.items() if value is not None}
+
+    def _build_dataset_summary_from_dataframe(
+        self,
+        dataframe: pd.DataFrame,
+        *,
+        dataset_path: Path | None,
+        manifest_path: Path | None,
+    ) -> DatasetSummary:
+        categories = self._build_category_summaries(dataframe)
+        year_min, year_max = self._extract_year_range(dataframe)
+        schema_valid, schema_issues = self._validate_schema(dataframe)
+        dataset_versions = self._extract_dataset_versions(dataframe)
+        dataset_stat = self._build_dataset_file_metadata(dataset_path)
+        manifest_validation = self._validate_manifest(
+            dataset_path=dataset_path,
+            manifest_path=manifest_path,
+            dataframe=dataframe,
+        )
+        manifest = (
+            manifest_validation.manifest
+            if manifest_validation is not None and manifest_validation.manifest
+            else self._read_manifest_if_available(manifest_path)
+        )
+        manifest_issues = self._manifest_issue_messages(manifest_validation)
+
+        return DatasetSummary(
+            exists=True,
+            backend=self.context.store_backend,
+            dataset_path=str(dataset_path) if dataset_path is not None else None,
+            row_count=int(len(dataframe.index)),
+            country_count=(
+                int(dataframe[COUNTRY_CODE_COLUMN].dropna().nunique())
+                if COUNTRY_CODE_COLUMN in dataframe.columns
+                else 0
+            ),
+            metric_count=(
+                int(dataframe[METRIC_ID_COLUMN].dropna().nunique())
+                if METRIC_ID_COLUMN in dataframe.columns
+                else 0
+            ),
+            year_min=year_min,
+            year_max=year_max,
+            available_columns=tuple(
+                str(column) for column in dataframe.columns.tolist()
+            ),
+            categories=categories,
+            dataset_versions=dataset_versions,
+            dataset_checksum=dataset_stat["checksum"],
+            dataset_size_bytes=dataset_stat["size_bytes"],
+            dataset_modified_at=dataset_stat["modified_at"],
+            manifest_path=str(manifest_path) if manifest_path is not None else None,
+            manifest_exists=(
+                bool(manifest_path.exists()) if manifest_path is not None else False
+            ),
+            manifest_valid=(
+                bool(manifest_validation.valid)
+                if manifest_validation is not None
+                else False
+            ),
+            manifest_issue_count=len(manifest_issues),
+            manifest_issues=manifest_issues,
+            manifest_dataset_version=(
+                str(manifest.get("dataset_version"))
+                if manifest and manifest.get("dataset_version") is not None
+                else None
+            ),
+            manifest_created_at=(
+                str(manifest.get("created_at"))
+                if manifest and manifest.get("created_at") is not None
+                else None
+            ),
+            manifest_schema_version=(
+                str(manifest.get("schema_version"))
+                if manifest and manifest.get("schema_version") is not None
+                else None
+            ),
+            schema_valid=schema_valid,
+            schema_issue_count=len(schema_issues),
+            schema_issues=schema_issues,
+        )
+
+    def _validate_manifest(
+        self,
+        *,
+        dataset_path: Path | None,
+        manifest_path: Path | None,
+        dataframe: pd.DataFrame | None,
+    ):
+        if dataset_path is None or manifest_path is None:
+            return None
+        return validate_manifest_against_dataset(
+            manifest_path=manifest_path,
+            dataset_path=dataset_path,
+            dataframe=dataframe,
+        )
+
+    def _manifest_issue_messages(self, validation: Any | None) -> tuple[str, ...]:
+        if validation is None:
+            return ()
+        return tuple(str(message) for message in validation.messages if str(message))
+
+    def _read_manifest_if_available(
+        self, manifest_path: Path | None
+    ) -> dict[str, Any] | None:
+        if manifest_path is None or not manifest_path.exists():
+            return None
+        try:
+            return read_manifest(manifest_path)
+        except Exception:
+            return None
+
     def _extract_dataset_versions(self, dataframe: pd.DataFrame) -> tuple[str, ...]:
         if "dataset_version" not in dataframe.columns:
             return ()
@@ -241,18 +399,10 @@ class DatasetService:
         stat = dataset_path.stat()
         modified_at = datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat()
         return {
-            "checksum": self._sha256(dataset_path),
+            "checksum": compute_file_sha256(dataset_path),
             "size_bytes": int(stat.st_size),
             "modified_at": modified_at,
         }
-
-    @staticmethod
-    def _sha256(path: Path) -> str:
-        digest = hashlib.sha256()
-        with path.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(chunk)
-        return digest.hexdigest()
 
     def _build_category_summaries(
         self, dataframe: pd.DataFrame
@@ -310,3 +460,8 @@ class DatasetService:
         if raw_path is None:
             return None
         return Path(raw_path).resolve()
+
+    def _resolve_manifest_path(self, dataset_path: Path | None) -> Path | None:
+        if dataset_path is None:
+            return None
+        return default_manifest_path_for_dataset(dataset_path).resolve()
