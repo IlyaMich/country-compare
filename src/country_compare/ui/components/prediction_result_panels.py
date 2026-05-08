@@ -11,6 +11,7 @@ from country_compare.prediction import (
     build_forecast_table_dataframe,
     build_line_chart_dataframe,
 )
+from country_compare.ui import text as ui_text
 from country_compare.ui.components.downloads import (
     build_result_markdown_summary,
     render_result_downloads,
@@ -126,20 +127,20 @@ def build_predicted_comparison_chart_dataframe(
 def _render_predicted_comparison_summary_panel(dataframe: pd.DataFrame) -> None:
     summary = build_predicted_comparison_summary(dataframe)
 
-    st.markdown("### Ranked comparison summary")
+    st.markdown(f"### {ui_text.RANKED_COMPARISON_SUMMARY_HEADING}")
 
     if summary is None:
-        st.info("No ranked comparison rows are available to summarize.")
+        st.info(ui_text.PREDICTED_COMPARISON_NO_RANKED_ROWS_MESSAGE)
         return
 
     cols = st.columns(3)
-    cols[0].metric("Ranked rows", _metric_value(summary.row_count))
-    cols[1].metric("Top result", summary.top_label)
-    cols[2].metric("Top value", _metric_value(summary.top_value))
+    cols[0].metric(ui_text.RANKED_ROWS_METRIC_LABEL, _metric_value(summary.row_count))
+    cols[1].metric(ui_text.TOP_RESULT_METRIC_LABEL, summary.top_label)
+    cols[2].metric(ui_text.TOP_VALUE_METRIC_LABEL, _metric_value(summary.top_value))
 
     chart_dataframe = build_predicted_comparison_chart_dataframe(dataframe)
     if chart_dataframe.empty:
-        st.caption("No numeric comparison value was available for a visual summary.")
+        st.caption(ui_text.COMPARISON_NO_NUMERIC_VALUE_MESSAGE)
         return
 
     st.bar_chart(chart_dataframe)
@@ -418,7 +419,7 @@ def _render_predicted_comparison_body(
     if isinstance(dataframe, pd.DataFrame):
         _render_predicted_comparison_summary_panel(dataframe)
 
-        st.markdown("### Predicted comparison table")
+        st.markdown(f"### {ui_text.PREDICTED_COMPARISON_TABLE_HEADING}")
         st.dataframe(dataframe, use_container_width=True, hide_index=True)
     else:
         st.info("No predicted comparison rows were returned.")

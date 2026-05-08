@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
 import streamlit as st
 
+from country_compare.ui import text as ui_text
 from country_compare.ui.components.downloads import (
     build_result_markdown_summary,
     render_result_downloads,
@@ -37,6 +39,8 @@ COMPARISON_RANK_COLUMNS = (
     "overall_rank",
     "score_rank",
 )
+
+PRIMARY_RESULT_TABLE_NAMES = frozenset({"main", "table", "comparison"})
 
 
 @dataclass(frozen=True)
@@ -123,18 +127,24 @@ def _render_comparison_summary_panel(dataframe: pd.DataFrame) -> None:
     if summary is None and chart_dataframe.empty:
         return
 
-    st.markdown("### Comparison summary")
+    st.markdown(f"### {ui_text.COMPARISON_SUMMARY_HEADING}")
 
     if summary is not None:
         cols = st.columns(3)
-        cols[0].metric("Compared rows", _string_or_dash(summary.row_count))
-        cols[1].metric("Top result", summary.top_label)
-        cols[2].metric("Top value", _string_or_dash(summary.top_value))
+        cols[0].metric(
+            ui_text.COMPARED_ROWS_METRIC_LABEL,
+            _string_or_dash(summary.row_count),
+        )
+        cols[1].metric(ui_text.TOP_RESULT_METRIC_LABEL, summary.top_label)
+        cols[2].metric(
+            ui_text.TOP_VALUE_METRIC_LABEL,
+            _string_or_dash(summary.top_value),
+        )
 
     if not chart_dataframe.empty:
         st.bar_chart(chart_dataframe)
     else:
-        st.caption("No numeric comparison value was available for a visual summary.")
+        st.caption(ui_text.COMPARISON_NO_NUMERIC_VALUE_MESSAGE)
 
 
 def _sort_comparison_dataframe(
@@ -291,10 +301,13 @@ def render_comparison_result(
     if isinstance(table, pd.DataFrame):
         _render_comparison_summary_panel(table)
 
-        st.markdown("### Main result table")
+        st.markdown(f"### {ui_text.MAIN_RESULT_TABLE_HEADING}")
         st.dataframe(table, use_container_width=True)
 
-    extra_tables = getattr(presentation, "tables", {}) or {}
+    extra_tables = build_display_extra_tables(
+        getattr(presentation, "tables", {}) or {},
+        primary_table=table,
+    )
     if extra_tables:
         st.markdown("### Additional tables")
         for title, dataframe in extra_tables.items():
@@ -404,3 +417,44 @@ def _format_value(value: Any) -> str:
     if isinstance(value, list):
         return ", ".join(str(item) for item in value) if value else "—"
     return _string_or_dash(value)
+
+
+def build_display_extra_tables(
+    extra_tables: Mapping[str, Any],
+    *,
+    primary_table: Any,
+) -> dict[str, pd.DataFrame]:
+    display_tables: dict[str, pd.DataFrame] = {}
+
+    for title, dataframe in extra_tables.items():
+        if not isinstance(dataframe, pd.DataFrame):
+            continue
+
+        if _is_duplicate_primary_table(
+            title=str(title),
+            dataframe=dataframe,
+            primary_table=primary_table,
+        ):
+            continue
+
+        display_tables[str(title)] = dataframe
+
+    return display_tables
+
+
+def _is_duplicate_primary_table(
+    *,
+    title: str,
+    dataframe: pd.DataFrame,
+    primary_table: Any,
+) -> bool:
+    if title.strip().lower() not in PRIMARY_RESULT_TABLE_NAMES:
+        return False
+
+    if not isinstance(primary_table, pd.DataFrame):
+        return False
+
+    if dataframe is primary_table:
+        return True
+
+    return bool(dataframe.equals(primary_table))

@@ -5,6 +5,7 @@ import pandas as pd
 from country_compare.ui.components.result_panels import (
     build_comparison_chart_dataframe,
     build_comparison_table_summary,
+    build_display_extra_tables,
 )
 
 
@@ -89,3 +90,32 @@ def test_build_comparison_chart_dataframe_handles_missing_value_column() -> None
     chart_dataframe = build_comparison_chart_dataframe(dataframe)
 
     assert chart_dataframe.empty
+
+
+def test_build_display_extra_tables_omits_duplicate_http_main_table() -> None:
+    table = pd.DataFrame(
+        [
+            {"country_code": "DEU", "value": 10},
+            {"country_code": "FRA", "value": 8},
+        ]
+    )
+
+    extra_tables = build_display_extra_tables(
+        {"main": table.copy()},
+        primary_table=table,
+    )
+
+    assert extra_tables == {}
+
+
+def test_build_display_extra_tables_keeps_distinct_extra_tables() -> None:
+    table = pd.DataFrame([{"country_code": "DEU", "value": 10}])
+    wide_table = pd.DataFrame([{"country_code": "DEU", "gdp": 10}])
+
+    extra_tables = build_display_extra_tables(
+        {"Wide comparison table": wide_table},
+        primary_table=table,
+    )
+
+    assert list(extra_tables) == ["Wide comparison table"]
+    assert extra_tables["Wide comparison table"].equals(wide_table)
