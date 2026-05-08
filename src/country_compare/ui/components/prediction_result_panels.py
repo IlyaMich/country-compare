@@ -43,6 +43,29 @@ PREDICTED_COMPARISON_RANK_COLUMNS = (
     "score_rank",
 )
 
+BACKTEST_YEAR_COLUMNS = (
+    "year",
+    "test_year",
+    "forecast_year",
+    "prediction_year",
+)
+
+BACKTEST_ACTUAL_COLUMNS = (
+    "actual_value",
+    "actual",
+    "observed_value",
+    "observed",
+    "value",
+)
+
+BACKTEST_PREDICTED_COLUMNS = (
+    "predicted_value",
+    "predicted",
+    "prediction",
+    "forecast_value",
+    "forecast",
+)
+
 
 @dataclass(frozen=True)
 class PredictedComparisonSummary:
@@ -331,6 +354,51 @@ def build_streamlit_line_chart_table(dataframe: pd.DataFrame) -> pd.DataFrame:
     return pivot.copy(deep=True)
 
 
+def build_backtest_line_chart_dataframe(dataframe: pd.DataFrame) -> pd.DataFrame:
+    if dataframe.empty:
+        return pd.DataFrame()
+
+    year_column = _first_existing_column(dataframe, BACKTEST_YEAR_COLUMNS)
+    actual_column = _first_existing_column(dataframe, BACKTEST_ACTUAL_COLUMNS)
+    predicted_column = _first_existing_column(dataframe, BACKTEST_PREDICTED_COLUMNS)
+
+    if (
+        year_column is None
+        or actual_column is None
+        or predicted_column is None
+        or actual_column == predicted_column
+    ):
+        return pd.DataFrame()
+
+    working = dataframe[[year_column, actual_column, predicted_column]].copy()
+    working[year_column] = pd.to_numeric(working[year_column], errors="coerce")
+    working[actual_column] = pd.to_numeric(working[actual_column], errors="coerce")
+    working[predicted_column] = pd.to_numeric(
+        working[predicted_column],
+        errors="coerce",
+    )
+    working = working.dropna(subset=[year_column])
+    working = working.dropna(
+        subset=[actual_column, predicted_column],
+        how="all",
+    )
+
+    if working.empty:
+        return pd.DataFrame()
+
+    working[year_column] = working[year_column].astype(int)
+    chart_dataframe = pd.DataFrame(
+        {
+            "Actual": working[actual_column].to_list(),
+            "Predicted": working[predicted_column].to_list(),
+        },
+        index=working[year_column].to_list(),
+    )
+    chart_dataframe = chart_dataframe.groupby(level=0).first().sort_index()
+
+    return chart_dataframe.dropna(axis="columns", how="all")
+
+
 def _render_prediction_result_body(
     result: Any, *, mode: str, summary: Mapping[str, Any], debug: bool
 ) -> None:
@@ -492,6 +560,14 @@ def _render_backtest_body(
     actual_vs_predicted_df = getattr(backtest_result, "actual_vs_predicted_df", None)
     if isinstance(actual_vs_predicted_df, pd.DataFrame):
         st.markdown("### Actual vs predicted")
+        backtest_chart_dataframe = build_backtest_line_chart_dataframe(
+            actual_vs_predicted_df
+        )
+        if not backtest_chart_dataframe.empty:
+            st.line_chart(backtest_chart_dataframe)
+        else:
+            st.caption("No chartable actual-vs-predicted series is available.")
+
         st.dataframe(actual_vs_predicted_df, use_container_width=True, hide_index=True)
 
     _render_prediction_downloads(

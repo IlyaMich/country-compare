@@ -40,6 +40,14 @@ COMPARISON_RANK_COLUMNS = (
     "score_rank",
 )
 
+COMPARISON_SERIES_COLUMNS = (
+    "metric_name",
+    "metric_display_name",
+    "metric_id",
+    "indicator_name",
+    "indicator_id",
+)
+
 PRIMARY_RESULT_TABLE_NAMES = frozenset({"main", "table", "comparison"})
 
 
@@ -120,9 +128,82 @@ def build_comparison_chart_dataframe(
     return chart_dataframe.dropna()
 
 
+def build_multi_metric_comparison_chart_dataframe(
+    dataframe: pd.DataFrame,
+    *,
+    max_rows: int = 10,
+    max_columns: int = 8,
+) -> pd.DataFrame:
+    """Build a Streamlit-native chart table for multi-metric comparison shapes.
+
+    Supports two JSON-safe result shapes:
+    - long rows: country/metric/value
+    - wide rows: country plus multiple numeric metric columns
+
+    Single value/score/rank shapes intentionally return an empty dataframe so the
+    existing top-N comparison chart remains the primary visualization.
+    """
+    if dataframe.empty:
+        return pd.DataFrame()
+
+    label_column = _first_existing_column(dataframe, COMPARISON_LABEL_COLUMNS)
+    if label_column is None:
+        return pd.DataFrame()
+
+    series_column = _first_existing_column(dataframe, COMPARISON_SERIES_COLUMNS)
+    value_column = _first_existing_column(dataframe, COMPARISON_VALUE_COLUMNS)
+
+    if series_column is not None and value_column is not None:
+        return _build_long_multi_metric_chart_dataframe(
+            dataframe=dataframe,
+            label_column=label_column,
+            series_column=series_column,
+            value_column=value_column,
+            max_rows=max_rows,
+            max_columns=max_columns,
+        )
+
+    if value_column is not None:
+        return pd.DataFrame()
+
+    numeric_columns = _chartable_numeric_columns(
+        dataframe,
+        excluded_columns={label_column, *COMPARISON_RANK_COLUMNS},
+    )
+    if len(numeric_columns) < 2:
+        return pd.DataFrame()
+
+    sorted_dataframe = dataframe.head(max_rows)
+    labels = _make_unique_labels(
+        [
+            _row_label(row, label_column, fallback_position=position + 1)
+            for position, (_, row) in enumerate(sorted_dataframe.iterrows())
+        ]
+    )
+
+    chart_dataframe = pd.DataFrame(
+        {
+            column: pd.to_numeric(sorted_dataframe[column], errors="coerce").to_list()
+            for column in numeric_columns[:max_columns]
+        },
+        index=labels,
+    )
+    return chart_dataframe.dropna(axis="columns", how="all").dropna(
+        axis="index",
+        how="all",
+    )
+
+
 def _render_comparison_summary_panel(dataframe: pd.DataFrame) -> None:
     summary = build_comparison_table_summary(dataframe)
-    chart_dataframe = build_comparison_chart_dataframe(dataframe)
+    multi_metric_chart_dataframe = build_multi_metric_comparison_chart_dataframe(
+        dataframe
+    )
+    chart_dataframe = (
+        multi_metric_chart_dataframe
+        if not multi_metric_chart_dataframe.empty
+        else build_comparison_chart_dataframe(dataframe)
+    )
 
     if summary is None and chart_dataframe.empty:
         return
@@ -458,3 +539,59 @@ def _is_duplicate_primary_table(
         return True
 
     return bool(dataframe.equals(primary_table))
+
+
+def _build_long_multi_metric_chart_dataframe(
+    *,
+    dataframe: pd.DataFrame,
+    label_column: str,
+    series_column: str,
+    value_column: str,
+    max_rows: int,
+    max_columns: int,
+) -> pd.DataFrame:
+    working = dataframe[[label_column, series_column, value_column]].copy()
+    working[label_column] = working[label_column].map(_safe_string)
+    working[series_column] = working[series_column].map(_safe_string)
+    working[value_column] = pd.to_numeric(working[value_column], errors="coerce")
+    working = working.dropna(subset=[label_column, series_column, value_column])
+
+    if working.empty:
+        return pd.DataFrame()
+
+    pivot = working.pivot_table(
+        index=label_column,
+        columns=series_column,
+        values=value_column,
+        aggfunc="first",
+    )
+
+    if pivot.empty or len(pivot.columns) < 2:
+        return pd.DataFrame()
+
+    pivot["_chart_sort_value"] = pivot.mean(axis="columns", numeric_only=True)
+    pivot = (
+        pivot.sort_values("_chart_sort_value", ascending=False, na_position="last")
+        .drop(columns=["_chart_sort_value"])
+        .head(max_rows)
+    )
+    pivot = pivot.iloc[:, :max_columns]
+    return pivot.dropna(axis="columns", how="all").dropna(axis="index", how="all")
+
+
+def _chartable_numeric_columns(
+    dataframe: pd.DataFrame,
+    *,
+    excluded_columns: set[str],
+) -> list[str]:
+    columns: list[str] = []
+
+    for column in dataframe.columns:
+        if str(column).startswith("_") or column in excluded_columns:
+            continue
+
+        numeric_values = pd.to_numeric(dataframe[column], errors="coerce")
+        if numeric_values.notna().any():
+            columns.append(str(column))
+
+    return columns

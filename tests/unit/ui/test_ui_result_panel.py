@@ -6,6 +6,7 @@ from country_compare.ui.components.result_panels import (
     build_comparison_chart_dataframe,
     build_comparison_table_summary,
     build_display_extra_tables,
+    build_multi_metric_comparison_chart_dataframe,
 )
 
 
@@ -119,3 +120,52 @@ def test_build_display_extra_tables_keeps_distinct_extra_tables() -> None:
 
     assert list(extra_tables) == ["Wide comparison table"]
     assert extra_tables["Wide comparison table"].equals(wide_table)
+
+
+def test_build_multi_metric_comparison_chart_dataframe_pivots_long_rows() -> None:
+    dataframe = pd.DataFrame(
+        [
+            {"country_name": "Israel", "metric_name": "GDP", "value": 100.0},
+            {"country_name": "Israel", "metric_name": "Life expectancy", "value": 82.0},
+            {"country_name": "France", "metric_name": "GDP", "value": 120.0},
+            {"country_name": "France", "metric_name": "Life expectancy", "value": 83.0},
+        ]
+    )
+
+    chart_dataframe = build_multi_metric_comparison_chart_dataframe(dataframe)
+
+    assert list(chart_dataframe.columns) == ["GDP", "Life expectancy"]
+    assert chart_dataframe.loc["France", "GDP"] == 120.0
+    assert chart_dataframe.loc["Israel", "Life expectancy"] == 82.0
+
+
+def test_build_multi_metric_comparison_chart_dataframe_uses_wide_numeric_columns() -> (
+    None
+):
+    dataframe = pd.DataFrame(
+        [
+            {"country_code": "ISR", "gdp_per_capita": 55.0, "life_expectancy": 82.0},
+            {"country_code": "FRA", "gdp_per_capita": 48.0, "life_expectancy": 83.0},
+        ]
+    )
+
+    chart_dataframe = build_multi_metric_comparison_chart_dataframe(dataframe)
+
+    assert list(chart_dataframe.index) == ["ISR", "FRA"]
+    assert list(chart_dataframe.columns) == ["gdp_per_capita", "life_expectancy"]
+    assert chart_dataframe.loc["FRA", "life_expectancy"] == 83.0
+
+
+def test_build_multi_metric_comparison_chart_dataframe_ignores_single_score_shape() -> (
+    None
+):
+    dataframe = pd.DataFrame(
+        [
+            {"country_name": "Israel", "score": 88.0, "rank": 2},
+            {"country_name": "France", "score": 91.5, "rank": 1},
+        ]
+    )
+
+    chart_dataframe = build_multi_metric_comparison_chart_dataframe(dataframe)
+
+    assert chart_dataframe.empty
