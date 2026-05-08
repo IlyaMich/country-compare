@@ -292,10 +292,6 @@ def render_prediction_service_result(
     mode = str(getattr(result, "mode", "prediction") or "prediction")
     summary = getattr(result, "summary", {}) or {}
 
-    if getattr(result, "prediction_result", None) is not None:
-        _render_prediction_result_body(result, mode=mode, summary=summary, debug=debug)
-        return
-
     if getattr(result, "predicted_comparison_result", None) is not None:
         _render_predicted_comparison_body(
             result, mode=mode, summary=summary, debug=debug
@@ -304,6 +300,10 @@ def render_prediction_service_result(
 
     if getattr(result, "backtest_result", None) is not None:
         _render_backtest_body(result, mode=mode, summary=summary, debug=debug)
+        return
+
+    if getattr(result, "prediction_result", None) is not None:
+        _render_prediction_result_body(result, mode=mode, summary=summary, debug=debug)
         return
 
     dataframe = getattr(result, "dataframe", None)

@@ -56,6 +56,13 @@ class DatasetSummary:
     year_max: int | None = None
     available_columns: tuple[str, ...] = ()
     categories: tuple[CategorySummary, ...] = ()
+    dataset_versions: tuple[str, ...] = ()
+    dataset_checksum: str | None = None
+    dataset_size_bytes: int | None = None
+    dataset_modified_at: str | None = None
+    schema_valid: bool | None = None
+    schema_issue_count: int = 0
+    schema_issues: tuple[str, ...] = ()
     error: AppError | None = None
 
 

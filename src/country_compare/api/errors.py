@@ -43,7 +43,9 @@ def _status_for_app_error(error: AppError) -> int:
         return status.HTTP_404_NOT_FOUND
     if error.code in {"config_invalid", "dataset_invalid", "state_invalid"}:
         return status.HTTP_409_CONFLICT
-    if error.code in {"input_invalid", "validation_failed"}:
+    if error.code in {"input_invalid", "input_limit_exceeded", "validation_failed"}:
         return status.HTTP_400_BAD_REQUEST
+    if error.code == "authentication_required":
+        return status.HTTP_401_UNAUTHORIZED
 
     return status.HTTP_500_INTERNAL_SERVER_ERROR

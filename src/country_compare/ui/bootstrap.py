@@ -4,7 +4,11 @@ from pathlib import Path
 
 import streamlit as st
 
-from country_compare.clients import build_country_compare_client, resolve_api_url
+from country_compare.clients import (
+    build_country_compare_client,
+    resolve_api_key,
+    resolve_api_url,
+)
 from country_compare.clients.base import CountryCompareClient
 from country_compare.clients.http import HttpCountryCompareClient
 from country_compare.services import AppContext, AppFacade
@@ -81,12 +85,14 @@ def _build_ui_services_cached(context: AppContext) -> dict[str, object]:
 def _build_client_cached(
     context: AppContext,
     api_url: str | None,
+    api_key: str | None,
 ) -> CountryCompareClient:
     facade = _build_facade_cached(context)
     return build_country_compare_client(
         context,
         facade=facade,
         api_url=api_url,
+        api_key=api_key,
     )
 
 
@@ -94,21 +100,22 @@ def _build_client_cached(
 def _build_http_ui_services_cached(
     context: AppContext,
     api_url: str,
+    api_key: str | None,
 ) -> dict[str, object]:
-    client = _build_client_cached(context, api_url)
+    client = _build_client_cached(context, api_url, api_key)
     if not isinstance(client, HttpCountryCompareClient):
         raise TypeError("Expected an HTTP country compare client.")
     return client.as_ui_services()
 
 
 def get_country_compare_client(context: AppContext) -> CountryCompareClient:
-    return _build_client_cached(context, resolve_api_url())
+    return _build_client_cached(context, resolve_api_url(), resolve_api_key())
 
 
 def get_ui_services(context: AppContext) -> dict[str, object]:
     api_url = resolve_api_url()
     if api_url is not None:
-        return _build_http_ui_services_cached(context, api_url)
+        return _build_http_ui_services_cached(context, api_url, resolve_api_key())
     return _build_ui_services_cached(context)
 
 
