@@ -2,7 +2,11 @@ from country_compare.comparison.multi_metric import (
     build_multi_metric_wide_table,
     compare_countries,
 )
-from country_compare.config.models import MetricConfig, MetricsConfig, NormalizationMethod
+from country_compare.config.models import (
+    MetricConfig,
+    MetricsConfig,
+    NormalizationMethod,
+)
 from country_compare.data.examples import build_example_metric_dataframe
 
 

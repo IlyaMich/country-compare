@@ -1,9 +1,7 @@
-from country_compare.data.examples import build_example_metric_dataframe
-from country_compare.metrics.normalization import normalize_metric
-from country_compare.metrics.filtering import filter_dataset
-from country_compare.metrics.normalization import normalize_dataframe
 from country_compare.config.loader import load_metrics_config, load_scoring_config
-
+from country_compare.data.examples import build_example_metric_dataframe
+from country_compare.metrics.filtering import filter_dataset
+from country_compare.metrics.normalization import normalize_dataframe, normalize_metric
 
 # --------------------------------------------------
 # 1. Normalize a single metric slice
@@ -34,7 +32,14 @@ normalized = normalize_dataframe(filtered, method="minmax")
 print("\n" + "Normalize a filtered dataset")
 print(
     normalized[
-        ["country_code", "metric_id", "year", "value", "normalized_value", "normalization_method"]
+        [
+            "country_code",
+            "metric_id",
+            "year",
+            "value",
+            "normalized_value",
+            "normalization_method",
+        ]
     ]
 )
 
@@ -66,6 +71,12 @@ normalized = normalize_dataframe(
 print("\n" + "Use scoring-profile normalization overrides")
 print(
     normalized[
-        ["country_code", "metric_id", "value", "normalized_value", "normalization_method"]
+        [
+            "country_code",
+            "metric_id",
+            "value",
+            "normalized_value",
+            "normalization_method",
+        ]
     ]
 )

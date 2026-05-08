@@ -209,6 +209,7 @@ __marimo__/
 # Data
 data/audit/*
 data/processed/*
+data/exports/golden_demo/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/examples/.gitkeep

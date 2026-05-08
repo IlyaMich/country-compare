@@ -1,19 +1,46 @@
-.PHONY: install format format-check lint lint-fix test
+.PHONY: install format format-check lint lint-fix test type-check check check-strict container-build container-up container-down container-logs container-ps
+
+PYTHON := python
+DOCKER ?= docker
+COMPOSE ?= $(DOCKER) compose
+PACKAGE_DIRS := src/country_compare tests scripts
 
 install:
-	python -m pip install -r requirements-dev.txt
+	$(PYTHON) -m pip install -r requirements-dev.txt
 
 format:
-	python -m black country_compare tests
+	$(PYTHON) -m black $(PACKAGE_DIRS)
 
 format-check:
-	python -m black --check country_compare tests
+	$(PYTHON) -m black --check $(PACKAGE_DIRS)
 
 lint:
-	python -m ruff check country_compare tests
+	$(PYTHON) -m ruff check $(PACKAGE_DIRS)
 
 lint-fix:
-	python -m ruff check --fix country_compare tests
+	$(PYTHON) -m ruff check --fix $(PACKAGE_DIRS)
 
 test:
-	python -m pytest
+	$(PYTHON) -m pytest
+
+type-check:
+	$(PYTHON) -m mypy src/country_compare
+
+check: format-check lint test
+
+check-strict: check type-check
+
+container-build:
+	$(COMPOSE) build
+
+container-up:
+	$(COMPOSE) up --build
+
+container-down:
+	$(COMPOSE) down
+
+container-logs:
+	$(COMPOSE) logs -f
+
+container-ps:
+	$(COMPOSE) ps

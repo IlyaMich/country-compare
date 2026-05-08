@@ -73,7 +73,10 @@ def _print_section(title: str) -> None:
 def main() -> None:
     _print_section("1) Check built-in adapter registration")
     print("registered adapters:", list_registered_source_adapters())
-    print("has canonical_tabular_passthrough:", has_source_adapter("canonical_tabular_passthrough"))
+    print(
+        "has canonical_tabular_passthrough:",
+        has_source_adapter("canonical_tabular_passthrough"),
+    )
     print("has wide_year_metric_csv:", has_source_adapter("wide_year_metric_csv"))
 
     with TemporaryDirectory() as tmp_dir:
@@ -125,9 +128,15 @@ def main() -> None:
         print("result.ok:", success_result.ok)
         print(
             "publication ok:",
-            success_result.publication_report.ok if success_result.publication_report else None,
+            (
+                success_result.publication_report.ok
+                if success_result.publication_report
+                else None
+            ),
         )
-        print("published rows:", 0 if store.written is None else len(store.written.index))
+        print(
+            "published rows:", 0 if store.written is None else len(store.written.index)
+        )
 
         _print_section("4) Real raw-to-canonical adapter path")
         wide_request = ProcessingRequest(
@@ -150,7 +159,10 @@ def main() -> None:
         )
         wide_result = PipelineEngine().run(wide_request)
         print("result.ok:", wide_result.ok)
-        print("validation ok:", wide_result.validation_report.ok if wide_result.validation_report else None)
+        print(
+            "validation ok:",
+            wide_result.validation_report.ok if wide_result.validation_report else None,
+        )
         print("issue count:", len(wide_result.issues))
         for issue in wide_result.issues:
             print(
