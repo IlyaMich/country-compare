@@ -87,6 +87,7 @@ def test_atomic_publish_writes_dataset_and_matching_manifest(tmp_path) -> None:
     manifest_path = tmp_path / "processed" / "metrics_manifest.json"
     assert dataset_path.exists()
     assert manifest_path.exists()
+    assert (tmp_path / "processed" / "catalog.json").exists()
     assert publish_result.row_count == len(dataframe)
     assert publish_result.manifest["pipeline_version"] == "test-pipeline"
 

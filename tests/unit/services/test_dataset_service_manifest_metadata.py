@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 
-from matplotlib.pylab import identity
-
 from country_compare.data.examples import build_example_metric_dataframe
 from country_compare.data.manifest import build_manifest_from_dataframe_or_file
 from country_compare.data.publish import atomic_publish_metric_dataframe
