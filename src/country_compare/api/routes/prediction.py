@@ -64,7 +64,7 @@ def predict_single_metric(
         include_actuals=body.include_actuals,
         history_start_year=body.history_start_year,
         history_end_year=body.history_end_year,
-        fail_fast=False,
+        fail_fast=body.fail_fast,
         scenario_id=body.scenario_id,
     )
     return _prediction_response(

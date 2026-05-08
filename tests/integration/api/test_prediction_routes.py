@@ -599,3 +599,31 @@ def _error_result(
     error: AppError,
 ) -> PredictionServiceResult:
     return PredictionServiceResult(mode=mode, request=request, error=error)
+
+
+def test_single_metric_prediction_accepts_fail_fast_payload() -> None:
+    facade = FakeFacade()
+    client = _client_for(facade)
+
+    response = client.post(
+        "/api/v1/prediction/single-metric",
+        json={
+            "country_codes": ["deu", "fra"],
+            "metric_id": "compensation_employees_lcu",
+            "horizon_years": 3,
+            "method": "linear_trend",
+            "fallback_method": "last_observed",
+            "fail_fast": True,
+            "scenario_id": "baseline",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+    assert len(facade.single_metric_requests) == 1
+    service_request = facade.single_metric_requests[0]
+    assert service_request["country_codes"] == ["DEU", "FRA"]
+    assert service_request["metric_id"] == "compensation_employees_lcu"
+    assert service_request["horizon_years"] == 3
+    assert service_request["fail_fast"] is True
