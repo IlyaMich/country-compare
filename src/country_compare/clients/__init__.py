@@ -13,7 +13,7 @@ COUNTRY_COMPARE_API_URL_ENV = "COUNTRY_COMPARE_API_URL"
 
 def resolve_api_url(value: str | None = None) -> str | None:
     raw_value = os.getenv(COUNTRY_COMPARE_API_URL_ENV) if value is None else value
-    normalized = str(raw_value or "").strip()
+    normalized = str(raw_value or "").strip().rstrip("/")
     return normalized or None
 
 
