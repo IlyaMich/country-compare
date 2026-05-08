@@ -7,6 +7,12 @@ from typing import Any, TypedDict
 import pandas as pd
 
 from country_compare.data.access import load_metric_dataframe, metric_dataset_exists
+from country_compare.data.cache import DatasetCacheKey, get_cached_metric_dataframe
+from country_compare.data.catalog import (
+    MetadataCatalog,
+    catalog_path_for_dataset,
+    read_metadata_catalog,
+)
 from country_compare.data.contract import (
     CATEGORY_COLUMN,
     COUNTRY_CODE_COLUMN,
@@ -67,7 +73,11 @@ class DatasetService:
 
     def load_dataframe(self) -> pd.DataFrame:
         store = self.create_store()
-        return load_metric_dataframe(store=store)
+        return get_cached_metric_dataframe(
+            self._dataset_cache_key(store),
+            store=store,
+            loader=load_metric_dataframe,
+        )
 
     def get_dataset_summary(self) -> DatasetSummary:
         dataset_path = self._resolve_store_path()
@@ -102,7 +112,7 @@ class DatasetService:
                     ),
                 )
 
-            dataframe = load_metric_dataframe(store=store)
+            dataframe = self.load_dataframe()
             return self._build_dataset_summary_from_dataframe(
                 dataframe,
                 dataset_path=dataset_path,
@@ -146,6 +156,14 @@ class DatasetService:
             )
 
     def list_countries(self) -> tuple[CountryOption, ...]:
+        catalog = self._read_catalog_if_available()
+        if catalog is not None:
+            return tuple(
+                CountryOption(code=str(item["code"]), name=str(item["name"]))
+                for item in catalog.countries
+                if item.get("code") is not None and item.get("name") is not None
+            )
+
         dataframe = self.load_dataframe()
         if (
             dataframe.empty
@@ -167,6 +185,24 @@ class DatasetService:
         )
 
     def list_metrics(self) -> tuple[MetricOption, ...]:
+        catalog = self._read_catalog_if_available()
+        if catalog is not None:
+            return tuple(
+                MetricOption(
+                    metric_id=str(item["metric_id"]),
+                    display_name=str(item["display_name"]),
+                    category=(
+                        str(item["category"])
+                        if item.get("category") is not None
+                        else None
+                    ),
+                    unit=str(item["unit"]) if item.get("unit") is not None else None,
+                )
+                for item in catalog.metrics
+                if item.get("metric_id") is not None
+                and item.get("display_name") is not None
+            )
+
         dataframe = self.load_dataframe()
         required_columns = {"metric_id", "metric_name"}
         if dataframe.empty or not required_columns.issubset(dataframe.columns):
@@ -205,6 +241,10 @@ class DatasetService:
         )
 
     def list_years(self) -> tuple[int, ...]:
+        catalog = self._read_catalog_if_available()
+        if catalog is not None:
+            return tuple(catalog.years)
+
         dataframe = self.load_dataframe()
         if dataframe.empty or YEAR_COLUMN not in dataframe.columns:
             return ()
@@ -215,6 +255,19 @@ class DatasetService:
         return tuple(sorted(year_values.unique().tolist()))
 
     def get_category_breakdown(self) -> tuple[CategorySummary, ...]:
+        catalog = self._read_catalog_if_available()
+        if catalog is not None:
+            return tuple(
+                CategorySummary(
+                    name=str(item["name"]),
+                    row_count=int(item.get("row_count", 0) or 0),
+                    country_count=int(item.get("country_count", 0) or 0),
+                    metric_count=int(item.get("metric_count", 0) or 0),
+                )
+                for item in catalog.categories
+                if item.get("name") is not None
+            )
+
         dataframe = self.load_dataframe()
         return self._build_category_summaries(dataframe)
 
@@ -232,6 +285,9 @@ class DatasetService:
         dataset_path = self._resolve_store_path()
         manifest_path = self._resolve_manifest_path(dataset_path)
         identity: dict[str, Any] = {}
+        catalog = self._read_catalog_if_available()
+        if catalog is not None:
+            identity.update(catalog.identity)
 
         manifest = self._read_manifest_if_available(manifest_path)
         if manifest:
@@ -460,6 +516,28 @@ class DatasetService:
         if raw_path is None:
             return None
         return Path(raw_path).resolve()
+
+    def _dataset_cache_key(self, store: Any) -> DatasetCacheKey:
+        backend = str(self.context.store_backend)
+        raw_path = getattr(store, "path", None)
+        if raw_path is None:
+            raw_path = self.context.store_path
+        path_key = (
+            str(Path(raw_path).resolve()) if raw_path is not None else "<default>"
+        )
+        return (backend, path_key)
+
+    def _read_catalog_if_available(self) -> MetadataCatalog | None:
+        dataset_path = self._resolve_store_path()
+        if dataset_path is None:
+            return None
+        catalog_path = catalog_path_for_dataset(dataset_path).resolve()
+        if not catalog_path.exists():
+            return None
+        try:
+            return read_metadata_catalog(catalog_path)
+        except Exception:
+            return None
 
     def _resolve_manifest_path(self, dataset_path: Path | None) -> Path | None:
         if dataset_path is None:

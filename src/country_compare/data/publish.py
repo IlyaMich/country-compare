@@ -9,6 +9,11 @@ from typing import Any
 
 import pandas as pd
 
+from country_compare.data.catalog import (
+    build_metadata_catalog,
+    catalog_path_for_dataset,
+    write_metadata_catalog,
+)
 from country_compare.data.manifest import (
     DATASET_MANIFEST_FILENAME,
     build_manifest_from_dataframe_or_file,
@@ -26,6 +31,7 @@ class OfflinePublishResult:
     row_count: int
     sha256: str
     manifest: dict[str, Any]
+    catalog_path: str | None = None
 
 
 def atomic_publish_metric_dataframe(
@@ -33,6 +39,7 @@ def atomic_publish_metric_dataframe(
     *,
     dataset_path: str | Path,
     manifest_path: str | Path | None = None,
+    catalog_path: str | Path | None = None,
     dataset_version: str | None = None,
     source_manifest: str | None = None,
     pipeline_version: str | None = None,
@@ -40,9 +47,10 @@ def atomic_publish_metric_dataframe(
 ) -> OfflinePublishResult:
     """Atomically publish a validated offline metric dataset and manifest.
 
-    This helper is intentionally not connected to the API. It writes a temporary
-    parquet file and temporary manifest in the destination directory, validates
-    both, then uses ``os.replace`` to move each artifact into its final name.
+    This helper is intentionally not connected to the API. It writes temporary
+    parquet, manifest, and metadata catalog artifacts in the destination
+    directory, validates the dataset/manifest pair, then uses ``os.replace`` to
+    move each artifact into its final name.
     """
 
     final_dataset_path = Path(dataset_path)
@@ -51,8 +59,14 @@ def atomic_publish_metric_dataframe(
         if manifest_path is not None
         else final_dataset_path.with_name(DATASET_MANIFEST_FILENAME)
     )
+    final_catalog_path = (
+        Path(catalog_path)
+        if catalog_path is not None
+        else catalog_path_for_dataset(final_dataset_path)
+    )
     final_dataset_path.parent.mkdir(parents=True, exist_ok=True)
     final_manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    final_catalog_path.parent.mkdir(parents=True, exist_ok=True)
 
     token = uuid.uuid4().hex
     temp_dataset_path = final_dataset_path.with_name(
@@ -60,6 +74,9 @@ def atomic_publish_metric_dataframe(
     )
     temp_manifest_path = final_manifest_path.with_name(
         f".{final_manifest_path.name}.{token}.tmp"
+    )
+    temp_catalog_path = final_catalog_path.with_name(
+        f".{final_catalog_path.name}.{token}.tmp"
     )
 
     try:
@@ -89,19 +106,32 @@ def atomic_publish_metric_dataframe(
         if not validation.valid:
             messages = "; ".join(validation.messages) or "manifest validation failed"
             raise ValueError(messages)
+        catalog = build_metadata_catalog(
+            prepared,
+            identity={
+                "dataset_version": manifest.get("dataset_version"),
+                "dataset_sha256": manifest.get("sha256"),
+                "dataset_file": final_dataset_path.name,
+                "dataset_created_at": manifest.get("created_at"),
+                "schema_version": manifest.get("schema_version"),
+            },
+        )
+        write_metadata_catalog(catalog, temp_catalog_path)
 
         os.replace(temp_dataset_path, final_dataset_path)
         os.replace(temp_manifest_path, final_manifest_path)
+        os.replace(temp_catalog_path, final_catalog_path)
 
         return OfflinePublishResult(
             dataset_path=str(final_dataset_path),
             manifest_path=str(final_manifest_path),
+            catalog_path=str(final_catalog_path),
             row_count=int(manifest["row_count"]),
             sha256=str(manifest["sha256"]),
             manifest=manifest,
         )
     finally:
-        for path in (temp_dataset_path, temp_manifest_path):
+        for path in (temp_dataset_path, temp_manifest_path, temp_catalog_path):
             try:
                 if path.exists():
                     path.unlink()
