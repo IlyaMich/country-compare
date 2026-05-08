@@ -9,7 +9,7 @@ WORKDIR /app
 COPY . /app
 
 RUN python -m pip install --upgrade pip \
- && python -m pip install -e . \
+ && python -m pip install -e ".[ui]" \
  && mkdir -p /app/data/processed /app/data/audit /app/data/exports
 
 EXPOSE 8501
