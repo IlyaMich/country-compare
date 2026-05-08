@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pandas as pd
 
 from country_compare.clients.http import HttpCountryCompareClient
+from country_compare.services.results import PresentationResult
 
 
 def _table_payload() -> dict[str, Any]:
@@ -113,3 +114,64 @@ def test_http_client_maps_backend_error_to_result_error() -> None:
 
     assert presentation.error is not None
     assert presentation.error.code == "invalid_metric"
+
+
+def test_http_client_reports_predicted_multi_metric_as_unsupported_in_http_mode() -> (
+    None
+):
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(
+            "Predicted multi-metric comparison should not call a backend endpoint "
+            "in HTTP mode for v0.1."
+        )
+
+    http_client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="http://testserver",
+    )
+    client = HttpCountryCompareClient("http://testserver", http_client=http_client)
+
+    result = client.run_predicted_multi_metric_comparison(
+        metric_ids=["gdp_per_capita", "life_expectancy"],
+        country_codes=["ISR", "FRA"],
+        horizon_years=3,
+        forecast_year=2027,
+        method="linear_trend",
+        comparison_options={"top_n": 2},
+    )
+
+    assert not result.ok
+    assert result.mode == "predicted_multi_metric_comparison"
+    assert result.error is not None
+    assert result.error.code == "unsupported_http_workflow"
+    assert result.request == {
+        "country_codes": ["ISR", "FRA"],
+        "metric_ids": ["gdp_per_capita", "life_expectancy"],
+        "horizon_years": 3,
+        "forecast_year": 2027,
+        "method": "linear_trend",
+        "fallback_method": "last_observed",
+        "comparison_options": {"top_n": 2},
+    }
+
+
+def test_http_presentation_service_adapter_supports_export_controls() -> None:
+    service = cast(
+        Any,
+        HttpCountryCompareClient("http://backend.test").as_ui_services()[
+            "presentation_service"
+        ],
+    )
+    table = pd.DataFrame([{"country_code": "DEU", "value": 1.5}])
+
+    csv_bytes = service.export_table_csv_bytes(table)
+    assert csv_bytes.startswith(b"country_code,value")
+
+    metadata_bytes = service.export_metadata_json_bytes({"source": "http"})
+    assert json.loads(metadata_bytes.decode("utf-8")) == {"source": "http"}
+
+    bundle_bytes = service.export_presentation_bundle_json_bytes(
+        PresentationResult(mode="single_metric", request={}, table=table)
+    )
+    bundle = json.loads(bundle_bytes.decode("utf-8"))
+    assert bundle["mode"] == "single_metric"
