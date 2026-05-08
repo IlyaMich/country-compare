@@ -89,6 +89,19 @@ To regenerate the catalog from an existing processed dataset:
 python scripts/generate_metadata_catalog.py --dataset-path data/processed/metrics.parquet
 ```
 
+## Dataset replacement and rollback
+
+The API does not expose dataset refresh or replacement endpoints. Processed
+dataset artifacts are replaced offline and activated by backend restart or
+redeploy.
+
+A complete dataset artifact set is:
+
+```text
+data/processed/metrics.parquet
+data/processed/metrics_manifest.json
+data/processed/catalog.json
+
 ## CI and security scans
 
 GitHub Actions run:
