@@ -128,7 +128,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python for fixture data
+      - name: Set up Python for fixture data and smoke checks
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -144,47 +144,48 @@ jobs:
           test -f data/processed/metrics_manifest.json
           test -f data/processed/catalog.json
 
-
       - name: Show Docker versions
         run: |
           docker --version
           docker compose version
 
-      - name: Build Compose services
+      - name: Build default Compose services
         run: |
           docker compose build
 
-      - name: Run backend smoke checks
+      - name: Smoke test default Compose backend
         run: |
           docker compose up -d backend
-          python - <<'PY'
-          import json
-          import time
-          import urllib.error
-          import urllib.request
+          python scripts/smoke_api_container.py --base-url http://127.0.0.1:8000
 
-          def fetch(path: str):
-              return urllib.request.urlopen(f"http://127.0.0.1:8000{path}", timeout=5)
+      - name: Show default Compose backend logs on failure
+        if: failure()
+        run: |
+          docker compose logs backend
 
-          deadline = time.time() + 60
-          last_error = None
-          while time.time() < deadline:
-              try:
-                  health = fetch("/health")
-                  ready = fetch("/ready")
-                  metadata = fetch("/api/v1/metadata/dataset")
-                  assert health.status == 200
-                  assert ready.status == 200
-                  assert metadata.status == 200
-                  payload = json.loads(metadata.read().decode("utf-8"))
-                  assert payload["exists"] is True
-                  break
-              except (AssertionError, OSError, urllib.error.HTTPError) as exc:
-                  last_error = exc
-                  time.sleep(2)
-          else:
-              raise SystemExit(f"backend smoke checks failed: {last_error!r}")
-          PY
+      - name: Stop default Compose services
+        if: always()
+        run: |
+          docker compose down --volumes --remove-orphans
+
+      - name: Build backend-only Compose service
+        run: |
+          docker compose -f compose.api.yml build backend
+
+      - name: Smoke test backend-only Compose service
+        run: |
+          docker compose -f compose.api.yml up -d backend
+          python scripts/smoke_api_container.py --base-url http://127.0.0.1:8000
+
+      - name: Show backend-only Compose logs on failure
+        if: failure()
+        run: |
+          docker compose -f compose.api.yml logs backend
+
+      - name: Stop backend-only Compose services
+        if: always()
+        run: |
+          docker compose -f compose.api.yml down --volumes --remove-orphans
 
       - name: Run Trivy backend image scan in non-blocking mode
         uses: aquasecurity/trivy-action@master
@@ -194,13 +195,3 @@ jobs:
           exit-code: "0"
           ignore-unfixed: true
           severity: CRITICAL,HIGH
-
-      - name: Show backend logs on failure
-        if: failure()
-        run: |
-          docker compose logs backend
-
-      - name: Stop Compose services
-        if: always()
-        run: |
-          docker compose down --volumes --remove-orphans
