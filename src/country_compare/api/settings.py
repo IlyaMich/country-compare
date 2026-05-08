@@ -22,6 +22,7 @@ class ApiSettings:
     max_top_n: int = 100
     enable_docs: bool = True
     api_key: str | None = None
+    log_level: str = "INFO"
 
     @classmethod
     def from_env(cls) -> ApiSettings:
@@ -43,6 +44,7 @@ class ApiSettings:
                 "COUNTRY_COMPARE_API_ENABLE_DOCS", default=True
             ),
             api_key=_parse_optional_env("COUNTRY_COMPARE_API_KEY"),
+            log_level=_parse_optional_env("COUNTRY_COMPARE_API_LOG_LEVEL") or "INFO",
         )
 
 
