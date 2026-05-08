@@ -34,6 +34,7 @@ This documentation set describes the `v0.1 beta` state of the project.
 - [User guide](user_guide.md)
 - [Prediction behavior](prediction.md)
 - [Containerization](containerization.md)
+- [Backend API deployment](deployment_api.md)
 - [Development guide](development.md)
 - [Testing guide](testing.md)
 - [Manual QA checklist](manual_qa.md)
