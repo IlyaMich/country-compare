@@ -29,15 +29,55 @@ def enforce_metric_limit(request: Request, metric_ids: Sequence[str]) -> None:
 
 
 def enforce_horizon_limit(request: Request, horizon_years: int) -> None:
-    limit = _positive_int_setting(request, "max_horizon_years")
-    if int(horizon_years) <= limit:
+    _enforce_int_limit(
+        request,
+        field_name="horizon_years",
+        value=horizon_years,
+        setting_name="max_horizon_years",
+        display_name="forecast horizon years",
+    )
+
+
+def enforce_holdout_limit(request: Request, holdout_years: int) -> None:
+    _enforce_int_limit(
+        request,
+        field_name="holdout_years",
+        value=holdout_years,
+        setting_name="max_holdout_years",
+        display_name="backtest holdout years",
+    )
+
+
+def enforce_top_n_limit(request: Request, top_n: int | None) -> None:
+    if top_n is None:
+        return
+    _enforce_int_limit(
+        request,
+        field_name="top_n",
+        value=top_n,
+        setting_name="max_top_n",
+        display_name="top rows",
+    )
+
+
+def _enforce_int_limit(
+    request: Request,
+    *,
+    field_name: str,
+    value: int,
+    setting_name: str,
+    display_name: str,
+) -> None:
+    limit = _positive_int_setting(request, setting_name)
+    int_value = int(value)
+    if int_value <= limit:
         return
 
     _raise_limit_error(
-        field_name="horizon_years",
-        value=int(horizon_years),
+        field_name=field_name,
+        value=int_value,
         limit=limit,
-        display_name="forecast horizon years",
+        display_name=display_name,
     )
 
 

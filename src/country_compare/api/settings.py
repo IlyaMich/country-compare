@@ -18,6 +18,8 @@ class ApiSettings:
     max_countries: int = 50
     max_metrics: int = 50
     max_horizon_years: int = 10
+    max_holdout_years: int = 10
+    max_top_n: int = 100
     enable_docs: bool = True
     api_key: str | None = None
 
@@ -33,6 +35,10 @@ class ApiSettings:
             max_horizon_years=_parse_int_env(
                 "COUNTRY_COMPARE_API_MAX_HORIZON_YEARS", default=10
             ),
+            max_holdout_years=_parse_int_env(
+                "COUNTRY_COMPARE_API_MAX_HOLDOUT_YEARS", default=10
+            ),
+            max_top_n=_parse_int_env("COUNTRY_COMPARE_API_MAX_TOP_N", default=100),
             enable_docs=_parse_bool_env(
                 "COUNTRY_COMPARE_API_ENABLE_DOCS", default=True
             ),
