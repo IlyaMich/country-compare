@@ -9,11 +9,13 @@ services:
       COUNTRY_COMPARE_API_MAX_COUNTRIES: "50"
       COUNTRY_COMPARE_API_MAX_METRICS: "50"
       COUNTRY_COMPARE_API_MAX_HORIZON_YEARS: "10"
+      COUNTRY_COMPARE_API_MAX_HOLDOUT_YEARS: "10"
+      COUNTRY_COMPARE_API_MAX_TOP_N: "100"
       COUNTRY_COMPARE_API_KEY: ${COUNTRY_COMPARE_API_KEY:-}
       COUNTRY_COMPARE_STORE_BACKEND: parquet
     volumes:
       - ./config:/app/config:ro
-      - ./data:/app/data
+      - ./data:/app/data:ro
     ports:
       - "8000:8000"
 
