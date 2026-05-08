@@ -12,24 +12,47 @@ class ApiSettings:
     ``AppContext``. These values only control the HTTP adapter.
     """
 
-    cors_origins: tuple[str, ...] = ()
+    api_version: str = "0.2.0"
+    cors_origins: tuple[str, ...] = ("http://localhost:8501",)
     max_records: int = 500
+    max_countries: int = 50
+    max_metrics: int = 50
+    max_horizon_years: int = 10
     enable_docs: bool = True
+    api_key: str | None = None
 
     @classmethod
     def from_env(cls) -> ApiSettings:
         return cls(
             cors_origins=_parse_csv_env("COUNTRY_COMPARE_API_CORS_ORIGINS"),
             max_records=_parse_int_env("COUNTRY_COMPARE_API_MAX_RECORDS", default=500),
+            max_countries=_parse_int_env(
+                "COUNTRY_COMPARE_API_MAX_COUNTRIES", default=50
+            ),
+            max_metrics=_parse_int_env("COUNTRY_COMPARE_API_MAX_METRICS", default=50),
+            max_horizon_years=_parse_int_env(
+                "COUNTRY_COMPARE_API_MAX_HORIZON_YEARS", default=10
+            ),
             enable_docs=_parse_bool_env(
                 "COUNTRY_COMPARE_API_ENABLE_DOCS", default=True
             ),
+            api_key=_parse_optional_env("COUNTRY_COMPARE_API_KEY"),
         )
+
+
+def _parse_optional_env(name: str) -> str | None:
+    value = os.getenv(name)
+    if value is None:
+        return None
+
+    stripped = value.strip()
+    return stripped or None
 
 
 def _parse_csv_env(name: str) -> tuple[str, ...]:
     raw_value = os.environ.get(name, "")
-    return tuple(value.strip() for value in raw_value.split(",") if value.strip())
+    values = tuple(value.strip() for value in raw_value.split(",") if value.strip())
+    return values or ApiSettings.cors_origins
 
 
 def _parse_int_env(name: str, *, default: int) -> int:
@@ -38,9 +61,13 @@ def _parse_int_env(name: str, *, default: int) -> int:
         return default
 
     try:
-        return int(raw_value)
+        value = int(raw_value)
     except ValueError as exc:
         raise ValueError(f"{name} must be an integer.") from exc
+
+    if value <= 0:
+        raise ValueError(f"{name} must be greater than zero.")
+    return value
 
 
 def _parse_bool_env(name: str, *, default: bool) -> bool:
