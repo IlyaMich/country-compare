@@ -53,8 +53,11 @@ def ready(
 def _build_ready_response(overview: OverviewStatus) -> ReadyResponse:
     dataset_exists = bool(overview.dataset.exists)
     dataset_schema_valid = overview.dataset.schema_valid is not False
+    manifest_valid = overview.dataset.manifest_valid is True
     config_valid = bool(dataset_exists and overview.config.validation.valid)
-    is_ready = dataset_exists and dataset_schema_valid and config_valid
+    is_ready = (
+        dataset_exists and dataset_schema_valid and manifest_valid and config_valid
+    )
 
     ready_status: Literal["ready", "not_ready"] = "ready" if is_ready else "not_ready"
 
@@ -70,6 +73,22 @@ def _build_ready_response(overview: OverviewStatus) -> ReadyResponse:
             backend=overview.dataset.backend,
             dataset_path=overview.dataset.dataset_path,
             row_count=overview.dataset.row_count,
+            country_count=overview.dataset.country_count,
+            metric_count=overview.dataset.metric_count,
+            year_min=overview.dataset.year_min,
+            year_max=overview.dataset.year_max,
+            dataset_versions=list(overview.dataset.dataset_versions),
+            dataset_checksum=overview.dataset.dataset_checksum,
+            dataset_size_bytes=overview.dataset.dataset_size_bytes,
+            dataset_modified_at=overview.dataset.dataset_modified_at,
+            manifest_path=overview.dataset.manifest_path,
+            manifest_exists=overview.dataset.manifest_exists,
+            manifest_valid=overview.dataset.manifest_valid,
+            manifest_issue_count=overview.dataset.manifest_issue_count,
+            manifest_issues=list(overview.dataset.manifest_issues),
+            manifest_dataset_version=overview.dataset.manifest_dataset_version,
+            manifest_created_at=overview.dataset.manifest_created_at,
+            manifest_schema_version=overview.dataset.manifest_schema_version,
             schema_valid=overview.dataset.schema_valid,
             schema_issue_count=overview.dataset.schema_issue_count,
             schema_issues=dataset_issue_messages,
@@ -105,6 +124,13 @@ def _build_warnings(overview: OverviewStatus) -> list[str]:
         warnings.extend(
             str(issue) for issue in overview.dataset.schema_issues if str(issue)
         )
+
+    if overview.dataset.manifest_valid is not True:
+        warnings.extend(
+            str(issue) for issue in overview.dataset.manifest_issues if str(issue)
+        )
+        if overview.dataset.exists and not overview.dataset.manifest_exists:
+            warnings.append("Dataset manifest is missing.")
 
     if not overview.dataset.exists and not warnings:
         warnings.append("No dataset is currently available.")

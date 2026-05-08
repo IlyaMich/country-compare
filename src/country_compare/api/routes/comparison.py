@@ -6,7 +6,11 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 
 from country_compare.api.dependencies import get_app_facade
-from country_compare.api.limits import enforce_country_limit, enforce_metric_limit
+from country_compare.api.limits import (
+    enforce_country_limit,
+    enforce_metric_limit,
+    enforce_top_n_limit,
+)
 from country_compare.api.schemas.common import ResultEnvelope
 from country_compare.api.schemas.comparison import (
     MultiMetricComparisonRequest,
@@ -49,6 +53,7 @@ def compare_single_metric(
     """Run a read-only single-metric country comparison."""
 
     enforce_country_limit(request, body.country_codes)
+    enforce_top_n_limit(request, body.top_n)
 
     service_request = SingleMetricRequest(
         countries=body.country_codes,
@@ -79,6 +84,7 @@ def compare_multi_metric(
 
     enforce_country_limit(request, body.country_codes)
     enforce_metric_limit(request, body.metric_ids)
+    enforce_top_n_limit(request, body.top_n)
 
     service_request = MultiMetricRequest(
         countries=body.country_codes,
@@ -108,6 +114,7 @@ def compare_weighted_score(
     """Run a read-only weighted scoring comparison for a configured profile."""
 
     enforce_country_limit(request, body.country_codes)
+    enforce_top_n_limit(request, body.top_n)
 
     service_request = WeightedScoreRequest(
         countries=body.country_codes,

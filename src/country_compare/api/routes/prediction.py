@@ -8,8 +8,10 @@ from fastapi.responses import JSONResponse
 from country_compare.api.dependencies import get_app_facade
 from country_compare.api.limits import (
     enforce_country_limit,
+    enforce_holdout_limit,
     enforce_horizon_limit,
     enforce_metric_limit,
+    enforce_top_n_limit,
 )
 from country_compare.api.schemas.common import ResultEnvelope
 from country_compare.api.schemas.prediction import (
@@ -85,6 +87,7 @@ def backtest_prediction(
     """Run a holdout backtest for one country/metric series."""
 
     enforce_country_limit(request, body.country_codes)
+    enforce_holdout_limit(request, body.holdout_years)
 
     result = facade.backtest_prediction(
         country_code=body.country_code,
@@ -117,6 +120,7 @@ def compare_predicted_single_metric(
 
     enforce_country_limit(request, body.country_codes)
     enforce_horizon_limit(request, body.horizon_years)
+    enforce_top_n_limit(request, _top_n(body.comparison_options))
 
     result = facade.compare_predicted_single_metric(
         metric_id=body.metric_id,
@@ -149,6 +153,7 @@ def compare_predicted_profile(
 
     enforce_country_limit(request, body.country_codes)
     enforce_horizon_limit(request, body.horizon_years)
+    enforce_top_n_limit(request, _top_n(body.comparison_options))
 
     result = facade.compare_predicted_profile(
         profile_name=body.profile_name,
@@ -182,6 +187,7 @@ def compare_predicted_multi_metric(
     enforce_country_limit(request, body.country_codes)
     enforce_metric_limit(request, body.metric_ids)
     enforce_horizon_limit(request, body.horizon_years)
+    enforce_top_n_limit(request, _top_n(body.comparison_options))
 
     result = facade.compare_predicted_multi_metric(
         metric_ids=body.metric_ids,
@@ -219,6 +225,10 @@ def _prediction_response(
         status_code=_status_for_envelope(envelope),
         content=envelope.model_dump(mode="json"),
     )
+
+
+def _top_n(options: PredictionComparisonOptions | None) -> int | None:
+    return None if options is None else options.top_n
 
 
 def _comparison_options(
