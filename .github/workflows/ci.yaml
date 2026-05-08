@@ -2,23 +2,19 @@ name: CI
 
 on:
   push:
+    branches:
+      - develop
+      - main
+      - "feature/**"
   pull_request:
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches:
+      - develop
+      - main
 
 jobs:
   python-quality:
-    name: Python quality checks (${{ matrix.python-version }})
+    name: Python quality checks
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version:
-          - "3.11"
-          - "3.12"
 
     steps:
       - name: Check out repository
@@ -27,20 +23,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
           cache: pip
-          cache-dependency-path: |
-            pyproject.toml
-            requirements-dev.txt
+          cache-dependency-path: pyproject.toml
 
-      - name: Upgrade packaging tools
+      - name: Install dev dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-
-      - name: Install package with development dependencies
-        run: |
           python -m pip install -e ".[dev]"
-      
+
       - name: Run static layout guards
         run: |
           python scripts/check_static_guards.py
@@ -49,11 +40,11 @@ jobs:
         run: |
           python -m black --check src/country_compare tests scripts
 
-      - name: Run lint checks
+      - name: Run ruff
         run: |
           python -m ruff check src/country_compare tests scripts
 
-      - name: Run type checks
+      - name: Run mypy
         run: |
           python -m mypy src/country_compare
 
@@ -81,21 +72,73 @@ jobs:
           python -m pip install --upgrade pip build
           python -m build
 
-      - name: Install built wheel
+      - name: Install built wheel with API extra
         run: |
-          python -m pip install dist/*.whl
-          python - <<'PY'
-          import country_compare
-          print(country_compare.__version__)
+          python -m venv /tmp/country-compare-api-wheel-env
+          /tmp/country-compare-api-wheel-env/bin/python -m pip install --upgrade pip
+          /tmp/country-compare-api-wheel-env/bin/python - <<'PY'
+          from pathlib import Path
+          import importlib
+          import subprocess
+          import sys
+
+          wheels = sorted(Path("dist").glob("country_compare-*.whl"))
+          if not wheels:
+              raise SystemExit("No built wheel found.")
+
+          wheel = wheels[0]
+          subprocess.check_call(
+              [sys.executable, "-m", "pip", "install", f"{wheel}[api]"]
+          )
+
+          module = importlib.import_module("country_compare.api.main")
+          assert hasattr(module, "create_app")
+          print("API extra wheel install passed.")
           PY
 
-      - name: Install built sdist in a clean virtual environment
+      - name: Install built wheel with UI extra
+        run: |
+          python -m venv /tmp/country-compare-ui-wheel-env
+          /tmp/country-compare-ui-wheel-env/bin/python -m pip install --upgrade pip
+          /tmp/country-compare-ui-wheel-env/bin/python - <<'PY'
+          from pathlib import Path
+          import importlib
+          import subprocess
+          import sys
+
+          wheels = sorted(Path("dist").glob("country_compare-*.whl"))
+          if not wheels:
+              raise SystemExit("No built wheel found.")
+
+          wheel = wheels[0]
+          subprocess.check_call(
+              [sys.executable, "-m", "pip", "install", f"{wheel}[ui]"]
+          )
+
+          module = importlib.import_module("country_compare.ui.bootstrap")
+          assert hasattr(module, "build_ui_client")
+          print("UI extra wheel install passed.")
+          PY
+
+      - name: Install built sdist with dev extra
         run: |
           python -m venv /tmp/country-compare-sdist-env
           /tmp/country-compare-sdist-env/bin/python -m pip install --upgrade pip
-          /tmp/country-compare-sdist-env/bin/python -m pip install dist/*.tar.gz
           /tmp/country-compare-sdist-env/bin/python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          sdists = sorted(Path("dist").glob("country_compare-*.tar.gz"))
+          if not sdists:
+              raise SystemExit("No built sdist found.")
+
+          subprocess.check_call(
+              [sys.executable, "-m", "pip", "install", f"{sdists[0]}[dev]"]
+          )
+
           import country_compare
+
           print(country_compare.__version__)
           PY
 
@@ -118,7 +161,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip pip-audit
           python -m pip_audit || true
-
 
   docker-build:
     name: Docker Compose build and backend smoke

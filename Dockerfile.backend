@@ -18,13 +18,13 @@ COPY config /app/config
 COPY data /app/data
 
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install . \
+    && python -m pip install ".[api]" \
     && groupadd --system app \
     && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app \
     && mkdir -p /app/data/processed /app/data/audit /app/data/exports \
     && chown -R app:app /app
 
-USER app    
+USER app
 
 EXPOSE 8000
 
