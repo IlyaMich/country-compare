@@ -3,7 +3,12 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PORT=8000
+    PORT=8000 \
+    COUNTRY_COMPARE_METRICS_CONFIG=/app/config/metrics.yaml \
+    COUNTRY_COMPARE_SCORING_CONFIG=/app/config/scoring_profiles.yaml \
+    COUNTRY_COMPARE_STORE_PATH=/app/data/processed/metrics.parquet \
+    COUNTRY_COMPARE_AUDIT_DIR=/app/data/audit \
+    COUNTRY_COMPARE_EXPORT_DIR=/app/data/exports
 
 WORKDIR /app
 

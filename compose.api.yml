@@ -17,9 +17,11 @@ services:
       COUNTRY_COMPARE_API_LOG_LEVEL: ${COUNTRY_COMPARE_API_LOG_LEVEL:-INFO}
       COUNTRY_COMPARE_STORE_BACKEND: ${COUNTRY_COMPARE_STORE_BACKEND:-parquet}
       PORT: ${PORT:-8000}
-      COUNTRY_COMPARE_STORE_PATH: ${COUNTRY_COMPARE_STORE_PATH:-data/processed/metrics.parquet}
-      COUNTRY_COMPARE_METRICS_CONFIG: ${COUNTRY_COMPARE_METRICS_CONFIG:-config/metrics.yaml}
-      COUNTRY_COMPARE_SCORING_CONFIG: ${COUNTRY_COMPARE_SCORING_CONFIG:-config/scoring_profiles.yaml}
+      COUNTRY_COMPARE_STORE_PATH: ${COUNTRY_COMPARE_STORE_PATH:-/app/data/processed/metrics.parquet}
+      COUNTRY_COMPARE_METRICS_CONFIG: ${COUNTRY_COMPARE_METRICS_CONFIG:-/app/config/metrics.yaml}
+      COUNTRY_COMPARE_SCORING_CONFIG: ${COUNTRY_COMPARE_SCORING_CONFIG:-/app/config/scoring_profiles.yaml}
+      COUNTRY_COMPARE_AUDIT_DIR: ${COUNTRY_COMPARE_AUDIT_DIR:-/app/data/audit}
+      COUNTRY_COMPARE_EXPORT_DIR: ${COUNTRY_COMPARE_EXPORT_DIR:-/app/data/exports}
     volumes:
       - ./config:/app/config:ro
       - ./data/processed:/app/data/processed:ro
