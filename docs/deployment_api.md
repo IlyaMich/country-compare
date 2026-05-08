@@ -89,6 +89,15 @@ To regenerate the catalog from an existing processed dataset:
 python scripts/generate_metadata_catalog.py --dataset-path data/processed/metrics.parquet
 ```
 
+## Backend dependency footprint
+
+The backend Docker image installs the package with the API optional dependency
+group:
+
+```bash
+python -m pip install ".[api]"
+```
+
 ## Dataset replacement and rollback
 
 The API does not expose dataset refresh or replacement endpoints. Processed
