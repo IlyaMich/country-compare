@@ -17,7 +17,6 @@ dependencies = [
   "uvicorn[standard]>=0.30.0",
   "httpx>=0.27.0",
   "matplotlib>=3.10.8",
-  "streamlit>=1.56.0",
 ]
 
 [project.scripts]
@@ -25,6 +24,9 @@ country-compare = "country_compare.cli.main:main"
 country-compare-ui = "country_compare.cli.ui:main"
 
 [project.optional-dependencies]
+ui = [
+    "streamlit>=1.56.0",
+]
 dev = [
   "pytest>=8.0.0",
   "ruff>=0.3.0",
