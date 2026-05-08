@@ -6,6 +6,7 @@ from typing import Any
 
 from country_compare.ui.components.prediction_quality import (
     build_prediction_limitations,
+    build_prediction_quality_notice,
     build_prediction_quality_summary,
 )
 
@@ -101,3 +102,72 @@ def test_build_prediction_limitations_adds_mode_specific_notes() -> None:
 
     assert any("holdout split" in item for item in backtest_limitations)
     assert any("rank forecasted values" in item for item in comparison_limitations)
+
+
+def test_build_prediction_quality_notice_warns_on_failure() -> None:
+    summary = build_prediction_quality_summary(
+        diagnostics=[
+            DemoDiagnostic(
+                status=DemoStatus.FAILED,
+                errors=["failed"],
+            )
+        ]
+    )
+
+    notice = build_prediction_quality_notice(quality=summary, mode="prediction")
+
+    assert notice.level == "warning"
+    assert "failed" in notice.message
+
+
+def test_build_prediction_quality_notice_warns_on_fallback() -> None:
+    summary = build_prediction_quality_summary(
+        diagnostics=[
+            DemoDiagnostic(
+                status=DemoStatus.WARNING,
+                fallback_used=True,
+                warnings=["fallback used"],
+            )
+        ]
+    )
+
+    notice = build_prediction_quality_notice(quality=summary, mode="prediction")
+
+    assert notice.level == "warning"
+    assert "caveats" in notice.message
+
+
+def test_build_prediction_quality_notice_explains_predicted_comparison() -> None:
+    summary = build_prediction_quality_summary(
+        diagnostics=[DemoDiagnostic(status=DemoStatus.OK)]
+    )
+
+    notice = build_prediction_quality_notice(
+        quality=summary,
+        mode="predicted_single_metric_comparison",
+    )
+
+    assert notice.level == "info"
+    assert "rank forecasted values" in notice.message
+
+
+def test_build_prediction_quality_notice_explains_backtest() -> None:
+    summary = build_prediction_quality_summary(
+        diagnostics=[DemoDiagnostic(status=DemoStatus.OK)]
+    )
+
+    notice = build_prediction_quality_notice(quality=summary, mode="backtest")
+
+    assert notice.level == "info"
+    assert "held-out historical years" in notice.message
+
+
+def test_build_prediction_quality_notice_explains_baseline_forecast() -> None:
+    summary = build_prediction_quality_summary(
+        diagnostics=[DemoDiagnostic(status=DemoStatus.OK)]
+    )
+
+    notice = build_prediction_quality_notice(quality=summary, mode="single_forecast")
+
+    assert notice.level == "info"
+    assert "baseline statistical projections" in notice.message

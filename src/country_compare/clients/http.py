@@ -24,6 +24,7 @@ from country_compare.services.models import (
     ProfileOption,
     ValidationReport,
 )
+from country_compare.services.presentation_service import PresentationService
 from country_compare.services.results import (
     ComparisonResult,
     PredictionServiceResult,
@@ -383,24 +384,49 @@ class HttpCountryCompareClient:
         fallback_method: str | None = "last_observed",
         comparison_options: dict[str, object] | None = None,
     ) -> PredictionServiceResult:
-        payload = self._post_json(
-            "/api/v1/prediction/compare/multi-metric",
-            _drop_none(
-                {
-                    "country_codes": list(country_codes),
-                    "metric_ids": list(metric_ids),
-                    "horizon_years": int(horizon_years),
-                    "forecast_year": forecast_year,
-                    "forecast_horizon": forecast_horizon,
-                    "method": method,
-                    "fallback_method": fallback_method,
-                    "comparison_options": comparison_options or {},
-                }
-            ),
+        request_payload = _drop_none(
+            {
+                "country_codes": list(country_codes),
+                "metric_ids": list(metric_ids),
+                "horizon_years": int(horizon_years),
+                "forecast_year": forecast_year,
+                "forecast_horizon": forecast_horizon,
+                "method": method,
+                "fallback_method": fallback_method,
+                "comparison_options": comparison_options or {},
+            }
         )
-        return _prediction_result_from_envelope(
-            payload,
-            fallback_mode="predicted_multi_metric_comparison",
+
+        return PredictionServiceResult(
+            mode="predicted_multi_metric_comparison",
+            request=request_payload,
+            metadata={"client_mode": "http"},
+            diagnostics={
+                "unsupported_reason": (
+                    "The v0.1 HTTP API does not expose "
+                    "/api/v1/prediction/compare/multi-metric."
+                )
+            },
+            warnings=[
+                (
+                    "Predicted multi-metric comparison is local-service-only in "
+                    "v0.1 HTTP mode."
+                )
+            ],
+            error=AppError(
+                code="unsupported_http_workflow",
+                title="Unsupported HTTP workflow",
+                user_message=(
+                    "Predicted multi-metric comparison is not available through "
+                    "the v0.1 HTTP API. Use predicted single-metric comparison, "
+                    "predicted profile comparison, or run the UI in local mode "
+                    "for this workflow."
+                ),
+                technical_detail=(
+                    "No /api/v1/prediction/compare/multi-metric endpoint exists "
+                    "in the v0.1 API."
+                ),
+            ),
         )
 
     def run_predicted_profile_comparison(
@@ -633,6 +659,9 @@ class _HttpPredictionServiceAdapter:
 
 
 class _HttpPresentationServiceAdapter:
+    def __init__(self) -> None:
+        self._delegate = PresentationService()
+
     def build_single_metric_presentation(
         self, result: ComparisonResult
     ) -> PresentationResult:
@@ -652,6 +681,44 @@ class _HttpPresentationServiceAdapter:
     ) -> PresentationResult:
         return _presentation_from_comparison_result(
             result, fallback_mode="weighted_score"
+        )
+
+    def export_table_csv_bytes(self, dataframe: pd.DataFrame) -> bytes:
+        return self._delegate.export_table_csv_bytes(dataframe)
+
+    def export_chart_png_bytes(self, figure: Any) -> bytes:
+        return self._delegate.export_chart_png_bytes(figure)
+
+    def export_metadata_json_bytes(self, metadata: dict[str, Any]) -> bytes:
+        return self._delegate.export_metadata_json_bytes(metadata)
+
+    def export_diagnostics_json_bytes(self, diagnostics: dict[str, Any]) -> bytes:
+        return self._delegate.export_diagnostics_json_bytes(diagnostics)
+
+    def export_comparison_result_json_bytes(
+        self,
+        result: ComparisonResult,
+        *,
+        include_records: bool = True,
+        max_records: int = 500,
+    ) -> bytes:
+        return self._delegate.export_comparison_result_json_bytes(
+            result,
+            include_records=include_records,
+            max_records=max_records,
+        )
+
+    def export_presentation_bundle_json_bytes(
+        self,
+        presentation: PresentationResult,
+        *,
+        include_records: bool = True,
+        max_records: int = 500,
+    ) -> bytes:
+        return self._delegate.export_presentation_bundle_json_bytes(
+            presentation,
+            include_records=include_records,
+            max_records=max_records,
         )
 
 
@@ -679,7 +746,9 @@ def _comparison_result_from_presentation(
     *,
     request: Any,
 ) -> ComparisonResult:
-    table = presentation.table or _first_dataframe(presentation.tables)
+    table = presentation.table
+    if table is None:
+        table = _first_dataframe(presentation.tables)
     return _HttpComparisonResult(
         mode=presentation.mode,
         request=request,

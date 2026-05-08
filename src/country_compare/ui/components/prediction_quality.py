@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
 import streamlit as st
@@ -20,6 +20,12 @@ class PredictionQualitySummary:
     missing_year_count: int
     quality_label: str
     quality_message: str
+
+
+@dataclass(frozen=True)
+class PredictionQualityNotice:
+    level: Literal["info", "warning"]
+    message: str
 
 
 def build_prediction_quality_summary(
@@ -86,6 +92,63 @@ def build_prediction_quality_summary(
     )
 
 
+def build_prediction_quality_notice(
+    *,
+    quality: PredictionQualitySummary,
+    mode: str | None = None,
+) -> PredictionQualityNotice:
+    resolved_mode = str(mode or "prediction")
+
+    if quality.failed_series > 0 or quality.error_count > 0:
+        return PredictionQualityNotice(
+            level="warning",
+            message=(
+                "Review this output before relying on it: at least one requested "
+                "series failed or produced errors."
+            ),
+        )
+
+    if (
+        quality.warning_series > 0
+        or quality.fallback_series > 0
+        or quality.warning_count > 0
+        or quality.missing_year_count > 0
+    ):
+        return PredictionQualityNotice(
+            level="warning",
+            message=(
+                "Use this output with caveats: diagnostics include warnings, "
+                "fallback usage, or sparse internal history."
+            ),
+        )
+
+    if "backtest" in resolved_mode:
+        return PredictionQualityNotice(
+            level="info",
+            message=(
+                "Backtests evaluate a method against held-out historical years; "
+                "they do not guarantee future accuracy."
+            ),
+        )
+
+    if "comparison" in resolved_mode:
+        return PredictionQualityNotice(
+            level="info",
+            message=(
+                "Predicted comparisons rank forecasted values and inherit the "
+                "uncertainty of each forecast."
+            ),
+        )
+
+    return PredictionQualityNotice(
+        level="info",
+        message=(
+            "Forecasts are baseline statistical projections, not guarantees. "
+            "Review diagnostics and limitations before using the output."
+        ),
+    )
+
+
 def build_prediction_limitations(*, mode: str | None = None) -> list[str]:
     resolved_mode = str(mode or "prediction")
 
@@ -133,6 +196,12 @@ def render_prediction_quality_panel(
     cols[3].metric("Failed", _metric_value(quality.failed_series))
 
     st.caption(quality.quality_message)
+
+    notice = build_prediction_quality_notice(quality=quality, mode=mode)
+    if notice.level == "warning":
+        st.warning(notice.message)
+    else:
+        st.info(notice.message)
 
     detail_df = pd.DataFrame(
         [

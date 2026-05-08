@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
@@ -10,6 +11,7 @@ from country_compare.prediction import (
     build_forecast_table_dataframe,
     build_line_chart_dataframe,
 )
+from country_compare.ui import text as ui_text
 from country_compare.ui.components.downloads import (
     build_result_markdown_summary,
     render_result_downloads,
@@ -18,6 +20,231 @@ from country_compare.ui.components.messages import render_app_error
 from country_compare.ui.components.prediction_quality import (
     render_prediction_quality_panel,
 )
+
+PREDICTED_COMPARISON_LABEL_COLUMNS = (
+    "country_name",
+    "country_code",
+    "metric_name",
+    "metric_id",
+    "profile_name",
+)
+
+PREDICTED_COMPARISON_VALUE_COLUMNS = (
+    "score",
+    "forecast_value",
+    "predicted_value",
+    "value",
+    "metric_value",
+)
+
+PREDICTED_COMPARISON_RANK_COLUMNS = (
+    "rank",
+    "overall_rank",
+    "score_rank",
+)
+
+
+@dataclass(frozen=True)
+class PredictedComparisonSummary:
+    row_count: int
+    top_label: str
+    top_value: object | None
+    label_column: str | None
+    value_column: str | None
+    rank_column: str | None
+
+
+def build_predicted_comparison_summary(
+    dataframe: pd.DataFrame,
+) -> PredictedComparisonSummary | None:
+    if dataframe.empty:
+        return None
+
+    label_column = _first_existing_column(dataframe, PREDICTED_COMPARISON_LABEL_COLUMNS)
+    value_column = _first_existing_column(dataframe, PREDICTED_COMPARISON_VALUE_COLUMNS)
+    rank_column = _first_existing_column(dataframe, PREDICTED_COMPARISON_RANK_COLUMNS)
+
+    sorted_dataframe = _sort_predicted_comparison_dataframe(
+        dataframe=dataframe,
+        rank_column=rank_column,
+        value_column=value_column,
+    )
+
+    if sorted_dataframe.empty:
+        return None
+
+    top_row = sorted_dataframe.iloc[0]
+
+    return PredictedComparisonSummary(
+        row_count=int(len(dataframe.index)),
+        top_label=_row_label(top_row, label_column, fallback_position=1),
+        top_value=(
+            _cell_value(top_row, value_column) if value_column is not None else None
+        ),
+        label_column=label_column,
+        value_column=value_column,
+        rank_column=rank_column,
+    )
+
+
+def build_predicted_comparison_chart_dataframe(
+    dataframe: pd.DataFrame,
+    *,
+    max_rows: int = 10,
+) -> pd.DataFrame:
+    if dataframe.empty:
+        return pd.DataFrame()
+
+    value_column = _first_existing_column(dataframe, PREDICTED_COMPARISON_VALUE_COLUMNS)
+    rank_column = _first_existing_column(dataframe, PREDICTED_COMPARISON_RANK_COLUMNS)
+    label_column = _first_existing_column(dataframe, PREDICTED_COMPARISON_LABEL_COLUMNS)
+
+    if value_column is None:
+        return pd.DataFrame()
+
+    sorted_dataframe = _sort_predicted_comparison_dataframe(
+        dataframe=dataframe,
+        rank_column=rank_column,
+        value_column=value_column,
+    ).head(max_rows)
+
+    values = pd.to_numeric(sorted_dataframe[value_column], errors="coerce")
+    labels = _make_unique_labels(
+        [
+            _row_label(row, label_column, fallback_position=position + 1)
+            for position, (_, row) in enumerate(sorted_dataframe.iterrows())
+        ]
+    )
+
+    chart_dataframe = pd.DataFrame(
+        {str(value_column): values.to_list()},
+        index=labels,
+    )
+
+    return chart_dataframe.dropna()
+
+
+def _render_predicted_comparison_summary_panel(dataframe: pd.DataFrame) -> None:
+    summary = build_predicted_comparison_summary(dataframe)
+
+    st.markdown(f"### {ui_text.RANKED_COMPARISON_SUMMARY_HEADING}")
+
+    if summary is None:
+        st.info(ui_text.PREDICTED_COMPARISON_NO_RANKED_ROWS_MESSAGE)
+        return
+
+    cols = st.columns(3)
+    cols[0].metric(ui_text.RANKED_ROWS_METRIC_LABEL, _metric_value(summary.row_count))
+    cols[1].metric(ui_text.TOP_RESULT_METRIC_LABEL, summary.top_label)
+    cols[2].metric(ui_text.TOP_VALUE_METRIC_LABEL, _metric_value(summary.top_value))
+
+    chart_dataframe = build_predicted_comparison_chart_dataframe(dataframe)
+    if chart_dataframe.empty:
+        st.caption(ui_text.COMPARISON_NO_NUMERIC_VALUE_MESSAGE)
+        return
+
+    st.bar_chart(chart_dataframe)
+
+
+def _sort_predicted_comparison_dataframe(
+    *,
+    dataframe: pd.DataFrame,
+    rank_column: str | None,
+    value_column: str | None,
+) -> pd.DataFrame:
+    working = dataframe.copy()
+
+    if rank_column is not None:
+        working["_comparison_rank_order"] = pd.to_numeric(
+            working[rank_column],
+            errors="coerce",
+        )
+        return working.sort_values(
+            "_comparison_rank_order",
+            na_position="last",
+        ).drop(columns=["_comparison_rank_order"])
+
+    if value_column is not None:
+        working["_comparison_value_order"] = pd.to_numeric(
+            working[value_column],
+            errors="coerce",
+        )
+        return working.sort_values(
+            "_comparison_value_order",
+            ascending=False,
+            na_position="last",
+        ).drop(columns=["_comparison_value_order"])
+
+    return working
+
+
+def _first_existing_column(
+    dataframe: pd.DataFrame,
+    candidates: tuple[str, ...],
+) -> str | None:
+    for column in candidates:
+        if column in dataframe.columns:
+            return column
+    return None
+
+
+def _row_label(
+    row: pd.Series,
+    label_column: str | None,
+    *,
+    fallback_position: int,
+) -> str:
+    if label_column is not None:
+        label = _safe_string(row.get(label_column))
+        if label is not None:
+            return label
+
+    country_name = _safe_string(row.get("country_name"))
+    country_code = _safe_string(row.get("country_code"))
+    metric_name = _safe_string(row.get("metric_name"))
+    metric_id = _safe_string(row.get("metric_id"))
+
+    label_parts = [
+        part
+        for part in (country_name or country_code, metric_name or metric_id)
+        if part
+    ]
+
+    if label_parts:
+        return " — ".join(label_parts)
+
+    return f"Result {fallback_position}"
+
+
+def _make_unique_labels(labels: list[str]) -> list[str]:
+    seen: dict[str, int] = {}
+    unique_labels: list[str] = []
+
+    for label in labels:
+        count = seen.get(label, 0) + 1
+        seen[label] = count
+        unique_labels.append(label if count == 1 else f"{label} ({count})")
+
+    return unique_labels
+
+
+def _cell_value(row: pd.Series, column: str) -> object | None:
+    value = row.get(column)
+    if value is None:
+        return None
+    if pd.isna(value):
+        return None
+    return value
+
+
+def _safe_string(value: object | None) -> str | None:
+    if value is None:
+        return None
+    if pd.isna(value):
+        return None
+
+    text = str(value).strip()
+    return text or None
 
 
 def render_prediction_service_result(
@@ -190,10 +417,13 @@ def _render_predicted_comparison_body(
     )
 
     if isinstance(dataframe, pd.DataFrame):
-        st.markdown("### Predicted comparison table")
-        st.dataframe(dataframe, use_container_width=True, hide_index=True)
+        _render_predicted_comparison_summary_panel(dataframe)
 
-    prediction_result = getattr(comparison_result, "prediction_result", None)
+        st.markdown(f"### {ui_text.PREDICTED_COMPARISON_TABLE_HEADING}")
+        st.dataframe(dataframe, use_container_width=True, hide_index=True)
+    else:
+        st.info("No predicted comparison rows were returned.")
+
     if prediction_result is not None:
         with st.expander("Predicted rows used in comparison", expanded=False):
             st.dataframe(
