@@ -40,6 +40,10 @@ jobs:
       - name: Install package with development dependencies
         run: |
           python -m pip install -e ".[dev]"
+      
+      - name: Run static layout guards
+        run: |
+          python scripts/check_static_guards.py
 
       - name: Check formatting
         run: |
@@ -57,13 +61,89 @@ jobs:
         run: |
           python -m pytest
 
-  docker-build:
-    name: Docker Compose build
+  package-build:
+    name: Build and install package artifacts
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Build wheel and sdist
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Install built wheel
+        run: |
+          python -m pip install dist/*.whl
+          python - <<'PY'
+          import country_compare
+          print(country_compare.__version__)
+          PY
+
+      - name: Install built sdist in a clean virtual environment
+        run: |
+          python -m venv /tmp/country-compare-sdist-env
+          /tmp/country-compare-sdist-env/bin/python -m pip install --upgrade pip
+          /tmp/country-compare-sdist-env/bin/python -m pip install dist/*.tar.gz
+          /tmp/country-compare-sdist-env/bin/python - <<'PY'
+          import country_compare
+          print(country_compare.__version__)
+          PY
+
+  dependency-security:
+    name: Dependency security scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Run pip-audit in non-blocking mode
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          python -m pip_audit || true
+
+
+  docker-build:
+    name: Docker Compose build and backend smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python for fixture data
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Prepare processed dataset fixture
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e .
+          python scripts/update_parquet_data_wb.py --skip-audit
+          test -f data/processed/metrics.parquet
+          test -f data/processed/metrics_manifest.json
+          test -f data/processed/catalog.json
+
 
       - name: Show Docker versions
         run: |
@@ -73,3 +153,54 @@ jobs:
       - name: Build Compose services
         run: |
           docker compose build
+
+      - name: Run backend smoke checks
+        run: |
+          docker compose up -d backend
+          python - <<'PY'
+          import json
+          import time
+          import urllib.error
+          import urllib.request
+
+          def fetch(path: str):
+              return urllib.request.urlopen(f"http://127.0.0.1:8000{path}", timeout=5)
+
+          deadline = time.time() + 60
+          last_error = None
+          while time.time() < deadline:
+              try:
+                  health = fetch("/health")
+                  ready = fetch("/ready")
+                  metadata = fetch("/api/v1/metadata/dataset")
+                  assert health.status == 200
+                  assert ready.status == 200
+                  assert metadata.status == 200
+                  payload = json.loads(metadata.read().decode("utf-8"))
+                  assert payload["exists"] is True
+                  break
+              except (AssertionError, OSError, urllib.error.HTTPError) as exc:
+                  last_error = exc
+                  time.sleep(2)
+          else:
+              raise SystemExit(f"backend smoke checks failed: {last_error!r}")
+          PY
+
+      - name: Run Trivy backend image scan in non-blocking mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: country-compare-backend:latest
+          format: table
+          exit-code: "0"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+
+      - name: Show backend logs on failure
+        if: failure()
+        run: |
+          docker compose logs backend
+
+      - name: Stop Compose services
+        if: always()
+        run: |
+          docker compose down --volumes --remove-orphans
