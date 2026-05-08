@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 
 from country_compare.api.dependencies import get_app_facade
+from country_compare.api.limits import enforce_country_limit, enforce_metric_limit
 from country_compare.api.schemas.common import ResultEnvelope
 from country_compare.api.schemas.comparison import (
     MultiMetricComparisonRequest,
@@ -47,6 +48,8 @@ def compare_single_metric(
 ) -> ResultEnvelope | JSONResponse:
     """Run a read-only single-metric country comparison."""
 
+    enforce_country_limit(request, body.country_codes)
+
     service_request = SingleMetricRequest(
         countries=body.country_codes,
         metric_id=body.metric_id,
@@ -74,6 +77,9 @@ def compare_multi_metric(
 ) -> ResultEnvelope | JSONResponse:
     """Run a read-only multi-metric country comparison."""
 
+    enforce_country_limit(request, body.country_codes)
+    enforce_metric_limit(request, body.metric_ids)
+
     service_request = MultiMetricRequest(
         countries=body.country_codes,
         metric_ids=body.metric_ids,
@@ -100,6 +106,8 @@ def compare_weighted_score(
     facade: FacadeDependency,
 ) -> ResultEnvelope | JSONResponse:
     """Run a read-only weighted scoring comparison for a configured profile."""
+
+    enforce_country_limit(request, body.country_codes)
 
     service_request = WeightedScoreRequest(
         countries=body.country_codes,
@@ -160,6 +168,7 @@ def _status_for_envelope(envelope: ResultEnvelope) -> int:
     if error.code in {
         "comparison_failed",
         "input_invalid",
+        "input_limit_exceeded",
         "scoring_failed",
         "selection_invalid",
         "validation_failed",
