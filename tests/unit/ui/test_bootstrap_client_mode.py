@@ -37,6 +37,7 @@ def test_get_ui_services_uses_http_services_when_api_url_set(
 ) -> None:
     http_services: dict[str, object] = {"mode": "http"}
     seen_api_urls: list[str] = []
+    seen_api_keys: list[str | None] = []
 
     def fail_local_services(context: object) -> dict[str, object]:
         raise AssertionError(
@@ -44,9 +45,12 @@ def test_get_ui_services_uses_http_services_when_api_url_set(
             "is set."
         )
 
-    def build_http_services(context: object, api_url: str) -> dict[str, object]:
+    def build_http_services(
+        context: object, api_url: str, api_key: str | None
+    ) -> dict[str, object]:
         assert context is fake_app_context
         seen_api_urls.append(api_url)
+        seen_api_keys.append(api_key)
         return http_services
 
     monkeypatch.setenv(
@@ -62,3 +66,4 @@ def test_get_ui_services_uses_http_services_when_api_url_set(
 
     assert bootstrap.get_ui_services(fake_app_context) is http_services
     assert seen_api_urls == ["http://localhost:8000"]
+    assert seen_api_keys == [None]
