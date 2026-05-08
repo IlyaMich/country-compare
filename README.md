@@ -196,6 +196,23 @@ http://localhost:8000/ready
 http://localhost:8000/docs
 ```
 
+Common backend environment variables:
+
+```text
+COUNTRY_COMPARE_API_CORS_ORIGINS=http://localhost:8501
+COUNTRY_COMPARE_API_MAX_RECORDS=500
+COUNTRY_COMPARE_API_MAX_COUNTRIES=50
+COUNTRY_COMPARE_API_MAX_METRICS=50
+COUNTRY_COMPARE_API_MAX_HORIZON_YEARS=10
+COUNTRY_COMPARE_API_ENABLE_DOCS=true
+COUNTRY_COMPARE_API_KEY=optional-shared-secret
+```
+
+When `COUNTRY_COMPARE_API_KEY` is set on the backend, protected API routes
+require `X-API-Key: <secret>` or `Authorization: Bearer <secret>`. `/health`
+remains public for liveness probes. Set the same value in the UI environment so
+the Streamlit HTTP client sends the header.
+
 ## Run the Streamlit UI against a local backend
 
 In one terminal, start the backend:
@@ -750,6 +767,9 @@ macOS/Linux:
 ```bash
 COUNTRY_COMPARE_API_URL=http://localhost:8000 python -m streamlit run src/country_compare/ui/app.py
 ```
+
+If the backend sets `COUNTRY_COMPARE_API_KEY`, set the same
+`COUNTRY_COMPARE_API_KEY` for the UI process.
 
 Selection rule:
 
