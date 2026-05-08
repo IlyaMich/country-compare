@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from country_compare.ui.components.prediction_result_panels import (
+    build_backtest_line_chart_dataframe,
     build_predicted_comparison_chart_dataframe,
     build_predicted_comparison_summary,
     build_streamlit_line_chart_table,
@@ -93,5 +94,46 @@ def test_build_predicted_comparison_chart_dataframe_handles_missing_value_column
     )
 
     chart_dataframe = build_predicted_comparison_chart_dataframe(dataframe)
+
+    assert chart_dataframe.empty
+
+
+def test_build_backtest_line_chart_dataframe_shapes_actual_vs_predicted() -> None:
+    dataframe = pd.DataFrame(
+        [
+            {"year": 2022, "actual": 40.0, "predicted": 39.5},
+            {"year": 2023, "actual": 42.0, "predicted": 41.0},
+        ]
+    )
+
+    chart_dataframe = build_backtest_line_chart_dataframe(dataframe)
+
+    assert list(chart_dataframe.index) == [2022, 2023]
+    assert list(chart_dataframe.columns) == ["Actual", "Predicted"]
+    assert chart_dataframe.loc[2023, "Predicted"] == 41.0
+
+
+def test_build_backtest_line_chart_dataframe_accepts_forecast_column_names() -> None:
+    dataframe = pd.DataFrame(
+        [
+            {
+                "test_year": 2024,
+                "observed_value": 100.0,
+                "forecast_value": 98.0,
+            }
+        ]
+    )
+
+    chart_dataframe = build_backtest_line_chart_dataframe(dataframe)
+
+    assert list(chart_dataframe.index) == [2024]
+    assert chart_dataframe.loc[2024, "Actual"] == 100.0
+    assert chart_dataframe.loc[2024, "Predicted"] == 98.0
+
+
+def test_build_backtest_line_chart_dataframe_handles_missing_columns() -> None:
+    dataframe = pd.DataFrame([{"year": 2024, "actual": 100.0}])
+
+    chart_dataframe = build_backtest_line_chart_dataframe(dataframe)
 
     assert chart_dataframe.empty
