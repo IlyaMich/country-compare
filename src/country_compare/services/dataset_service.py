@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import pandas as pd
 
@@ -19,6 +21,7 @@ from country_compare.data.stores.registry import (
     create_metric_store,
     list_registered_backends,
 )
+from country_compare.data.validation import validate_dataframe
 from country_compare.services.app_context import AppContext
 from country_compare.services.errors import AppError, error_from_exception
 from country_compare.services.models import (
@@ -27,6 +30,12 @@ from country_compare.services.models import (
     DatasetSummary,
     MetricOption,
 )
+
+
+class _DatasetFileMetadata(TypedDict):
+    checksum: str | None
+    size_bytes: int | None
+    modified_at: str | None
 
 
 class DatasetService:
@@ -82,6 +91,9 @@ class DatasetService:
             dataframe = load_metric_dataframe(store=store)
             categories = self._build_category_summaries(dataframe)
             year_min, year_max = self._extract_year_range(dataframe)
+            schema_valid, schema_issues = self._validate_schema(dataframe)
+            dataset_versions = self._extract_dataset_versions(dataframe)
+            dataset_stat = self._build_dataset_file_metadata(dataset_path)
 
             return DatasetSummary(
                 exists=True,
@@ -104,6 +116,13 @@ class DatasetService:
                     str(column) for column in dataframe.columns.tolist()
                 ),
                 categories=categories,
+                dataset_versions=dataset_versions,
+                dataset_checksum=dataset_stat["checksum"],
+                dataset_size_bytes=dataset_stat["size_bytes"],
+                dataset_modified_at=dataset_stat["modified_at"],
+                schema_valid=schema_valid,
+                schema_issue_count=len(schema_issues),
+                schema_issues=schema_issues,
             )
         except Exception as exc:
             return DatasetSummary(
@@ -195,6 +214,45 @@ class DatasetService:
 
     def get_metric_catalog(self) -> tuple[MetricOption, ...]:
         return self.list_metrics()
+
+    def _extract_dataset_versions(self, dataframe: pd.DataFrame) -> tuple[str, ...]:
+        if "dataset_version" not in dataframe.columns:
+            return ()
+
+        versions = dataframe["dataset_version"].dropna().astype(str).map(str.strip)
+        unique_versions = sorted({value for value in versions.tolist() if value})
+        return tuple(unique_versions)
+
+    def _validate_schema(self, dataframe: pd.DataFrame) -> tuple[bool, tuple[str, ...]]:
+        result = validate_dataframe(dataframe)
+        messages = tuple(issue.message for issue in result.issues)
+        return bool(result.valid), messages
+
+    def _build_dataset_file_metadata(
+        self, dataset_path: Path | None
+    ) -> _DatasetFileMetadata:
+        if (
+            dataset_path is None
+            or not dataset_path.exists()
+            or not dataset_path.is_file()
+        ):
+            return {"checksum": None, "size_bytes": None, "modified_at": None}
+
+        stat = dataset_path.stat()
+        modified_at = datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat()
+        return {
+            "checksum": self._sha256(dataset_path),
+            "size_bytes": int(stat.st_size),
+            "modified_at": modified_at,
+        }
+
+    @staticmethod
+    def _sha256(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
 
     def _build_category_summaries(
         self, dataframe: pd.DataFrame
