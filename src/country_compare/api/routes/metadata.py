@@ -101,6 +101,13 @@ def _to_dataset_response(summary: DatasetSummary) -> DatasetMetadataResponse:
         year_max=summary.year_max,
         available_columns=list(summary.available_columns),
         categories=[_to_category_response(category) for category in summary.categories],
+        dataset_versions=list(summary.dataset_versions),
+        dataset_checksum=summary.dataset_checksum,
+        dataset_size_bytes=summary.dataset_size_bytes,
+        dataset_modified_at=summary.dataset_modified_at,
+        schema_valid=summary.schema_valid,
+        schema_issue_count=summary.schema_issue_count,
+        schema_issues=list(summary.schema_issues),
     )
 
 

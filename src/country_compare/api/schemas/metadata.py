@@ -25,6 +25,13 @@ class DatasetMetadataResponse(BaseModel):
     year_max: int | None = None
     available_columns: list[str] = Field(default_factory=list)
     categories: list[CategorySummaryResponse] = Field(default_factory=list)
+    dataset_versions: list[str] = Field(default_factory=list)
+    dataset_checksum: str | None = None
+    dataset_size_bytes: int | None = None
+    dataset_modified_at: str | None = None
+    schema_valid: bool | None = None
+    schema_issue_count: int = 0
+    schema_issues: list[str] = Field(default_factory=list)
 
 
 class CountryOptionResponse(BaseModel):

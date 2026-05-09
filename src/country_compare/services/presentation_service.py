@@ -296,23 +296,26 @@ class PresentationService:
         }
 
     def _build_single_metric_metadata(self, metadata: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "Selection": {
-                "Metric": metadata.get("metric_display_name")
-                or metadata.get("metric_id"),
-                "Metric ID": metadata.get("metric_id"),
-                "Countries": metadata.get("selected_countries"),
-                "Year strategy": metadata.get("year_strategy"),
-                "Target year": metadata.get("target_year"),
+        return self._with_dataset_metadata(
+            {
+                "Selection": {
+                    "Metric": metadata.get("metric_display_name")
+                    or metadata.get("metric_id"),
+                    "Metric ID": metadata.get("metric_id"),
+                    "Countries": metadata.get("selected_countries"),
+                    "Year strategy": metadata.get("year_strategy"),
+                    "Target year": metadata.get("target_year"),
+                },
+                "Data": {
+                    "Rows returned": metadata.get("result_row_count"),
+                    "Years used": metadata.get("years_used"),
+                    "Normalization methods": metadata.get("normalization_methods"),
+                    "Unit": metadata.get("metric_unit"),
+                    "Category": metadata.get("metric_category"),
+                },
             },
-            "Data": {
-                "Rows returned": metadata.get("result_row_count"),
-                "Years used": metadata.get("years_used"),
-                "Normalization methods": metadata.get("normalization_methods"),
-                "Unit": metadata.get("metric_unit"),
-                "Category": metadata.get("metric_category"),
-            },
-        }
+            metadata,
+        )
 
     def _build_multi_metric_long_table(
         self, dataframe: pd.DataFrame, request: Any
@@ -431,21 +434,24 @@ class PresentationService:
             for metric_id in metadata.get("metric_ids", [])
         ]
 
-        return {
-            "Selection": {
-                "Metrics": metric_display,
-                "Countries": metadata.get("selected_countries"),
-                "Year strategy": metadata.get("year_strategy"),
-                "Target year": metadata.get("target_year"),
+        return self._with_dataset_metadata(
+            {
+                "Selection": {
+                    "Metrics": metric_display,
+                    "Countries": metadata.get("selected_countries"),
+                    "Year strategy": metadata.get("year_strategy"),
+                    "Target year": metadata.get("target_year"),
+                },
+                "Data": {
+                    "Rows returned": metadata.get("result_row_count"),
+                    "Countries returned": metadata.get("countries_returned"),
+                    "Metrics returned": metadata.get("metrics_returned"),
+                    "Years used": metadata.get("years_used"),
+                    "Normalization methods": metadata.get("normalization_methods"),
+                },
             },
-            "Data": {
-                "Rows returned": metadata.get("result_row_count"),
-                "Countries returned": metadata.get("countries_returned"),
-                "Metrics returned": metadata.get("metrics_returned"),
-                "Years used": metadata.get("years_used"),
-                "Normalization methods": metadata.get("normalization_methods"),
-            },
-        }
+            metadata,
+        )
 
     def _build_weighted_score_table(
         self, dataframe: pd.DataFrame, request: Any
@@ -522,22 +528,33 @@ class PresentationService:
     def _build_weighted_score_metadata(
         self, metadata: dict[str, Any]
     ) -> dict[str, Any]:
-        return {
-            "Selection": {
-                "Profile": metadata.get("profile_name"),
-                "Countries": metadata.get("selected_countries"),
-                "Profile year strategy": metadata.get("profile_year_strategy"),
-                "Target year": metadata.get("target_year"),
-                "Missing-data policy": metadata.get("missing_data_policy"),
+        return self._with_dataset_metadata(
+            {
+                "Selection": {
+                    "Profile": metadata.get("profile_name"),
+                    "Countries": metadata.get("selected_countries"),
+                    "Profile year strategy": metadata.get("profile_year_strategy"),
+                    "Target year": metadata.get("target_year"),
+                    "Missing-data policy": metadata.get("missing_data_policy"),
+                },
+                "Resolved profile": {
+                    "Weights": metadata.get("resolved_weights"),
+                },
+                "Data": {
+                    "Rows returned": metadata.get("result_row_count"),
+                    "Countries returned": metadata.get("countries_returned"),
+                },
             },
-            "Resolved profile": {
-                "Weights": metadata.get("resolved_weights"),
-            },
-            "Data": {
-                "Rows returned": metadata.get("result_row_count"),
-                "Countries returned": metadata.get("countries_returned"),
-            },
-        }
+            metadata,
+        )
+
+    def _with_dataset_metadata(
+        self, rendered: dict[str, Any], source_metadata: dict[str, Any]
+    ) -> dict[str, Any]:
+        dataset_identity = source_metadata.get("dataset")
+        if dataset_identity:
+            rendered["dataset"] = dataset_identity
+        return rendered
 
     def _build_messages(
         self,

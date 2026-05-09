@@ -61,6 +61,7 @@ class BasePredictionRequest(StrictBaseModel):
 class SingleMetricPredictionRequest(BasePredictionRequest):
     horizon_years: int = Field(gt=0)
     include_actuals: bool = True
+    fail_fast: bool = False
 
 
 class BacktestPredictionRequest(BasePredictionRequest):
@@ -116,6 +117,27 @@ class PredictedSingleMetricComparisonRequest(BasePredictedComparisonRequest):
     @classmethod
     def normalize_metric_id(cls, value: str) -> str:
         return BasePredictionRequest.normalize_metric_id(value)
+
+
+class PredictedMultiMetricComparisonRequest(BasePredictedComparisonRequest):
+    metric_ids: list[str] = Field(min_length=1)
+
+    @field_validator("metric_ids")
+    @classmethod
+    def normalize_metric_ids(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            metric_id = str(value).strip()
+            if not metric_id or metric_id in seen:
+                continue
+            normalized.append(metric_id)
+            seen.add(metric_id)
+
+        if not normalized:
+            raise ValueError("metric_ids must contain at least one metric id")
+
+        return normalized
 
 
 class PredictedProfileComparisonRequest(BasePredictedComparisonRequest):

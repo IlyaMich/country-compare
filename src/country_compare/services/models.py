@@ -56,6 +56,21 @@ class DatasetSummary:
     year_max: int | None = None
     available_columns: tuple[str, ...] = ()
     categories: tuple[CategorySummary, ...] = ()
+    dataset_versions: tuple[str, ...] = ()
+    dataset_checksum: str | None = None
+    dataset_size_bytes: int | None = None
+    dataset_modified_at: str | None = None
+    manifest_path: str | None = None
+    manifest_exists: bool = False
+    manifest_valid: bool | None = None
+    manifest_issue_count: int = 0
+    manifest_issues: tuple[str, ...] = ()
+    manifest_dataset_version: str | None = None
+    manifest_created_at: str | None = None
+    manifest_schema_version: str | None = None
+    schema_valid: bool | None = None
+    schema_issue_count: int = 0
+    schema_issues: tuple[str, ...] = ()
     error: AppError | None = None
 
 
@@ -84,7 +99,12 @@ class OverviewStatus:
 
     @property
     def ready(self) -> bool:
-        return self.dataset.exists and self.config.validation.valid
+        return (
+            self.dataset.exists
+            and self.dataset.schema_valid is not False
+            and self.dataset.manifest_valid is True
+            and self.config.validation.valid
+        )
 
 
 @dataclass(frozen=True)

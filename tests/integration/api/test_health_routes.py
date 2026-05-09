@@ -43,6 +43,7 @@ def test_health_returns_process_liveness_without_facade() -> None:
         "status": "ok",
         "service": "country-compare-api",
         "version": __version__,
+        "api_version": "0.2.0",
     }
 
 
@@ -54,12 +55,12 @@ def test_ready_returns_200_when_dataset_exists_and_config_valid() -> None:
     response = client.get("/ready")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "status": "ready",
-        "dataset": {"exists": True},
-        "config": {"valid": True, "validated_against_dataset": True},
-        "warnings": [],
-    }
+    assert response.json() == _ready_payload(
+        status="ready",
+        dataset_exists=True,
+        config_valid=True,
+        warnings=[],
+    )
     assert facade.validate_config_against_dataset_calls == [True]
 
 
@@ -75,12 +76,12 @@ def test_ready_returns_503_when_dataset_missing() -> None:
     response = client.get("/ready")
 
     assert response.status_code == 503
-    assert response.json() == {
-        "status": "not_ready",
-        "dataset": {"exists": False},
-        "config": {"valid": False, "validated_against_dataset": True},
-        "warnings": ["No dataset is currently available."],
-    }
+    assert response.json() == _ready_payload(
+        status="not_ready",
+        dataset_exists=False,
+        config_valid=False,
+        warnings=["No dataset is currently available."],
+    )
     assert facade.validate_config_against_dataset_calls == [True]
 
 
@@ -97,16 +98,88 @@ def test_ready_returns_503_when_config_invalid() -> None:
     response = client.get("/ready")
 
     assert response.status_code == 503
-    assert response.json() == {
-        "status": "not_ready",
-        "dataset": {"exists": True},
-        "config": {"valid": False, "validated_against_dataset": True},
-        "warnings": [
+    assert response.json() == _ready_payload(
+        status="not_ready",
+        dataset_exists=True,
+        config_valid=False,
+        config_messages=["Unknown metric_id: test_metric"],
+        warnings=[
             "Configuration is not currently valid.",
             "Unknown metric_id: test_metric",
         ],
-    }
+    )
     assert facade.validate_config_against_dataset_calls == [True]
+
+
+def test_ready_returns_503_when_manifest_invalid() -> None:
+    overview = _overview(
+        dataset_exists=True,
+        config_valid=True,
+        manifest_valid=False,
+        manifest_issues=("Dataset hash does not match manifest sha256.",),
+    )
+    facade = FakeFacade(overview)
+    client = _client_for(facade)
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["status"] == "not_ready"
+    assert payload["dataset"]["manifest_valid"] is False
+    assert payload["dataset"]["manifest_issues"] == [
+        "Dataset hash does not match manifest sha256."
+    ]
+    assert payload["warnings"] == ["Dataset hash does not match manifest sha256."]
+
+
+def _ready_payload(
+    *,
+    status: str,
+    dataset_exists: bool,
+    config_valid: bool,
+    warnings: list[str],
+    config_messages: list[str] | None = None,
+    manifest_valid: bool | None = True,
+) -> dict[str, object]:
+    return {
+        "status": status,
+        "dataset": {
+            "exists": dataset_exists,
+            "backend": "parquet",
+            "dataset_path": "data/processed/metrics.parquet",
+            "row_count": 0,
+            "country_count": 0,
+            "metric_count": 0,
+            "year_min": None,
+            "year_max": None,
+            "dataset_versions": [],
+            "dataset_checksum": None,
+            "dataset_size_bytes": None,
+            "dataset_modified_at": None,
+            "manifest_path": "data/processed/metrics_manifest.json",
+            "manifest_exists": dataset_exists,
+            "manifest_valid": manifest_valid if dataset_exists else False,
+            "manifest_issue_count": 0,
+            "manifest_issues": [],
+            "manifest_dataset_version": None,
+            "manifest_created_at": None,
+            "manifest_schema_version": None,
+            "schema_valid": None,
+            "schema_issue_count": 0,
+            "schema_issues": [],
+            "error": None,
+        },
+        "config": {
+            "valid": config_valid,
+            "validated_against_dataset": True,
+            "metrics_count": 0,
+            "profile_count": 0,
+            "messages": config_messages or [],
+            "error": None,
+        },
+        "warnings": warnings,
+    }
 
 
 def _client_for(facade: FakeFacade) -> TestClient:
@@ -121,12 +194,19 @@ def _overview(
     config_valid: bool,
     warnings: tuple[str, ...] = (),
     validation_messages: tuple[str, ...] = (),
+    manifest_valid: bool | None = True,
+    manifest_issues: tuple[str, ...] = (),
 ) -> OverviewStatus:
     return OverviewStatus(
         dataset=DatasetSummary(
             exists=dataset_exists,
             backend="parquet",
             dataset_path="data/processed/metrics.parquet",
+            manifest_path="data/processed/metrics_manifest.json",
+            manifest_exists=dataset_exists,
+            manifest_valid=manifest_valid if dataset_exists else False,
+            manifest_issue_count=len(manifest_issues),
+            manifest_issues=manifest_issues,
         ),
         config=ConfigStatus(
             metrics_config_path="config/metrics.yaml",

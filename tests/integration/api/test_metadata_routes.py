@@ -169,6 +169,13 @@ def test_dataset_metadata_route(
                 "metric_count": 2,
             }
         ],
+        "dataset_versions": [],
+        "dataset_checksum": None,
+        "dataset_size_bytes": None,
+        "dataset_modified_at": None,
+        "schema_valid": None,
+        "schema_issue_count": 0,
+        "schema_issues": [],
     }
     assert fake_facade.dataset.calls == ["get_dataset_summary"]
 

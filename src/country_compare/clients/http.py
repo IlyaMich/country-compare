@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import httpx
 import pandas as pd
@@ -11,6 +11,11 @@ from country_compare.clients.errors import (
     ClientBackendError,
     ClientConnectionError,
     ClientResponseError,
+)
+from country_compare.prediction import (
+    BacktestResult,
+    PredictedComparisonResult,
+    PredictionResult,
 )
 from country_compare.prediction.summaries import list_available_prediction_methods
 from country_compare.services.errors import AppError
@@ -39,9 +44,13 @@ class _HttpResponse(Protocol):
 
 
 class _SyncHttpClient(Protocol):
-    def get(self, url: str) -> _HttpResponse: ...
+    def get(
+        self, url: str, *, headers: Mapping[str, str] | None = None
+    ) -> _HttpResponse: ...
 
-    def post(self, url: str, *, json: Any) -> _HttpResponse: ...
+    def post(
+        self, url: str, *, json: Any, headers: Mapping[str, str] | None = None
+    ) -> _HttpResponse: ...
 
 
 @dataclass(slots=True)
@@ -60,12 +69,14 @@ class HttpCountryCompareClient:
         *,
         http_client: _SyncHttpClient | None = None,
         timeout: float = 30.0,
+        api_key: str | None = None,
     ) -> None:
         normalized_url = api_url.rstrip("/")
         if not normalized_url:
             raise ValueError("api_url must not be empty")
 
         self.api_url = normalized_url
+        self.api_key = str(api_key).strip() if api_key is not None else None
         self._owns_http_client = http_client is None
         self._http_client: _SyncHttpClient = http_client or httpx.Client(
             base_url=self.api_url,
@@ -397,36 +408,13 @@ class HttpCountryCompareClient:
             }
         )
 
-        return PredictionServiceResult(
-            mode="predicted_multi_metric_comparison",
-            request=request_payload,
-            metadata={"client_mode": "http"},
-            diagnostics={
-                "unsupported_reason": (
-                    "The v0.1 HTTP API does not expose "
-                    "/api/v1/prediction/compare/multi-metric."
-                )
-            },
-            warnings=[
-                (
-                    "Predicted multi-metric comparison is local-service-only in "
-                    "v0.1 HTTP mode."
-                )
-            ],
-            error=AppError(
-                code="unsupported_http_workflow",
-                title="Unsupported HTTP workflow",
-                user_message=(
-                    "Predicted multi-metric comparison is not available through "
-                    "the v0.1 HTTP API. Use predicted single-metric comparison, "
-                    "predicted profile comparison, or run the UI in local mode "
-                    "for this workflow."
-                ),
-                technical_detail=(
-                    "No /api/v1/prediction/compare/multi-metric endpoint exists "
-                    "in the v0.1 API."
-                ),
-            ),
+        payload = self._post_json(
+            "/api/v1/prediction/compare/multi-metric",
+            request_payload,
+        )
+        return _prediction_result_from_envelope(
+            payload,
+            fallback_mode="predicted_multi_metric_comparison",
         )
 
     def run_predicted_profile_comparison(
@@ -501,7 +489,7 @@ class HttpCountryCompareClient:
 
     def _get_json(self, path: str) -> dict[str, Any]:
         try:
-            response = self._http_client.get(path)
+            response = self._http_client.get(path, headers=self._auth_headers())
         except httpx.RequestError as exc:
             raise ClientConnectionError(str(exc)) from exc
         return self._decode_response(response)
@@ -514,13 +502,17 @@ class HttpCountryCompareClient:
         fallback_json: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         try:
-            response = self._http_client.post(path, json=payload)
+            response = self._http_client.post(
+                path, json=payload, headers=self._auth_headers()
+            )
         except httpx.RequestError as exc:
             raise ClientConnectionError(str(exc)) from exc
 
         if response.status_code == 422 and fallback_json is not None:
             try:
-                response = self._http_client.post(path, json=fallback_json)
+                response = self._http_client.post(
+                    path, json=fallback_json, headers=self._auth_headers()
+                )
             except httpx.RequestError as exc:
                 raise ClientConnectionError(str(exc)) from exc
 
@@ -556,6 +548,11 @@ class HttpCountryCompareClient:
             )
 
         return payload
+
+    def _auth_headers(self) -> dict[str, str] | None:
+        if not self.api_key:
+            return None
+        return {"X-API-Key": self.api_key}
 
 
 class _HttpDatasetServiceAdapter:
@@ -665,23 +662,20 @@ class _HttpPresentationServiceAdapter:
     def build_single_metric_presentation(
         self, result: ComparisonResult
     ) -> PresentationResult:
-        return _presentation_from_comparison_result(
-            result, fallback_mode="single_metric"
-        )
+        rebuilt = self._delegate.build_single_metric_presentation(result)
+        return _merge_remote_presentation(result=result, rebuilt=rebuilt)
 
     def build_multi_metric_presentation(
         self, result: ComparisonResult
     ) -> PresentationResult:
-        return _presentation_from_comparison_result(
-            result, fallback_mode="multi_metric"
-        )
+        rebuilt = self._delegate.build_multi_metric_presentation(result)
+        return _merge_remote_presentation(result=result, rebuilt=rebuilt)
 
     def build_weighted_score_presentation(
         self, result: ComparisonResult
     ) -> PresentationResult:
-        return _presentation_from_comparison_result(
-            result, fallback_mode="weighted_score"
-        )
+        rebuilt = self._delegate.build_weighted_score_presentation(result)
+        return _merge_remote_presentation(result=result, rebuilt=rebuilt)
 
     def export_table_csv_bytes(self, dataframe: pd.DataFrame) -> bytes:
         return self._delegate.export_table_csv_bytes(dataframe)
@@ -722,14 +716,47 @@ class _HttpPresentationServiceAdapter:
         )
 
 
+def _merge_remote_presentation(
+    *,
+    result: ComparisonResult,
+    rebuilt: PresentationResult,
+) -> PresentationResult:
+    """Preserve backend envelope metadata while restoring local UI charts.
+
+    The backend can only return JSON-safe table payloads. Matplotlib figures from
+    the local PresentationService cannot cross that boundary, so HTTP mode must
+    rebuild the visual presentation in the UI process from the returned dataframe.
+    """
+
+    remote = (
+        result.presentation
+        if isinstance(result, _HttpComparisonResult) and result.presentation is not None
+        else None
+    )
+    if remote is None:
+        return rebuilt
+
+    return PresentationResult(
+        mode=remote.mode or rebuilt.mode,
+        request=rebuilt.request if rebuilt.request is not None else remote.request,
+        summary=remote.summary or rebuilt.summary,
+        table=rebuilt.table if rebuilt.table is not None else remote.table,
+        chart=rebuilt.chart,
+        tables={**(remote.tables or {}), **(rebuilt.tables or {})},
+        charts={**(remote.charts or {}), **(rebuilt.charts or {})},
+        metadata=remote.metadata or rebuilt.metadata,
+        diagnostics=remote.diagnostics or rebuilt.diagnostics,
+        warnings=remote.warnings or rebuilt.warnings,
+        messages=remote.messages or rebuilt.messages,
+        error=remote.error or rebuilt.error,
+    )
+
+
 def _presentation_from_comparison_result(
     result: ComparisonResult,
     *,
     fallback_mode: str,
 ) -> PresentationResult:
-    if isinstance(result, _HttpComparisonResult) and result.presentation is not None:
-        return result.presentation
-
     return PresentationResult(
         mode=getattr(result, "mode", fallback_mode) or fallback_mode,
         request=getattr(result, "request", None),
@@ -790,19 +817,223 @@ def _prediction_result_from_envelope(
     fallback_mode: str,
 ) -> PredictionServiceResult:
     error = _app_error_from_payload(payload.get("error"))
+    mode = str(payload.get("mode") or fallback_mode)
+    request = payload.get("request")
+    summary = dict(payload.get("summary") or {})
+    metadata = dict(payload.get("metadata") or {})
+    diagnostics = dict(payload.get("diagnostics") or {})
+    warnings = [str(item) for item in payload.get("warnings", []) or []]
     tables = _tables_from_payload(payload.get("tables"))
-    dataframe = _first_dataframe(tables)
+
+    prediction_result = _prediction_model_from_tables(
+        tables=tables,
+        request=request,
+        metadata=metadata,
+    )
+    predicted_comparison_result = _predicted_comparison_model_from_tables(
+        tables=tables,
+        prediction_result=prediction_result,
+        metadata=metadata,
+        summary=summary,
+        mode=mode,
+    )
+    backtest_result = _backtest_model_from_tables(
+        tables=tables,
+        request=request,
+        metadata=metadata,
+        summary=summary,
+        mode=mode,
+    )
+
+    dataframe = _primary_prediction_dataframe(
+        tables=tables,
+        prediction_result=prediction_result,
+        predicted_comparison_result=predicted_comparison_result,
+        backtest_result=backtest_result,
+    )
 
     return PredictionServiceResult(
-        mode=str(payload.get("mode") or fallback_mode),
-        request=payload.get("request"),
+        mode=mode,
+        request=request,
+        prediction_result=prediction_result,
+        predicted_comparison_result=predicted_comparison_result,
+        backtest_result=backtest_result,
         dataframe=dataframe,
-        summary=dict(payload.get("summary") or {}),
-        metadata=dict(payload.get("metadata") or {}),
-        diagnostics=dict(payload.get("diagnostics") or {}),
-        warnings=[str(item) for item in payload.get("warnings", []) or []],
+        summary=summary,
+        metadata=metadata,
+        diagnostics=diagnostics,
+        warnings=warnings,
         error=error,
     )
+
+
+def _prediction_model_from_tables(
+    *,
+    tables: Mapping[str, pd.DataFrame],
+    request: Any,
+    metadata: Mapping[str, Any],
+) -> PredictionResult | None:
+    forecast_df = _copy_table(tables.get("forecast"))
+    combined_df = _copy_table(tables.get("actual_and_forecast"))
+    comparison_ready_df = _copy_table(tables.get("comparison_ready"))
+
+    if forecast_df is None and combined_df is None and comparison_ready_df is None:
+        return None
+
+    if forecast_df is None:
+        forecast_df = _empty_dataframe()
+    if combined_df is None:
+        combined_df = forecast_df.copy(deep=True)
+    if comparison_ready_df is None:
+        comparison_ready_df = forecast_df.copy(deep=True)
+
+    return PredictionResult(
+        request=cast(Any, request),
+        forecast_df=forecast_df,
+        combined_df=combined_df,
+        comparison_ready_df=comparison_ready_df,
+        diagnostics=[],
+        forecaster_info=[],
+        metadata=dict(metadata),
+    )
+
+
+def _predicted_comparison_model_from_tables(
+    *,
+    tables: Mapping[str, pd.DataFrame],
+    prediction_result: PredictionResult | None,
+    metadata: Mapping[str, Any],
+    summary: Mapping[str, Any],
+    mode: str,
+) -> PredictedComparisonResult | None:
+    if "comparison" not in mode:
+        return None
+
+    comparison_df = _copy_table(tables.get("predicted_comparison"))
+    if comparison_df is None:
+        main_table = tables.get("main")
+        if isinstance(main_table, pd.DataFrame) and _looks_like_predicted_comparison(
+            main_table
+        ):
+            comparison_df = main_table.copy(deep=True)
+
+    if comparison_df is None:
+        return None
+
+    resolved_prediction_result = prediction_result or PredictionResult(
+        request=cast(Any, {}),
+        forecast_df=_empty_dataframe(),
+        combined_df=_empty_dataframe(),
+        comparison_ready_df=_empty_dataframe(),
+        diagnostics=[],
+        forecaster_info=[],
+        metadata=dict(metadata),
+    )
+
+    return PredictedComparisonResult(
+        comparison_df=comparison_df,
+        prediction_result=resolved_prediction_result,
+        diagnostics=[],
+        selected_forecast_year=_optional_int(summary.get("selected_forecast_year")),
+        selected_forecast_horizon=_optional_int(
+            summary.get("selected_forecast_horizon")
+        ),
+        metadata=dict(metadata),
+    )
+
+
+def _backtest_model_from_tables(
+    *,
+    tables: Mapping[str, pd.DataFrame],
+    request: Any,
+    metadata: Mapping[str, Any],
+    summary: Mapping[str, Any],
+    mode: str,
+) -> BacktestResult | None:
+    if "backtest" not in mode:
+        return None
+
+    actual_vs_predicted_df = _copy_table(tables.get("actual_vs_predicted"))
+    if actual_vs_predicted_df is None:
+        main_table = tables.get("main")
+        if isinstance(main_table, pd.DataFrame) and _looks_like_backtest(main_table):
+            actual_vs_predicted_df = main_table.copy(deep=True)
+
+    if actual_vs_predicted_df is None:
+        return None
+
+    return BacktestResult(
+        request=cast(Any, request),
+        actual_vs_predicted_df=actual_vs_predicted_df,
+        diagnostics=[],
+        forecaster_info=[],
+        metrics=dict(summary.get("metrics") or {}),
+        metadata=dict(metadata),
+    )
+
+
+def _primary_prediction_dataframe(
+    *,
+    tables: Mapping[str, pd.DataFrame],
+    prediction_result: PredictionResult | None,
+    predicted_comparison_result: PredictedComparisonResult | None,
+    backtest_result: BacktestResult | None,
+) -> pd.DataFrame | None:
+    if predicted_comparison_result is not None:
+        return predicted_comparison_result.comparison_df.copy(deep=True)
+    if backtest_result is not None:
+        return backtest_result.actual_vs_predicted_df.copy(deep=True)
+    if prediction_result is not None:
+        return prediction_result.forecast_df.copy(deep=True)
+    return _first_dataframe(tables)
+
+
+def _copy_table(dataframe: pd.DataFrame | None) -> pd.DataFrame | None:
+    if isinstance(dataframe, pd.DataFrame):
+        return dataframe.copy(deep=True)
+    return None
+
+
+def _empty_dataframe() -> pd.DataFrame:
+    return pd.DataFrame()
+
+
+def _looks_like_predicted_comparison(dataframe: pd.DataFrame) -> bool:
+    comparison_columns = {
+        "rank",
+        "overall_rank",
+        "score_rank",
+        "score",
+        "forecast_value",
+        "predicted_value",
+    }
+    return bool(
+        comparison_columns.intersection(str(column) for column in dataframe.columns)
+    )
+
+
+def _looks_like_backtest(dataframe: pd.DataFrame) -> bool:
+    columns = {str(column) for column in dataframe.columns}
+    actual_columns = {"actual_value", "actual", "observed_value", "observed"}
+    predicted_columns = {
+        "predicted_value",
+        "predicted",
+        "prediction",
+        "forecast_value",
+        "forecast",
+    }
+    return bool(columns.intersection(actual_columns)) and bool(
+        columns.intersection(predicted_columns)
+    )
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _dataset_summary_from_payload(payload: Mapping[str, Any]) -> DatasetSummary:
@@ -829,6 +1060,17 @@ def _dataset_summary_from_payload(payload: Mapping[str, Any]) -> DatasetSummary:
             str(item) for item in payload.get("available_columns", []) or []
         ),
         categories=categories,
+        dataset_versions=tuple(
+            str(item) for item in payload.get("dataset_versions", []) or []
+        ),
+        dataset_checksum=payload.get("dataset_checksum"),
+        dataset_size_bytes=payload.get("dataset_size_bytes"),
+        dataset_modified_at=payload.get("dataset_modified_at"),
+        schema_valid=payload.get("schema_valid"),
+        schema_issue_count=int(payload.get("schema_issue_count") or 0),
+        schema_issues=tuple(
+            str(item) for item in payload.get("schema_issues", []) or []
+        ),
         error=_app_error_from_payload(payload.get("error")),
     )
 
@@ -872,8 +1114,10 @@ def _first_dataframe(tables: Mapping[str, pd.DataFrame]) -> pd.DataFrame | None:
         "main",
         "table",
         "comparison",
+        "predicted_comparison",
         "forecast",
         "actual_and_forecast",
+        "comparison_ready",
         "backtest_results",
         "actual_vs_predicted",
     )
@@ -906,8 +1150,17 @@ def _app_error_from_payload(value: Any) -> AppError | None:
 
     details = value.get("details")
     field_errors: dict[str, str] = {}
+    field_error_payload = value.get("field_errors")
     if isinstance(details, Mapping):
-        field_errors = {str(key): str(item) for key, item in details.items()}
+        nested_field_errors = details.get("field_errors")
+        if isinstance(nested_field_errors, Mapping):
+            field_error_payload = nested_field_errors
+        elif field_error_payload is None:
+            field_error_payload = details
+    if isinstance(field_error_payload, Mapping):
+        field_errors = {
+            str(key): str(item) for key, item in field_error_payload.items()
+        }
 
     code = str(value.get("code") or "backend_error")
     title = str(value.get("title") or value.get("message") or "Backend error")

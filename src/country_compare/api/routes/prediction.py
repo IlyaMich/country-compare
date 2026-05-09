@@ -6,9 +6,17 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 
 from country_compare.api.dependencies import get_app_facade
+from country_compare.api.limits import (
+    enforce_country_limit,
+    enforce_holdout_limit,
+    enforce_horizon_limit,
+    enforce_metric_limit,
+    enforce_top_n_limit,
+)
 from country_compare.api.schemas.common import ResultEnvelope
 from country_compare.api.schemas.prediction import (
     BacktestPredictionRequest,
+    PredictedMultiMetricComparisonRequest,
     PredictedProfileComparisonRequest,
     PredictedSingleMetricComparisonRequest,
     PredictionComparisonOptions,
@@ -44,6 +52,9 @@ def predict_single_metric(
 ) -> ResultEnvelope | JSONResponse:
     """Forecast one metric for one or more countries."""
 
+    enforce_country_limit(request, body.country_codes)
+    enforce_horizon_limit(request, body.horizon_years)
+
     result = facade.predict_single_metric_for_countries(
         metric_id=body.metric_id,
         country_codes=body.country_codes,
@@ -53,7 +64,7 @@ def predict_single_metric(
         include_actuals=body.include_actuals,
         history_start_year=body.history_start_year,
         history_end_year=body.history_end_year,
-        fail_fast=False,
+        fail_fast=body.fail_fast,
         scenario_id=body.scenario_id,
     )
     return _prediction_response(
@@ -74,6 +85,9 @@ def backtest_prediction(
     facade: FacadeDependency,
 ) -> ResultEnvelope | JSONResponse:
     """Run a holdout backtest for one country/metric series."""
+
+    enforce_country_limit(request, body.country_codes)
+    enforce_holdout_limit(request, body.holdout_years)
 
     result = facade.backtest_prediction(
         country_code=body.country_code,
@@ -104,6 +118,10 @@ def compare_predicted_single_metric(
 ) -> ResultEnvelope | JSONResponse:
     """Compare countries using a selected future forecast for one metric."""
 
+    enforce_country_limit(request, body.country_codes)
+    enforce_horizon_limit(request, body.horizon_years)
+    enforce_top_n_limit(request, _top_n(body.comparison_options))
+
     result = facade.compare_predicted_single_metric(
         metric_id=body.metric_id,
         country_codes=body.country_codes,
@@ -133,6 +151,10 @@ def compare_predicted_profile(
 ) -> ResultEnvelope | JSONResponse:
     """Compare countries using a selected future forecast and scoring profile."""
 
+    enforce_country_limit(request, body.country_codes)
+    enforce_horizon_limit(request, body.horizon_years)
+    enforce_top_n_limit(request, _top_n(body.comparison_options))
+
     result = facade.compare_predicted_profile(
         profile_name=body.profile_name,
         country_codes=body.country_codes,
@@ -147,6 +169,40 @@ def compare_predicted_profile(
         result,
         request=request,
         mode="predicted_profile_comparison",
+    )
+
+
+@router.post(
+    "/compare/multi-metric",
+    response_model=ResultEnvelope,
+    responses=_ERROR_RESPONSES,
+)
+def compare_predicted_multi_metric(
+    body: PredictedMultiMetricComparisonRequest,
+    request: Request,
+    facade: FacadeDependency,
+) -> ResultEnvelope | JSONResponse:
+    """Compare countries using selected future forecasts for multiple metrics."""
+
+    enforce_country_limit(request, body.country_codes)
+    enforce_metric_limit(request, body.metric_ids)
+    enforce_horizon_limit(request, body.horizon_years)
+    enforce_top_n_limit(request, _top_n(body.comparison_options))
+
+    result = facade.compare_predicted_multi_metric(
+        metric_ids=body.metric_ids,
+        country_codes=body.country_codes,
+        horizon_years=body.horizon_years,
+        forecast_year=body.forecast_year,
+        forecast_horizon=body.forecast_horizon,
+        method=body.method,
+        fallback_method=body.fallback_method,
+        comparison_options=_comparison_options(body.comparison_options),
+    )
+    return _prediction_response(
+        result,
+        request=request,
+        mode="predicted_multi_metric_comparison",
     )
 
 
@@ -169,6 +225,10 @@ def _prediction_response(
         status_code=_status_for_envelope(envelope),
         content=envelope.model_dump(mode="json"),
     )
+
+
+def _top_n(options: PredictionComparisonOptions | None) -> int | None:
+    return None if options is None else options.top_n
 
 
 def _comparison_options(
@@ -214,6 +274,7 @@ def _status_for_envelope(envelope: ResultEnvelope) -> int:
         "selection_invalid",
         "unsupported_method",
         "unsupported_series_shape",
+        "input_limit_exceeded",
         "validation_failed",
     }:
         return status.HTTP_400_BAD_REQUEST

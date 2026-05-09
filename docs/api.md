@@ -2,7 +2,7 @@
 
 The `v0.1 beta` FastAPI backend is read-only and exposes operational, metadata, comparison, scoring, and prediction endpoints.
 
-Business endpoints use the `/api/v1` prefix. Operational endpoints are unversioned.
+Business endpoints use the `/api/v1` prefix. Operational endpoints are unversioned. Every response includes `X-Request-ID`; callers may provide this header and the API will echo it.
 
 ## Operational endpoints
 
@@ -248,3 +248,8 @@ Errors use a consistent shape:
 ## Read-only v0.1 beta boundary
 
 The API does not expose write endpoints. It does not support config editing, scoring profile editing, dataset refresh, ingestion execution, or scheduled processing.
+
+
+## Request IDs and errors
+
+The API accepts inbound `X-Request-ID` values, generates one when missing, and returns the final value on every response. Access logs are structured JSON and include the request id, method, path, status code, and request duration. Unexpected exceptions are logged with stack traces server-side while client-facing error responses remain sanitized.

@@ -275,6 +275,7 @@ def render_prediction_service_result(
     *,
     debug: bool = False,
     empty_message: str = "Run a prediction to see results here.",
+    key_prefix: str | None = None,
 ) -> None:
     if result is None:
         st.info(empty_message)
@@ -291,19 +292,39 @@ def render_prediction_service_result(
 
     mode = str(getattr(result, "mode", "prediction") or "prediction")
     summary = getattr(result, "summary", {}) or {}
-
-    if getattr(result, "prediction_result", None) is not None:
-        _render_prediction_result_body(result, mode=mode, summary=summary, debug=debug)
-        return
+    download_key_prefix = _resolve_prediction_download_key_prefix(
+        mode=mode,
+        key_prefix=key_prefix,
+    )
 
     if getattr(result, "predicted_comparison_result", None) is not None:
         _render_predicted_comparison_body(
-            result, mode=mode, summary=summary, debug=debug
+            result,
+            mode=mode,
+            summary=summary,
+            debug=debug,
+            download_key_prefix=download_key_prefix,
         )
         return
 
     if getattr(result, "backtest_result", None) is not None:
-        _render_backtest_body(result, mode=mode, summary=summary, debug=debug)
+        _render_backtest_body(
+            result,
+            mode=mode,
+            summary=summary,
+            debug=debug,
+            download_key_prefix=download_key_prefix,
+        )
+        return
+
+    if getattr(result, "prediction_result", None) is not None:
+        _render_prediction_result_body(
+            result,
+            mode=mode,
+            summary=summary,
+            debug=debug,
+            download_key_prefix=download_key_prefix,
+        )
         return
 
     dataframe = getattr(result, "dataframe", None)
@@ -311,6 +332,12 @@ def render_prediction_service_result(
         st.dataframe(dataframe, use_container_width=True, hide_index=True)
 
     _render_summary_json(summary=summary, debug=debug)
+
+
+def _resolve_prediction_download_key_prefix(
+    *, mode: str, key_prefix: str | None
+) -> str:
+    return key_prefix or f"prediction_{mode}"
 
 
 def render_prediction_catalog_summary(
@@ -400,7 +427,12 @@ def build_backtest_line_chart_dataframe(dataframe: pd.DataFrame) -> pd.DataFrame
 
 
 def _render_prediction_result_body(
-    result: Any, *, mode: str, summary: Mapping[str, Any], debug: bool
+    result: Any,
+    *,
+    mode: str,
+    summary: Mapping[str, Any],
+    debug: bool,
+    download_key_prefix: str,
 ) -> None:
     prediction_result = result.prediction_result
     forecast_table_df = build_forecast_table_dataframe(prediction_result)
@@ -432,6 +464,7 @@ def _render_prediction_result_body(
             st.dataframe(combined_df, use_container_width=True, hide_index=True)
         else:
             st.write("No combined actual/forecast dataframe is available.")
+
     _render_prediction_downloads(
         table=forecast_table_df if not forecast_table_df.empty else None,
         diagnostics={
@@ -442,7 +475,7 @@ def _render_prediction_result_body(
         },
         title="Country Compare Prediction Result",
         base_file_name=f"country_compare_{mode}_forecast",
-        key_prefix=f"prediction_{mode}",
+        key_prefix=download_key_prefix,
         notes=[
             "Forecasts are baseline statistical projections, not precise predictions.",
             "Review diagnostics before using forecast outputs.",
@@ -456,7 +489,12 @@ def _render_prediction_result_body(
 
 
 def _render_predicted_comparison_body(
-    result: Any, *, mode: str, summary: Mapping[str, Any], debug: bool
+    result: Any,
+    *,
+    mode: str,
+    summary: Mapping[str, Any],
+    debug: bool,
+    download_key_prefix: str,
 ) -> None:
     comparison_result = result.predicted_comparison_result
     dataframe = getattr(result, "dataframe", None)
@@ -510,9 +548,12 @@ def _render_predicted_comparison_body(
         },
         title="Country Compare Predicted Comparison Result",
         base_file_name=f"country_compare_{mode}",
-        key_prefix=f"prediction_{mode}",
+        key_prefix=download_key_prefix,
         notes=[
-            "This comparison ranks forecasted rows for the selected forecast year or horizon.",
+            (
+                "This comparison ranks forecasted rows for the selected forecast year "
+                "or horizon."
+            ),
             "Review diagnostics before using predicted comparison outputs.",
         ],
     )
@@ -524,7 +565,12 @@ def _render_predicted_comparison_body(
 
 
 def _render_backtest_body(
-    result: Any, *, mode: str, summary: Mapping[str, Any], debug: bool
+    result: Any,
+    *,
+    mode: str,
+    summary: Mapping[str, Any],
+    debug: bool,
+    download_key_prefix: str,
 ) -> None:
     backtest_result = result.backtest_result
     metrics = dict(
@@ -584,7 +630,7 @@ def _render_backtest_body(
         },
         title="Country Compare Backtest Result",
         base_file_name=f"country_compare_{mode}",
-        key_prefix=f"prediction_{mode}",
+        key_prefix=download_key_prefix,
         notes=[
             "Backtests evaluate a forecast method against held-out observed years.",
             "Lower error values indicate a better fit for this historical split.",

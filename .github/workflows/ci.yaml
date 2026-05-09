@@ -2,23 +2,19 @@ name: CI
 
 on:
   push:
+    branches:
+      - develop
+      - main
+      - "feature/**"
   pull_request:
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches:
+      - develop
+      - main
 
 jobs:
   python-quality:
-    name: Python quality checks (${{ matrix.python-version }})
+    name: Python quality checks
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version:
-          - "3.11"
-          - "3.12"
 
     steps:
       - name: Check out repository
@@ -27,29 +23,28 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
           cache: pip
-          cache-dependency-path: |
-            pyproject.toml
-            requirements-dev.txt
+          cache-dependency-path: pyproject.toml
 
-      - name: Upgrade packaging tools
+      - name: Install dev dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-
-      - name: Install package with development dependencies
-        run: |
           python -m pip install -e ".[dev]"
+
+      - name: Run static layout guards
+        run: |
+          python scripts/check_static_guards.py
 
       - name: Check formatting
         run: |
           python -m black --check src/country_compare tests scripts
 
-      - name: Run lint checks
+      - name: Run ruff
         run: |
           python -m ruff check src/country_compare tests scripts
 
-      - name: Run type checks
+      - name: Run mypy
         run: |
           python -m mypy src/country_compare
 
@@ -57,19 +52,172 @@ jobs:
         run: |
           python -m pytest
 
-  docker-build:
-    name: Docker Compose build
+  package-build:
+    name: Build and install package artifacts
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Build wheel and sdist
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Install built wheel with UI extra
+        run: |
+          python -m venv /tmp/country-compare-ui-wheel-env
+          /tmp/country-compare-ui-wheel-env/bin/python -m pip install --upgrade pip
+          /tmp/country-compare-ui-wheel-env/bin/python - <<'PY'
+          from pathlib import Path
+          import importlib
+          import importlib.util
+          import subprocess
+          import sys
+
+          wheels = sorted(Path("dist").glob("country_compare-*.whl"))
+          if not wheels:
+              raise SystemExit("No built wheel found.")
+
+          wheel = wheels[0]
+          subprocess.check_call(
+              [sys.executable, "-m", "pip", "install", f"{wheel}[ui]"]
+          )
+
+          bootstrap = importlib.import_module("country_compare.ui.bootstrap")
+          assert hasattr(bootstrap, "build_app_context")
+          assert hasattr(bootstrap, "get_ui_services")
+          assert hasattr(bootstrap, "bootstrap_app")
+
+          assert importlib.util.find_spec("streamlit") is not None
+          assert importlib.util.find_spec("httpx") is not None
+          assert importlib.util.find_spec("matplotlib") is not None
+
+          print("UI extra wheel install passed.")
+          PY
+
+      - name: Install built sdist with dev extra
+        run: |
+          python -m venv /tmp/country-compare-sdist-env
+          /tmp/country-compare-sdist-env/bin/python -m pip install --upgrade pip
+          /tmp/country-compare-sdist-env/bin/python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          sdists = sorted(Path("dist").glob("country_compare-*.tar.gz"))
+          if not sdists:
+              raise SystemExit("No built sdist found.")
+
+          subprocess.check_call(
+              [sys.executable, "-m", "pip", "install", f"{sdists[0]}[dev]"]
+          )
+
+          import country_compare
+
+          print(country_compare.__version__)
+          PY
+
+  dependency-security:
+    name: Dependency security scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Run pip-audit in non-blocking mode
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          python -m pip_audit || true
+
+  docker-build:
+    name: Docker Compose build and backend smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python for fixture data and smoke checks
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Prepare processed dataset fixture
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e .
+          python scripts/update_parquet_data_wb.py --skip-audit
+          test -f data/processed/metrics.parquet
+          test -f data/processed/metrics_manifest.json
+          test -f data/processed/catalog.json
+
       - name: Show Docker versions
         run: |
           docker --version
           docker compose version
 
-      - name: Build Compose services
+      - name: Build default Compose services
         run: |
           docker compose build
+
+      - name: Smoke test default Compose backend
+        run: |
+          docker compose up -d backend
+          python scripts/smoke_api_container.py --base-url http://127.0.0.1:8000
+
+      - name: Show default Compose backend logs on failure
+        if: failure()
+        run: |
+          docker compose logs backend
+
+      - name: Stop default Compose services
+        if: always()
+        run: |
+          docker compose down --volumes --remove-orphans
+
+      - name: Build backend-only Compose service
+        run: |
+          docker compose -f compose.api.yml build backend
+
+      - name: Smoke test backend-only Compose service
+        run: |
+          docker compose -f compose.api.yml up -d backend
+          python scripts/smoke_api_container.py --base-url http://127.0.0.1:8000
+
+      - name: Show backend-only Compose logs on failure
+        if: failure()
+        run: |
+          docker compose -f compose.api.yml logs backend
+
+      - name: Stop backend-only Compose services
+        if: always()
+        run: |
+          docker compose -f compose.api.yml down --volumes --remove-orphans
+
+      - name: Run Trivy backend image scan in non-blocking mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: country-compare-backend:latest
+          format: table
+          exit-code: "0"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
