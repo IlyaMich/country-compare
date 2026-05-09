@@ -61,6 +61,7 @@ class BasePredictionRequest(StrictBaseModel):
 class SingleMetricPredictionRequest(BasePredictionRequest):
     horizon_years: int = Field(gt=0)
     include_actuals: bool = True
+    fail_fast: bool = False
 
 
 class BacktestPredictionRequest(BasePredictionRequest):

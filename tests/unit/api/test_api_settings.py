@@ -12,6 +12,8 @@ def test_api_settings_reads_limits_and_auth_from_env(
     monkeypatch.setenv("COUNTRY_COMPARE_API_MAX_COUNTRIES", "3")
     monkeypatch.setenv("COUNTRY_COMPARE_API_MAX_METRICS", "4")
     monkeypatch.setenv("COUNTRY_COMPARE_API_MAX_HORIZON_YEARS", "5")
+    monkeypatch.setenv("COUNTRY_COMPARE_API_MAX_HOLDOUT_YEARS", "6")
+    monkeypatch.setenv("COUNTRY_COMPARE_API_MAX_TOP_N", "7")
     monkeypatch.setenv("COUNTRY_COMPARE_API_KEY", "  secret  ")
 
     settings = ApiSettings.from_env()
@@ -20,6 +22,8 @@ def test_api_settings_reads_limits_and_auth_from_env(
     assert settings.max_countries == 3
     assert settings.max_metrics == 4
     assert settings.max_horizon_years == 5
+    assert settings.max_holdout_years == 6
+    assert settings.max_top_n == 7
     assert settings.api_key == "secret"
 
 

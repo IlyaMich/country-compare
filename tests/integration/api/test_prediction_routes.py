@@ -414,6 +414,7 @@ def test_prediction_country_limit_returns_400_before_service_call() -> None:
 
     assert response.status_code == 400
     payload = response.json()
+    assert payload["ok"] is False
     assert payload["error"]["code"] == "input_limit_exceeded"
     assert payload["error"]["details"]["field_errors"]["country_codes"].startswith(
         "Requested 2 countries"
@@ -436,11 +437,59 @@ def test_prediction_horizon_limit_returns_400_before_service_call() -> None:
 
     assert response.status_code == 400
     payload = response.json()
+    assert payload["ok"] is False
     assert payload["error"]["code"] == "input_limit_exceeded"
     assert payload["error"]["details"]["field_errors"]["horizon_years"].startswith(
         "Requested 2 forecast horizon years"
     )
     assert facade.single_metric_requests == []
+
+
+def test_prediction_holdout_limit_returns_400_before_service_call() -> None:
+    facade = FakeFacade()
+    client = _client_for(facade, max_holdout_years=1)
+
+    response = client.post(
+        "/api/v1/prediction/backtest",
+        json={
+            "country_codes": ["ISR"],
+            "metric_id": "gdp_per_capita",
+            "holdout_years": 2,
+        },
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "input_limit_exceeded"
+    assert payload["error"]["details"]["field_errors"]["holdout_years"].startswith(
+        "Requested 2 backtest holdout years"
+    )
+    assert facade.backtest_requests == []
+
+
+def test_predicted_comparison_top_n_limit_returns_400_before_service_call() -> None:
+    facade = FakeFacade()
+    client = _client_for(facade, max_top_n=1)
+
+    response = client.post(
+        "/api/v1/prediction/compare/single-metric",
+        json={
+            "country_codes": ["ISR", "FRA"],
+            "metric_id": "gdp_per_capita",
+            "horizon_years": 2,
+            "comparison_options": {"top_n": 2},
+        },
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "input_limit_exceeded"
+    assert payload["error"]["details"]["field_errors"]["top_n"].startswith(
+        "Requested 2 top rows"
+    )
+    assert facade.predicted_single_metric_requests == []
 
 
 def test_prediction_service_error_returns_error_envelope() -> None:
@@ -493,6 +542,8 @@ def test_backtest_with_multiple_countries_returns_422() -> None:
     )
 
     assert response.status_code == 422
+    assert response.json()["ok"] is False
+    assert response.json()["error"]["code"] == "validation_failed"
     assert facade.backtest_requests == []
 
 
@@ -512,6 +563,8 @@ def test_predicted_comparison_with_year_and_horizon_returns_422() -> None:
     )
 
     assert response.status_code == 422
+    assert response.json()["ok"] is False
+    assert response.json()["error"]["code"] == "validation_failed"
     assert facade.predicted_single_metric_requests == []
 
 
@@ -522,6 +575,8 @@ def _client_for(
     max_countries: int = 50,
     max_metrics: int = 50,
     max_horizon_years: int = 10,
+    max_holdout_years: int = 10,
+    max_top_n: int = 100,
 ) -> TestClient:
     app = create_app(
         settings=ApiSettings(
@@ -529,6 +584,8 @@ def _client_for(
             max_countries=max_countries,
             max_metrics=max_metrics,
             max_horizon_years=max_horizon_years,
+            max_holdout_years=max_holdout_years,
+            max_top_n=max_top_n,
         )
     )
     app.dependency_overrides[get_app_facade] = lambda: facade
@@ -542,3 +599,31 @@ def _error_result(
     error: AppError,
 ) -> PredictionServiceResult:
     return PredictionServiceResult(mode=mode, request=request, error=error)
+
+
+def test_single_metric_prediction_accepts_fail_fast_payload() -> None:
+    facade = FakeFacade()
+    client = _client_for(facade)
+
+    response = client.post(
+        "/api/v1/prediction/single-metric",
+        json={
+            "country_codes": ["deu", "fra"],
+            "metric_id": "compensation_employees_lcu",
+            "horizon_years": 3,
+            "method": "linear_trend",
+            "fallback_method": "last_observed",
+            "fail_fast": True,
+            "scenario_id": "baseline",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+    assert len(facade.single_metric_requests) == 1
+    service_request = facade.single_metric_requests[0]
+    assert service_request["country_codes"] == ["DEU", "FRA"]
+    assert service_request["metric_id"] == "compensation_employees_lcu"
+    assert service_request["horizon_years"] == 3
+    assert service_request["fail_fast"] is True

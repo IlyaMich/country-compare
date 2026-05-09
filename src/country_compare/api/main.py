@@ -5,6 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from country_compare import __version__
 from country_compare.api.errors import register_exception_handlers
+from country_compare.api.request_context import (
+    configure_api_logging,
+    request_context_middleware,
+)
 from country_compare.api.routes import include_routers
 from country_compare.api.security import enforce_optional_api_key
 from country_compare.api.settings import ApiSettings
@@ -31,8 +35,10 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
         openapi_url=openapi_url,
     )
     app.state.api_settings = resolved_settings
+    configure_api_logging(level=resolved_settings.log_level)
 
     app.middleware("http")(enforce_optional_api_key)
+    app.middleware("http")(request_context_middleware)
 
     if resolved_settings.cors_origins:
         app.add_middleware(

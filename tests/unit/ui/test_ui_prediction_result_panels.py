@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from country_compare.ui.components.prediction_result_panels import (
+    _resolve_prediction_download_key_prefix,
     build_backtest_line_chart_dataframe,
     build_predicted_comparison_chart_dataframe,
     build_predicted_comparison_summary,
@@ -137,3 +138,23 @@ def test_build_backtest_line_chart_dataframe_handles_missing_columns() -> None:
     chart_dataframe = build_backtest_line_chart_dataframe(dataframe)
 
     assert chart_dataframe.empty
+
+
+def test_prediction_download_key_prefix_can_be_scoped_by_render_context() -> None:
+    assert (
+        _resolve_prediction_download_key_prefix(
+            mode="single_metric_countries",
+            key_prefix="prediction_tab_multi_country_forecast",
+        )
+        == "prediction_tab_multi_country_forecast"
+    )
+
+
+def test_prediction_download_key_prefix_falls_back_to_result_mode() -> None:
+    assert (
+        _resolve_prediction_download_key_prefix(
+            mode="single_metric_countries",
+            key_prefix=None,
+        )
+        == "prediction_single_metric_countries"
+    )

@@ -4,6 +4,7 @@ from typing import Any, cast
 
 import streamlit as st
 
+from country_compare.clients.errors import ClientError
 from country_compare.services import AppContext
 from country_compare.services.errors import AppError
 from country_compare.settings.defaults import (
@@ -202,6 +203,7 @@ def _render_single_forecast_tab(
         get_latest_prediction_result(mode="single_forecast"),
         debug=get_debug_mode(),
         empty_message=ui_text.SINGLE_FORECAST_EMPTY_MESSAGE,
+        key_prefix="prediction_tab_single_forecast",
     )
 
 
@@ -270,6 +272,7 @@ def _render_multi_country_forecast_tab(
         get_latest_prediction_result(mode="multi_country_forecast"),
         debug=get_debug_mode(),
         empty_message=ui_text.MULTI_COUNTRY_FORECAST_EMPTY_MESSAGE,
+        key_prefix="prediction_tab_multi_country_forecast",
     )
 
 
@@ -409,18 +412,19 @@ def _render_predicted_comparison_tab(
                 forecast_year=forecast_year,
             )
 
-    error = get_prediction_error(
-        mode=get_selection_state().get("prediction_active_mode")
+    active_prediction_mode = str(
+        get_selection_state().get("prediction_active_mode") or "predicted_comparison"
     )
+
+    error = get_prediction_error(mode=active_prediction_mode)
     if error is not None:
         render_app_error(error, debug=get_debug_mode())
 
     render_prediction_service_result(
-        get_latest_prediction_result(
-            mode=get_selection_state().get("prediction_active_mode")
-        ),
+        get_latest_prediction_result(mode=active_prediction_mode),
         debug=get_debug_mode(),
         empty_message=ui_text.PREDICTED_COMPARISON_EMPTY_MESSAGE,
+        key_prefix=f"prediction_tab_{active_prediction_mode}",
     )
 
 
@@ -485,6 +489,7 @@ def _render_backtest_tab(catalog_state: dict[str, Any], prediction_service) -> N
         get_latest_prediction_result(mode="backtest"),
         debug=get_debug_mode(),
         empty_message=ui_text.BACKTEST_EMPTY_MESSAGE,
+        key_prefix="prediction_tab_backtest",
     )
 
 
@@ -513,14 +518,18 @@ def _run_multi_country_forecast(
     method_id: str,
     horizon_years: int,
 ) -> None:
-    result = prediction_service.run_single_metric_prediction_for_countries(
-        metric_id=metric_id,
-        country_codes=list(country_codes),
-        method=method_id,
-        horizon_years=int(horizon_years),
-        fail_fast=False,
-    )
-    _store_prediction_service_result(result, mode="multi_country_forecast")
+    try:
+        result = prediction_service.run_single_metric_prediction_for_countries(
+            metric_id=metric_id,
+            country_codes=list(country_codes),
+            method=method_id,
+            horizon_years=int(horizon_years),
+            fail_fast=False,
+        )
+    except ClientError as exc:
+        _store_prediction_client_error(exc, mode="multi_country_forecast")
+    else:
+        _store_prediction_service_result(result, mode="multi_country_forecast")
 
 
 def _run_predicted_comparison(
@@ -581,6 +590,19 @@ def _run_backtest(
         holdout_years=int(holdout_years),
     )
     _store_prediction_service_result(result, mode="backtest")
+
+
+def _store_prediction_client_error(exc: ClientError, *, mode: str) -> None:
+    error = getattr(exc, "error", None)
+    if error is None:
+        error = AppError(
+            code="client_error",
+            title="Client error",
+            user_message="The UI could not complete the prediction request.",
+            technical_detail=str(exc),
+        )
+    set_prediction_result(None, mode=mode)
+    set_prediction_error(error, mode=mode)
 
 
 def _store_prediction_service_result(result, *, mode: str) -> None:
