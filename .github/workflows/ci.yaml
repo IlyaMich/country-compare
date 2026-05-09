@@ -72,13 +72,14 @@ jobs:
           python -m pip install --upgrade pip build
           python -m build
 
-      - name: Install built wheel with API extra
+      - name: Install built wheel with UI extra
         run: |
-          python -m venv /tmp/country-compare-api-wheel-env
-          /tmp/country-compare-api-wheel-env/bin/python -m pip install --upgrade pip
-          /tmp/country-compare-api-wheel-env/bin/python - <<'PY'
+          python -m venv /tmp/country-compare-ui-wheel-env
+          /tmp/country-compare-ui-wheel-env/bin/python -m pip install --upgrade pip
+          /tmp/country-compare-ui-wheel-env/bin/python - <<'PY'
           from pathlib import Path
           import importlib
+          import importlib.util
           import subprocess
           import sys
 
@@ -88,12 +89,19 @@ jobs:
 
           wheel = wheels[0]
           subprocess.check_call(
-              [sys.executable, "-m", "pip", "install", f"{wheel}[api]"]
+              [sys.executable, "-m", "pip", "install", f"{wheel}[ui]"]
           )
 
-          module = importlib.import_module("country_compare.api.main")
-          assert hasattr(module, "create_app")
-          print("API extra wheel install passed.")
+          bootstrap = importlib.import_module("country_compare.ui.bootstrap")
+          assert hasattr(bootstrap, "build_app_context")
+          assert hasattr(bootstrap, "get_ui_services")
+          assert hasattr(bootstrap, "bootstrap_app")
+
+          assert importlib.util.find_spec("streamlit") is not None
+          assert importlib.util.find_spec("httpx") is not None
+          assert importlib.util.find_spec("matplotlib") is not None
+
+          print("UI extra wheel install passed.")
           PY
 
       - name: Install built wheel with UI extra
