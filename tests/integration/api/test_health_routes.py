@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from country_compare import __version__
 from country_compare.api.dependencies import get_app_facade
 from country_compare.api.main import create_app
+from country_compare.api.settings import ApiSettings
 from country_compare.services.models import (
     ConfigStatus,
     DatasetSummary,
@@ -45,6 +46,29 @@ def test_health_returns_process_liveness_without_facade() -> None:
         "version": __version__,
         "api_version": __version__,
     }
+
+
+def test_health_returns_configured_api_version() -> None:
+    app = create_app(settings=ApiSettings(api_version="2026.05-beta"))
+
+    with TestClient(app) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json()["api_version"] == "2026.05-beta"
+
+
+def test_empty_cors_origins_does_not_allow_browser_origin() -> None:
+    app = create_app(settings=ApiSettings(cors_origins=()))
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/health",
+            headers={"Origin": "https://app.example.com"},
+        )
+
+    assert response.status_code == 200
+    assert "access-control-allow-origin" not in response.headers
 
 
 def test_ready_returns_200_when_dataset_exists_and_config_valid() -> None:

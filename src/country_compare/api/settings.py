@@ -60,9 +60,11 @@ def _parse_optional_env(name: str) -> str | None:
 
 
 def _parse_csv_env(name: str) -> tuple[str, ...]:
-    raw_value = os.environ.get(name, "")
-    values = tuple(value.strip() for value in raw_value.split(",") if value.strip())
-    return values or ApiSettings.cors_origins
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return ApiSettings.cors_origins
+
+    return tuple(value.strip() for value in raw_value.split(",") if value.strip())
 
 
 def _parse_int_env(name: str, *, default: int) -> int:
