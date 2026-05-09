@@ -32,6 +32,13 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -e ".[dev]"
 
+      - name: Build processed dataset artifacts
+        run: |
+          python scripts/update_parquet_data_wb.py --skip-audit
+          test -s data/processed/metrics.parquet
+          test -s data/processed/metrics_manifest.json
+          test -s data/processed/catalog.json
+          
       - name: Run static layout guards
         run: |
           python scripts/check_static_guards.py
