@@ -43,7 +43,7 @@ def test_health_returns_process_liveness_without_facade() -> None:
         "status": "ok",
         "service": "country-compare-api",
         "version": __version__,
-        "api_version": "0.2.0",
+        "api_version": __version__,
     }
 
 

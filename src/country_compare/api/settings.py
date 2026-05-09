@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from country_compare import __version__
+
 
 @dataclass(frozen=True)
 class ApiSettings:
@@ -12,7 +14,7 @@ class ApiSettings:
     ``AppContext``. These values only control the HTTP adapter.
     """
 
-    api_version: str = "0.2.0"
+    api_version: str = __version__
     cors_origins: tuple[str, ...] = ("http://localhost:8501",)
     max_records: int = 500
     max_countries: int = 50

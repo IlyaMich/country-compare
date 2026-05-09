@@ -24,7 +24,7 @@ def health(request: Request) -> HealthResponse:
     """Return process-level liveness only."""
 
     api_settings = getattr(request.app.state, "api_settings", None)
-    api_version = str(getattr(api_settings, "api_version", "0.2.0"))
+    api_version = str(getattr(api_settings, "api_version", __version__))
     return HealthResponse(version=__version__, api_version=api_version)
 
 
