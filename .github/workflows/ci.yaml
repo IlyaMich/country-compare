@@ -6,10 +6,15 @@ on:
       - develop
       - main
       - "feature/**"
+    tags:
+      - "v*"
   pull_request:
     branches:
       - develop
       - main
+
+permissions:
+  contents: read
 
 jobs:
   python-quality:
@@ -32,6 +37,13 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -e ".[dev]"
 
+      - name: Build processed dataset artifacts
+        run: |
+          python scripts/update_parquet_data_wb.py --skip-audit
+          test -s data/processed/metrics.parquet
+          test -s data/processed/metrics_manifest.json
+          test -s data/processed/catalog.json
+          
       - name: Run static layout guards
         run: |
           python scripts/check_static_guards.py
@@ -147,8 +159,11 @@ jobs:
           python -m pip_audit || true
 
   docker-build:
-    name: Docker Compose build and backend smoke
+    name: Docker build, smoke, and release image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Check out repository
@@ -161,7 +176,7 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      - name: Prepare processed dataset fixture
+      - name: Build processed release dataset
         run: |
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -e .
@@ -169,6 +184,8 @@ jobs:
           test -f data/processed/metrics.parquet
           test -f data/processed/metrics_manifest.json
           test -f data/processed/catalog.json
+          country-compare validate-data
+          country-compare validate-config
 
       - name: Show Docker versions
         run: |
@@ -213,11 +230,82 @@ jobs:
         run: |
           docker compose -f compose.api.yml down --volumes --remove-orphans
 
+      - name: Build release candidate backend image with embedded dataset
+        run: |
+          docker build \
+            --file Dockerfile.backend \
+            --tag country-compare-backend:ci \
+            .
+
+      - name: Smoke test release candidate image without host volumes
+        run: |
+          docker run -d \
+            --name country-compare-backend-ci \
+            --publish 8001:8000 \
+            --env COUNTRY_COMPARE_API_ENABLE_DOCS=true \
+            --env COUNTRY_COMPARE_API_KEY=ci-smoke-key \
+            country-compare-backend:ci
+          python scripts/smoke_api_container.py \
+            --base-url http://127.0.0.1:8001 \
+            --api-key ci-smoke-key
+
+      - name: Show release candidate backend logs on failure
+        if: failure()
+        run: |
+          docker logs country-compare-backend-ci || true
+
+      - name: Stop release candidate backend
+        if: always()
+        run: |
+          docker rm -f country-compare-backend-ci || true
+
       - name: Run Trivy backend image scan in non-blocking mode
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: country-compare-backend:latest
+          image-ref: country-compare-backend:ci
           format: table
           exit-code: "0"
           ignore-unfixed: true
           severity: CRITICAL,HIGH
+
+      - name: Resolve GHCR image name
+        id: image
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "name=ghcr.io/${owner}/country-compare-api" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        if: steps.image.outputs.name != ''
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            --username "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Publish backend API image to GHCR
+        if: steps.image.outputs.name != ''
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          SHORT_SHA: ${{ steps.image.outputs.short_sha }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          tags=("${IMAGE_NAME}:sha-${SHORT_SHA}")
+
+          if [ "${REF_TYPE}" = "branch" ] && [ "${REF_NAME}" = "main" ]; then
+            tags+=("${IMAGE_NAME}:main" "${IMAGE_NAME}:latest")
+          fi
+
+          if [ "${REF_TYPE}" = "tag" ]; then
+            tags+=("${IMAGE_NAME}:${REF_NAME}")
+          fi
+
+          for tag in "${tags[@]}"; do
+            docker tag country-compare-backend:ci "${tag}"
+            docker push "${tag}"
+          done
+
+          printf 'Published image tags:\n%s\n' "${tags[@]}"

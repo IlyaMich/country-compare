@@ -199,7 +199,7 @@ http://localhost:8000/docs
 Common backend environment variables:
 
 ```text
-COUNTRY_COMPARE_API_CORS_ORIGINS=http://localhost:8501
+COUNTRY_COMPARE_API_CORS_ORIGINS=http://localhost:8501  # Set empty to disable CORS origins for backend-only deployments.
 COUNTRY_COMPARE_API_MAX_RECORDS=500
 COUNTRY_COMPARE_API_MAX_COUNTRIES=50
 COUNTRY_COMPARE_API_MAX_METRICS=50

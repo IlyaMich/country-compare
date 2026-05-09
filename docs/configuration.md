@@ -63,7 +63,7 @@ COUNTRY_COMPARE_API_URL=http://localhost:8000 python -m streamlit run src/countr
 
 ### `COUNTRY_COMPARE_API_CORS_ORIGINS`
 
-API-only setting for CORS origins.
+API-only setting for comma-separated CORS origins. When unset, the API allows the default local Streamlit origin, `http://localhost:8501`. Set it to an empty value to disable CORS origins entirely for backend-only deployments.
 
 ### `COUNTRY_COMPARE_API_MAX_RECORDS`
 

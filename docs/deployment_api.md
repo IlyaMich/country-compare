@@ -11,7 +11,18 @@ The backend Docker image is hardened for beta deployment:
 - the container runs as a non-root `app` user;
 - the container honors a platform-injected `PORT` environment variable;
 - the healthcheck targets `GET /health` on the configured port;
-- API-only deployments should mount `config/` and `data/processed/` read-only.
+- API-only deployments may either use an image with embedded processed data or
+  mount `config/` and `data/processed/` read-only.
+
+API-only deployments can run in either of these beta-safe modes:
+
+1. **Embedded dataset image**: generate `data/processed/*` in CI before building
+   `Dockerfile.backend`, then deploy that exact image.
+2. **Read-only mounted dataset**: deploy the backend image and mount `config/` and
+   `data/processed/` read-only from the hosting platform.
+
+The embedded dataset image is the recommended first public-beta path because the
+image is immutable, smoke-testable, and easy to roll back.
 
 Example backend-only run:
 
@@ -110,6 +121,81 @@ A complete dataset artifact set is:
 data/processed/metrics.parquet
 data/processed/metrics_manifest.json
 data/processed/catalog.json
+```
+
+## Release image pipeline
+
+The CI workflow builds and validates a deployable backend API image. The release
+image pipeline intentionally generates the processed dataset before the backend
+image is built so the image can contain a complete immutable dataset release.
+
+On every CI run, the Docker job:
+
+1. generates `data/processed/*` using `scripts/update_parquet_data_wb.py`;
+2. verifies `metrics.parquet`, `metrics_manifest.json`, and `catalog.json`;
+3. builds the normal Compose services;
+4. smoke-tests the default Compose backend;
+5. smoke-tests the backend-only Compose service;
+6. builds `Dockerfile.backend` as `country-compare-backend:ci`;
+7. smoke-tests that image without host data volumes and with an API key enabled;
+8. runs the non-blocking Trivy container scan.
+
+For pushes to `main` and tags matching `v*`, CI publishes the exact smoke-tested
+backend image to GitHub Container Registry:
+
+```text
+ghcr.io/<owner>/country-compare-api:sha-<short-sha>
+ghcr.io/<owner>/country-compare-api:main
+ghcr.io/<owner>/country-compare-api:latest
+ghcr.io/<owner>/country-compare-api:<git-tag>
+```
+
+`main` and `latest` are only published from the `main` branch. Version tags are
+published from matching Git tags. Pull requests and feature branches build and
+smoke-test images but do not publish them.
+
+## Deployment workflow
+
+`.github/workflows/deploy-api.yaml` is a provider-neutral manual deployment
+workflow. It expects the hosting provider to deploy a previously published GHCR
+image instead of rebuilding the repository itself.
+
+Configure these GitHub environment secrets for the target environment, for
+example `beta`:
+
+```text
+COUNTRY_COMPARE_API_DEPLOY_WEBHOOK_URL   required
+COUNTRY_COMPARE_API_DEPLOY_WEBHOOK_TOKEN optional
+COUNTRY_COMPARE_API_BASE_URL             required for post-deploy smoke tests
+COUNTRY_COMPARE_API_KEY                  optional, required if the public API is key-protected
+```
+
+The deployment workflow sends this JSON payload to the webhook:
+
+```json
+{
+  "image": "ghcr.io/<owner>/country-compare-api:<tag>",
+  "environment": "beta",
+  "service": "country-compare-api"
+}
+```
+
+For providers whose deploy hooks ignore request bodies, configure the provider
+service to consume a stable published tag such as `main` or `latest`. For
+providers with APIs that accept image names, wire the webhook receiver to deploy
+the `image` value from the payload.
+
+After triggering the provider deployment, the workflow can run the same smoke
+script against the public API URL:
+
+```bash
+python scripts/smoke_api_container.py \
+  --base-url "$COUNTRY_COMPARE_API_BASE_URL" \
+  --api-key "$COUNTRY_COMPARE_API_KEY"
+```
+
+Use `/health` for hosting-platform liveness checks. Use `/ready` in release and
+post-deploy smoke checks with the API key when key protection is enabled.
 
 ## CI and security scans
 
@@ -123,7 +209,10 @@ GitHub Actions run:
 - package build
 - install from built wheel and sdist
 - Docker Compose build
-- backend container smoke checks for `/health`, `/ready`, and metadata
+- backend container smoke checks for `/health`, `/ready`, metadata, and comparison
+- backend release image smoke checks without host data volumes
+- GHCR image publishing for `main` and `v*` tag pushes
+- provider-neutral manual deployment workflow
 - `pip-audit` in non-blocking mode
 - Trivy backend image scan in non-blocking mode
 

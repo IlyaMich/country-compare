@@ -24,6 +24,7 @@ class ApiResponse:
 class SmokeClient:
     base_url: str
     timeout_seconds: float
+    api_key: str | None = None
 
     def get(self, path: str, *, request_id: str | None = None) -> ApiResponse:
         return self.request("GET", path, request_id=request_id)
@@ -48,6 +49,9 @@ class SmokeClient:
         url = f"{self.base_url.rstrip('/')}{path}"
         body = None
         headers = {"Accept": "application/json"}
+
+        if self.api_key:
+            headers["X-API-Key"] = self.api_key
 
         if payload is not None:
             body = json.dumps(payload).encode("utf-8")
@@ -102,11 +106,17 @@ def main() -> int:
         default=90.0,
         help="Maximum time to wait for /health and /ready.",
     )
+    parser.add_argument(
+        "--api-key",
+        default=None,
+        help="Optional API key to send as the X-API-Key header.",
+    )
     args = parser.parse_args()
 
     client = SmokeClient(
         base_url=args.base_url,
         timeout_seconds=args.timeout_seconds,
+        api_key=args.api_key,
     )
 
     _wait_for_operational_endpoints(client, wait_seconds=args.wait_seconds)
