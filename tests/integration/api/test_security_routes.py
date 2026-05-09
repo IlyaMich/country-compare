@@ -36,3 +36,34 @@ def test_api_key_auth_keeps_health_public_but_protects_api_routes() -> None:
     assert authenticated_response.json() == {
         "countries": [{"code": "ISR", "name": "Israel"}]
     }
+
+
+def test_openapi_documents_api_key_security_for_protected_routes() -> None:
+    app = create_app(settings=ApiSettings(api_key="secret"))
+
+    with TestClient(app) as client:
+        response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    schema = response.json()
+    security_schemes = schema["components"]["securitySchemes"]
+    assert security_schemes["ApiKeyAuth"] == {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Shared beta API key passed in the X-API-Key header.",
+    }
+    assert security_schemes["BearerAuth"] == {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Shared beta API key passed as an Authorization: Bearer token.",
+    }
+    assert schema["paths"]["/api/v1/metadata/countries"]["get"]["security"] == [
+        {"ApiKeyAuth": []},
+        {"BearerAuth": []},
+    ]
+    assert schema["paths"]["/ready"]["get"]["security"] == [
+        {"ApiKeyAuth": []},
+        {"BearerAuth": []},
+    ]
+    assert "security" not in schema["paths"]["/health"]["get"]

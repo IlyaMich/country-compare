@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from country_compare import __version__
 from country_compare.api.errors import register_exception_handlers
+from country_compare.api.openapi import install_openapi_security
 from country_compare.api.request_context import (
     configure_api_logging,
     request_context_middleware,
@@ -39,6 +40,7 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
 
     app.middleware("http")(enforce_optional_api_key)
     app.middleware("http")(request_context_middleware)
+    install_openapi_security(app)
 
     if resolved_settings.cors_origins:
         app.add_middleware(
