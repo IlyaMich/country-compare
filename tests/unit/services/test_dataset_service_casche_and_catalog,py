@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+import json
+
+import pandas as pd
+
+import country_compare.services.dataset_service as dataset_service_module
+from country_compare.data.cache import clear_metric_dataframe_cache
+from country_compare.data.catalog import (
+    CATALOG_SCHEMA_VERSION,
+    catalog_path_for_dataset,
+)
+from country_compare.data.examples import build_example_metric_dataframe
+from country_compare.data.publish import atomic_publish_metric_dataframe
+from country_compare.services.dataset_service import DatasetService
+
+
+def test_dataset_service_load_dataframe_uses_process_cache(
+    fake_app_context,
+    monkeypatch,
+) -> None:
+    dataframe = build_example_metric_dataframe()
+    atomic_publish_metric_dataframe(dataframe, dataset_path=fake_app_context.store_path)
+    clear_metric_dataframe_cache()
+    load_calls = 0
+    original_loader = dataset_service_module.load_metric_dataframe
+
+    def spy_loader(*args, **kwargs) -> pd.DataFrame:
+        nonlocal load_calls
+        load_calls += 1
+        return original_loader(*args, **kwargs)
+
+    monkeypatch.setattr(dataset_service_module, "load_metric_dataframe", spy_loader)
+    service = DatasetService(fake_app_context)
+    first = service.load_dataframe()
+    first.loc[first.index[0], "country_name"] = "Mutated"
+    second = service.load_dataframe()
+    assert load_calls == 1
+    assert "Mutated" not in set(second["country_name"].astype(str).tolist())
+    clear_metric_dataframe_cache()
+
+
+def test_dataset_service_uses_metadata_catalog_for_selectors(fake_app_context) -> None:
+    dataframe = build_example_metric_dataframe()
+    atomic_publish_metric_dataframe(dataframe, dataset_path=fake_app_context.store_path)
+    catalog_path = catalog_path_for_dataset(fake_app_context.store_path)
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    catalog["schema_version"] = CATALOG_SCHEMA_VERSION
+    catalog["countries"] = [{"code": "CAT", "name": "Catalogland"}]
+    catalog["metrics"] = [
+        {
+            "metric_id": "catalog_metric",
+            "display_name": "Catalog metric",
+            "category": "catalog",
+            "unit": "points",
+        }
+    ]
+    catalog["years"] = [2030]
+    catalog["categories"] = [
+        {
+            "name": "catalog",
+            "row_count": 1,
+            "country_count": 1,
+            "metric_count": 1,
+        }
+    ]
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+    service = DatasetService(fake_app_context)
+    assert service.list_countries()[0].code == "CAT"
+    assert service.list_metrics()[0].metric_id == "catalog_metric"
+    assert service.list_years() == (2030,)
+    assert service.get_category_breakdown()[0].name == "catalog"

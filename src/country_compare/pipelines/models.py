@@ -280,6 +280,8 @@ class PublicationReport:
     row_count: int = 0
     target_backend: str | None = None
     target_path: str | None = None
+    manifest_path: str | None = None
+    dataset_sha256: str | None = None
     wrote_metric_dataset: bool = False
     error: str | None = None
 

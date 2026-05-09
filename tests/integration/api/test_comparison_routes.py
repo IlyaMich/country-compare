@@ -260,6 +260,29 @@ def test_comparison_service_error_returns_error_envelope() -> None:
     }
 
 
+def test_comparison_top_n_limit_returns_400_before_service_call() -> None:
+    facade = FakeFacade()
+    client = _client_for(facade, max_top_n=1)
+
+    response = client.post(
+        "/api/v1/compare/single-metric",
+        json={
+            "country_codes": ["ISR", "FRA"],
+            "metric_id": "gdp_per_capita",
+            "top_n": 2,
+        },
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "input_limit_exceeded"
+    assert payload["error"]["details"]["field_errors"]["top_n"].startswith(
+        "Requested 2 top rows"
+    )
+    assert facade.single_metric_requests == []
+
+
 def test_target_year_strategy_without_target_year_returns_422() -> None:
     facade = FakeFacade()
     client = _client_for(facade)
@@ -274,11 +297,15 @@ def test_target_year_strategy_without_target_year_returns_422() -> None:
     )
 
     assert response.status_code == 422
+    assert response.json()["ok"] is False
+    assert response.json()["error"]["code"] == "validation_failed"
     assert facade.single_metric_requests == []
 
 
-def _client_for(facade: FakeFacade, *, max_records: int = 500) -> TestClient:
-    app = create_app(settings=ApiSettings(max_records=max_records))
+def _client_for(
+    facade: FakeFacade, *, max_records: int = 500, max_top_n: int = 100
+) -> TestClient:
+    app = create_app(settings=ApiSettings(max_records=max_records, max_top_n=max_top_n))
     app.dependency_overrides[get_app_facade] = lambda: facade
     return TestClient(app)
 

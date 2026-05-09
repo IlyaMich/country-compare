@@ -125,6 +125,7 @@ class ComparisonService:
                 bundle=bundle,
             )
             metadata.update(extra_metadata)
+            self._attach_dataset_identity(metadata, dataframe)
 
             return ComparisonResult(
                 mode=getattr(request, "mode", default_mode),
@@ -142,6 +143,21 @@ class ComparisonService:
                 request=request,
                 error=self._map_exception(exc),
             )
+
+    def _attach_dataset_identity(
+        self, metadata: dict[str, Any], dataframe: pd.DataFrame
+    ) -> None:
+        if self.dataset_service is None or "dataset" in metadata:
+            return
+        identity_getter = getattr(self.dataset_service, "get_dataset_identity", None)
+        if identity_getter is None:
+            return
+        try:
+            identity = identity_getter(dataframe)
+        except Exception:
+            return
+        if identity:
+            metadata["dataset"] = identity
 
     def _validate_single_metric_request(
         self,

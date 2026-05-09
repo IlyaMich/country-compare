@@ -19,6 +19,22 @@ class ReadyDatasetStatus(StrictBaseModel):
     backend: str | None = None
     dataset_path: str | None = None
     row_count: int = 0
+    country_count: int = 0
+    metric_count: int = 0
+    year_min: int | None = None
+    year_max: int | None = None
+    dataset_versions: list[str] = Field(default_factory=list)
+    dataset_checksum: str | None = None
+    dataset_size_bytes: int | None = None
+    dataset_modified_at: str | None = None
+    manifest_path: str | None = None
+    manifest_exists: bool = False
+    manifest_valid: bool | None = None
+    manifest_issue_count: int = 0
+    manifest_issues: list[str] = Field(default_factory=list)
+    manifest_dataset_version: str | None = None
+    manifest_created_at: str | None = None
+    manifest_schema_version: str | None = None
     schema_valid: bool | None = None
     schema_issue_count: int = 0
     schema_issues: list[str] = Field(default_factory=list)

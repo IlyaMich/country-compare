@@ -126,3 +126,8 @@ http://backend:8000
 ### Missing charts in HTTP mode
 
 Charts require chartable result data. If the returned table lacks usable label/year/value columns, the UI should preserve tables and show explanatory text rather than failing.
+
+
+## Public-beta backend hardening
+
+The backend and UI images install the package in production mode and run as a non-root `app` user. The backend honors a platform-provided `PORT` environment variable, keeps `/health` as the container healthcheck target, and should be deployed with processed data and config mounted read-only for API-only deployments.

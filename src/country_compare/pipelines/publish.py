@@ -5,6 +5,7 @@ from typing import Any
 import pandas as pd
 
 from country_compare.data.access import save_metric_dataframe, save_metric_dataset
+from country_compare.data.publish import atomic_publish_metric_dataframe
 from country_compare.pipelines.errors import PublicationError
 from country_compare.pipelines.models import PublicationReport
 
@@ -34,11 +35,19 @@ def publish_dataframe(
     )
 
     try:
+        store_path = getattr(store, "path", None) if store is not None else None
         if write_metric_dataset:
             from country_compare.data.validation import dataframe_to_metric_dataset
 
             dataset = dataframe_to_metric_dataset(dataframe)
             save_metric_dataset(dataset, store=store)
+        elif store_path is not None:
+            publish_result = atomic_publish_metric_dataframe(
+                dataframe,
+                dataset_path=store_path,
+            )
+            report.manifest_path = publish_result.manifest_path
+            report.dataset_sha256 = publish_result.sha256
         else:
             save_metric_dataframe(dataframe, store=store)
     except Exception as exc:  # pragma: no cover - simple wrapper
