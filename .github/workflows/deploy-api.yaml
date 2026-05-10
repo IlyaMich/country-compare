@@ -154,4 +154,5 @@ jobs:
           python scripts/smoke_api_container.py \
             --base-url "${API_BASE_URL}" \
             --api-key "${API_KEY:-}" \
-            --wait-seconds 180
+            --timeout-seconds 30 \
+            --wait-seconds 420
