@@ -1,0 +1,157 @@
+name: Deploy API
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Published GHCR image tag to deploy, for example latest, main, v0.1.0, or sha-abc123def456."
+        required: true
+        default: latest
+      target_environment:
+        description: "GitHub environment name for deployment approvals and secrets."
+        required: true
+        default: beta
+      deploy_provider:
+        description: "Deployment provider mode. Use render for Render deploy hooks with imgURL support."
+        required: true
+        default: render
+        type: choice
+        options:
+          - render
+          - generic_webhook
+      run_smoke_test:
+        description: "Run post-deploy smoke checks against COUNTRY_COMPARE_API_BASE_URL."
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    name: Deploy backend API image
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_environment }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve deployment image
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="ghcr.io/${owner}/country-compare-api:${{ inputs.image_tag }}"
+
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "Deploying ${image} to ${{ inputs.target_environment }} via ${{ inputs.deploy_provider }}."
+
+      - name: Trigger deployment webhook
+        env:
+          DEPLOY_PROVIDER: ${{ inputs.deploy_provider }}
+          DEPLOY_WEBHOOK_URL: ${{ secrets.COUNTRY_COMPARE_API_DEPLOY_WEBHOOK_URL }}
+          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.COUNTRY_COMPARE_API_DEPLOY_WEBHOOK_TOKEN }}
+          DEPLOY_IMAGE: ${{ steps.image.outputs.image }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.target_environment }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DEPLOY_WEBHOOK_URL}" ]; then
+            cat >&2 <<'EOF'
+          COUNTRY_COMPARE_API_DEPLOY_WEBHOOK_URL is not configured for this environment.
+
+          For Render, set it to the service deploy hook URL from the Render service settings.
+          For generic_webhook, set it to a webhook endpoint that accepts the JSON payload below.
+          EOF
+            exit 1
+          fi
+
+          if [ "${DEPLOY_PROVIDER}" = "render" ]; then
+            render_url=$(python - <<'PY'
+          import os
+          from urllib.parse import quote
+
+          hook_url = os.environ["DEPLOY_WEBHOOK_URL"]
+          image = os.environ["DEPLOY_IMAGE"]
+          separator = "&" if "?" in hook_url else "?"
+          print(f"{hook_url}{separator}imgURL={quote(image, safe='')}")
+          PY
+          )
+
+            echo "Triggering Render deploy for ${DEPLOY_IMAGE}."
+            curl --fail --show-error --silent --request POST "${render_url}"
+            exit 0
+          fi
+
+          if [ "${DEPLOY_PROVIDER}" = "generic_webhook" ]; then
+            payload=$(python - <<'PY'
+          import json
+          import os
+
+          print(json.dumps({
+              "image": os.environ["DEPLOY_IMAGE"],
+              "environment": os.environ["DEPLOY_ENVIRONMENT"],
+              "service": "country-compare-api",
+          }))
+          PY
+          )
+
+            echo "Triggering generic deployment webhook for ${DEPLOY_IMAGE}."
+
+            if [ -n "${DEPLOY_WEBHOOK_TOKEN}" ]; then
+              curl --fail --show-error --silent \
+                --request POST \
+                --header "Content-Type: application/json" \
+                --header "Authorization: Bearer ${DEPLOY_WEBHOOK_TOKEN}" \
+                --data "${payload}" \
+                "${DEPLOY_WEBHOOK_URL}"
+            else
+              curl --fail --show-error --silent \
+                --request POST \
+                --header "Content-Type: application/json" \
+                --data "${payload}" \
+                "${DEPLOY_WEBHOOK_URL}"
+            fi
+
+            exit 0
+          fi
+
+          echo "Unsupported deploy_provider: ${DEPLOY_PROVIDER}" >&2
+          exit 1
+
+      - name: Set up Python for post-deploy smoke checks
+        if: inputs.run_smoke_test == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run post-deploy API smoke checks
+        if: inputs.run_smoke_test == 'true'
+        env:
+          API_BASE_URL: ${{ secrets.COUNTRY_COMPARE_API_BASE_URL }}
+          API_KEY: ${{ secrets.COUNTRY_COMPARE_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${API_BASE_URL}" ]; then
+            cat >&2 <<'EOF'
+          COUNTRY_COMPARE_API_BASE_URL is not configured for this environment.
+          Set it to the public API URL, for example https://country-compare-api.onrender.com.
+          EOF
+            exit 1
+          fi
+
+          python scripts/smoke_api_container.py \
+            --base-url "${API_BASE_URL}" \
+            --api-key "${API_KEY:-}" \
+            --wait-seconds 180
