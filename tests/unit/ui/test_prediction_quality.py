@@ -6,6 +6,7 @@ from typing import Any
 
 from country_compare.ui.components.prediction_quality import (
     build_prediction_limitations,
+    build_prediction_method_notices,
     build_prediction_quality_notice,
     build_prediction_quality_summary,
 )
@@ -171,3 +172,57 @@ def test_build_prediction_quality_notice_explains_baseline_forecast() -> None:
 
     assert notice.level == "info"
     assert "baseline statistical projections" in notice.message
+
+
+@dataclass(frozen=True)
+class Diagnostic:
+    method_requested: str | None = None
+    method_used: str | None = None
+    fallback_used: bool = False
+    warnings: list[str] = field(default_factory=list)
+
+
+def test_build_prediction_method_notices_returns_empty_for_non_llm() -> None:
+    notices = build_prediction_method_notices(
+        diagnostics=[
+            Diagnostic(
+                method_requested="holt_linear",
+                method_used="holt_linear",
+                fallback_used=False,
+            )
+        ]
+    )
+
+    assert notices == []
+
+
+def test_build_prediction_method_notices_warns_for_llm_forecast() -> None:
+    notices = build_prediction_method_notices(
+        diagnostics=[
+            Diagnostic(
+                method_requested="llm_forecast",
+                method_used="llm_forecast",
+                fallback_used=False,
+            )
+        ]
+    )
+
+    assert len(notices) == 1
+    assert notices[0].level == "warning"
+    assert "experimental LLM forecast" in notices[0].message
+
+
+def test_build_prediction_method_notices_warns_for_llm_fallback() -> None:
+    notices = build_prediction_method_notices(
+        diagnostics=[
+            Diagnostic(
+                method_requested="llm_forecast",
+                method_used="holt_linear",
+                fallback_used=True,
+            )
+        ]
+    )
+
+    assert len(notices) == 1
+    assert notices[0].level == "warning"
+    assert "fallback was used" in notices[0].message

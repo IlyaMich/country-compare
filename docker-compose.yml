@@ -6,7 +6,10 @@ services:
     image: country-compare-backend:latest
     environment:
       PORT: "8000"
-
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
       COUNTRY_COMPARE_API_ENABLE_DOCS: "true"
       COUNTRY_COMPARE_API_MAX_COUNTRIES: "50"
       COUNTRY_COMPARE_API_MAX_METRICS: "50"

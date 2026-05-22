@@ -177,7 +177,7 @@ def _render_single_forecast_tab(
                 "prediction_metric_id": metric_id or None,
                 "prediction_method": method_id
                 or selection_state.get("prediction_method")
-                or "linear_trend",
+                or DEFAULT_PREDICTION_METHOD,
                 "prediction_horizon_years": horizon_years,
             }
         )
@@ -246,7 +246,7 @@ def _render_multi_country_forecast_tab(
                 "prediction_metric_id": metric_id or None,
                 "prediction_method": method_id
                 or selection_state.get("prediction_method")
-                or "linear_trend",
+                or DEFAULT_PREDICTION_METHOD,
                 "prediction_horizon_years": horizon_years,
             }
         )
@@ -387,7 +387,7 @@ def _render_predicted_comparison_tab(
                 "prediction_profile_name": profile_name or None,
                 "prediction_method": method_id
                 or selection_state.get("prediction_method")
-                or "linear_trend",
+                or DEFAULT_PREDICTION_METHOD,
                 "prediction_horizon_years": horizon_years,
                 "prediction_forecast_horizon": forecast_horizon,
                 "prediction_forecast_year": forecast_year,
