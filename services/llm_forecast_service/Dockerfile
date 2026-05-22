@@ -7,7 +7,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY services/llm_forecast_service/pyproject.toml services/llm_forecast_service/README.md /app/
 COPY services/llm_forecast_service/src /app/src
 
 RUN python -m pip install --upgrade pip setuptools wheel \
