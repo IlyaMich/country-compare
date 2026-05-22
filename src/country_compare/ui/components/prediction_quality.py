@@ -149,6 +149,61 @@ def build_prediction_quality_notice(
     )
 
 
+def build_prediction_method_notices(
+    *, diagnostics: Sequence[Any] | None = None
+) -> list[PredictionQualityNotice]:
+    diagnostics = list(diagnostics or [])
+    notices: list[PredictionQualityNotice] = []
+
+    llm_requested_or_used = False
+    llm_fallback_used = False
+
+    for item in diagnostics:
+        method_requested = str(getattr(item, "method_requested", "") or "").lower()
+        method_used = str(getattr(item, "method_used", "") or "").lower()
+        warnings = [
+            str(warning).lower()
+            for warning in list(getattr(item, "warnings", []) or [])
+        ]
+
+        diagnostic_mentions_llm = (
+            method_requested == "llm_forecast"
+            or method_used == "llm_forecast"
+            or any("llm_forecast" in warning for warning in warnings)
+            or any("llm forecast" in warning for warning in warnings)
+        )
+
+        if diagnostic_mentions_llm:
+            llm_requested_or_used = True
+
+        if diagnostic_mentions_llm and bool(getattr(item, "fallback_used", False)):
+            llm_fallback_used = True
+
+    if llm_fallback_used:
+        notices.append(
+            PredictionQualityNotice(
+                level="warning",
+                message=(
+                    "The experimental LLM forecast could not produce a validated "
+                    "result for at least one series, so a statistical fallback was used."
+                ),
+            )
+        )
+    elif llm_requested_or_used:
+        notices.append(
+            PredictionQualityNotice(
+                level="warning",
+                message=(
+                    "This result used the experimental LLM forecast method. "
+                    "LLM output is validated against a deterministic baseline and "
+                    "should be treated as exploratory, not guaranteed."
+                ),
+            )
+        )
+
+    return notices
+
+
 def build_prediction_limitations(*, mode: str | None = None) -> list[str]:
     resolved_mode = str(mode or "prediction")
 
@@ -197,11 +252,11 @@ def render_prediction_quality_panel(
 
     st.caption(quality.quality_message)
 
-    notice = build_prediction_quality_notice(quality=quality, mode=mode)
-    if notice.level == "warning":
-        st.warning(notice.message)
-    else:
-        st.info(notice.message)
+    for method_notice in build_prediction_method_notices(diagnostics=diagnostics):
+        if method_notice.level == "warning":
+            st.warning(method_notice.message)
+        else:
+            st.info(method_notice.message)
 
     detail_df = pd.DataFrame(
         [
