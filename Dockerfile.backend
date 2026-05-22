@@ -4,6 +4,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PORT=8000 \
+    OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    NUMEXPR_NUM_THREADS=1 \
     COUNTRY_COMPARE_METRICS_CONFIG=/app/config/metrics.yaml \
     COUNTRY_COMPARE_SCORING_CONFIG=/app/config/scoring_profiles.yaml \
     COUNTRY_COMPARE_STORE_PATH=/app/data/processed/metrics.parquet \
@@ -18,7 +22,7 @@ COPY config /app/config
 COPY data /app/data
 
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install ".[api]" \
+    && python -m pip install ".[api,ml]" \
     && groupadd --system app \
     && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app \
     && mkdir -p /app/data/processed /app/data/audit /app/data/exports \
