@@ -1,6 +1,7 @@
 """
 This test should be run only in environments where sklearn is installed.
 """
+
 from __future__ import annotations
 
 import pandas as pd

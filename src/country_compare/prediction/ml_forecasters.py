@@ -35,7 +35,10 @@ def is_elasticnet_available() -> bool:
 class ElasticNetTrendForecaster(BaseForecaster):
     method_id = "elasticnet_trend"
     display_name = "ElasticNet trend"
-    description = "Fits a regularized trend model using year-offset and squared year-offset features."
+    description = (
+        "Fits a regularized trend model using year-offset and "
+        "squared year-offset features."
+    )
 
     minimum_observations = 8
     minimum_distinct_years = 4
