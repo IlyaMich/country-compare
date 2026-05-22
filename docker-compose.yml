@@ -57,3 +57,36 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+  llm-forecast:
+    build:
+      context: .
+      dockerfile: services/llm_forecast_service/Dockerfile
+    image: country-compare-llm-forecast:latest
+    profiles:
+      - llm
+    environment:
+      LLM_SERVICE_TOKEN: ${COUNTRY_COMPARE_LLM_SERVICE_TOKEN:-dev-token}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mistral}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-dummy}
+      MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-large-latest}
+
+      LLM_DEPLOYMENT_PROFILE: ${LLM_DEPLOYMENT_PROFILE:-local}
+      LLM_REQUIRE_ZDR: ${LLM_REQUIRE_ZDR:-false}
+      MISTRAL_ZDR_CONFIRMED: ${MISTRAL_ZDR_CONFIRMED:-false}
+
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-20}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-0}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0}
+      LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-800}
+
+      LLM_MAX_SERIES_PER_REQUEST: ${LLM_MAX_SERIES_PER_REQUEST:-3}
+      LLM_MAX_HORIZON_YEARS: ${LLM_MAX_HORIZON_YEARS:-10}
+      LLM_MAX_HISTORY_POINTS: ${LLM_MAX_HISTORY_POINTS:-80}
+      LLM_MAX_INPUT_CHARS: ${LLM_MAX_INPUT_CHARS:-12000}
+      LLM_MAX_ADJUSTMENT_PCT: ${LLM_MAX_ADJUSTMENT_PCT:-15.0}
+
+      LLM_LOG_LEVEL: ${LLM_LOG_LEVEL:-INFO}
+      LLM_DEBUG_LOG_PAYLOADS: ${LLM_DEBUG_LOG_PAYLOADS:-false}
+    expose:
+      - "8080"      
