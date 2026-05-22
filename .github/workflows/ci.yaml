@@ -310,3 +310,50 @@ jobs:
           done
 
           printf 'Published image tags:\n%s\n' "${tags[@]}"
+  llm-forecast-service:
+    name: LLM forecast service checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/llm_forecast_service/pyproject.toml
+
+      - name: Install LLM forecast service dev dependencies
+        run: |
+          cd services/llm_forecast_service
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e ".[dev]"
+
+      - name: Run LLM forecast service tests
+        run: |
+          cd services/llm_forecast_service
+          python -m pytest
+
+      - name: Check LLM forecast service formatting
+        run: |
+          cd services/llm_forecast_service
+          python -m black --check src tests
+
+      - name: Run LLM forecast service ruff
+        run: |
+          cd services/llm_forecast_service
+          python -m ruff check src tests
+
+      - name: Run LLM forecast service mypy
+        run: |
+          cd services/llm_forecast_service
+          python -m mypy src
+
+      - name: Build LLM forecast service Docker image
+        run: |
+          docker build \
+            --file services/llm_forecast_service/Dockerfile \
+            --tag llm-forecast-service:ci \
+            .          
