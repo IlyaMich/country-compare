@@ -1,3 +1,6 @@
+"""
+This test file should run successfully in environments with or without sklearn installed.
+"""
 from __future__ import annotations
 
 from country_compare.prediction.ml_forecasters import is_elasticnet_available
