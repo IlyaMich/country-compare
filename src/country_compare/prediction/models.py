@@ -14,6 +14,7 @@ class PredictionMethod(StrEnum):
     LINEAR_TREND = "linear_trend"
     MOVING_AVERAGE = "moving_average"
     HOLT_LINEAR = "holt_linear"
+    ELASTICNET_TREND = "elasticnet_trend"
 
 
 class PredictionDiagnosticStatus(StrEnum):

@@ -12,6 +12,10 @@ from country_compare.prediction.forecasters import (
     LinearTrendForecaster,
     MovingAverageForecaster,
 )
+from country_compare.prediction.ml_forecasters import (
+    ElasticNetTrendForecaster,
+    is_elasticnet_available,
+)
 
 
 class ForecasterRegistryError(KeyError):
@@ -68,6 +72,12 @@ def _ensure_builtin_forecasters_registered() -> None:
     register_forecaster(
         HoltLinearForecaster.method_id, HoltLinearForecaster, replace=True
     )
+    if is_elasticnet_available():
+        register_forecaster(
+            ElasticNetTrendForecaster.method_id,
+            ElasticNetTrendForecaster,
+            replace=True,
+        )
     _BUILTINS_REGISTERED = True
 
 
