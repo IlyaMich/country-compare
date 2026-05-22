@@ -188,6 +188,150 @@ class MovingAverageForecaster(BaseForecaster):
         )
 
 
+class HoltLinearForecaster(BaseForecaster):
+    method_id = "holt_linear"
+    display_name = "Holt linear trend"
+    description = (
+        "Applies additive Holt linear smoothing with an optional damped trend."
+    )
+
+    minimum_observations = 4
+    alpha = 0.8
+    beta = 0.2
+    damped = True
+    phi = 0.9
+
+    def supports(
+        self,
+        series: pd.DataFrame,
+        *,
+        context: ForecastContext,
+        options: ForecastOptions,
+    ) -> tuple[bool, list[str]]:
+        years = pd.to_numeric(series[YEAR_COLUMN], errors="coerce").dropna()
+        values = pd.to_numeric(series[VALUE_COLUMN], errors="coerce").dropna()
+
+        reasons: list[str] = []
+
+        if len(series.index) < self.minimum_observations:
+            reasons.append(
+                f"holt_linear requires at least {self.minimum_observations} observations"
+            )
+
+        if len(years.index) < len(series.index):
+            reasons.append("holt_linear requires numeric years for every observation")
+
+        if years.nunique() < self.minimum_observations:
+            reasons.append(
+                f"holt_linear requires at least {self.minimum_observations} distinct years"
+            )
+
+        if len(values.index) < len(series.index):
+            reasons.append("holt_linear requires numeric values for every observation")
+
+        return len(reasons) == 0, reasons
+
+    def forecast(
+        self,
+        series: pd.DataFrame,
+        future_years: list[int],
+        *,
+        context: ForecastContext,
+        options: ForecastOptions,
+    ) -> RawForecastResult:
+        self._require_supported(series, context=context, options=options)
+
+        sorted_series = series.copy(deep=True)
+        sorted_series[YEAR_COLUMN] = pd.to_numeric(
+            sorted_series[YEAR_COLUMN], errors="coerce"
+        ).astype("int64")
+        sorted_series[VALUE_COLUMN] = pd.to_numeric(
+            sorted_series[VALUE_COLUMN], errors="coerce"
+        ).astype("float64")
+        sorted_series = sorted_series.sort_values(by=YEAR_COLUMN, kind="mergesort")
+
+        years = [int(year) for year in sorted_series[YEAR_COLUMN].tolist()]
+        values = [float(value) for value in sorted_series[VALUE_COLUMN].tolist()]
+
+        level = values[0]
+        trend = self._initial_trend(years, values)
+
+        for index in range(1, len(values)):
+            year_gap = max(1, years[index] - years[index - 1])
+            observed_value = values[index]
+            previous_level = level
+
+            projected_level = level + self._trend_projection(
+                trend=trend,
+                steps=year_gap,
+            )
+            level = self.alpha * observed_value + (1.0 - self.alpha) * projected_level
+
+            annualized_level_delta = (level - previous_level) / float(year_gap)
+            damped_previous_trend = self.phi * trend if self.damped else trend
+            trend = (
+                self.beta * annualized_level_delta
+                + (1.0 - self.beta) * damped_previous_trend
+            )
+
+        last_year = years[-1]
+        points = [
+            ForecastPoint(
+                year=int(year),
+                value=float(
+                    level
+                    + self._trend_projection(
+                        trend=trend,
+                        steps=max(1, int(year) - last_year),
+                    )
+                ),
+                horizon=index + 1,
+            )
+            for index, year in enumerate(future_years)
+        ]
+
+        warnings: list[str] = []
+        if context.missing_years:
+            warnings.append(
+                "holt_linear received a series with missing internal years; "
+                "trend updates were adjusted using observed year gaps"
+            )
+
+        metadata = {
+            "alpha": self.alpha,
+            "beta": self.beta,
+            "damped": self.damped,
+            "phi": self.phi,
+            "training_observation_count": len(values),
+            "training_year_min": min(years),
+            "training_year_max": max(years),
+            "final_level": level,
+            "final_trend": trend,
+        }
+
+        return RawForecastResult(
+            method_id=self.method_id,
+            points=points,
+            forecaster_info=self.info(metadata=metadata),
+            diagnostics_metadata=metadata,
+            warnings=warnings,
+        )
+
+    def _initial_trend(self, years: list[int], values: list[float]) -> float:
+        diffs: list[float] = []
+        for index in range(1, len(values)):
+            year_gap = max(1, years[index] - years[index - 1])
+            diffs.append((values[index] - values[index - 1]) / float(year_gap))
+        return float(sum(diffs) / len(diffs))
+
+    def _trend_projection(self, *, trend: float, steps: int) -> float:
+        if not self.damped:
+            return float(trend * steps)
+
+        damping_multiplier = sum(self.phi**step for step in range(1, steps + 1))
+        return float(trend * damping_multiplier)
+
+
 class LinearTrendForecaster(BaseForecaster):
     method_id = "linear_trend"
     display_name = "Linear trend"

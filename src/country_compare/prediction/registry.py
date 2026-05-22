@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from country_compare.prediction.forecasters import (
     BaseForecaster,
+    HoltLinearForecaster,
     LastObservedForecaster,
     LinearTrendForecaster,
     MovingAverageForecaster,
@@ -63,6 +64,9 @@ def _ensure_builtin_forecasters_registered() -> None:
     )
     register_forecaster(
         MovingAverageForecaster.method_id, MovingAverageForecaster, replace=True
+    )
+    register_forecaster(
+        HoltLinearForecaster.method_id, HoltLinearForecaster, replace=True
     )
     _BUILTINS_REGISTERED = True
 
