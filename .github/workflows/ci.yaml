@@ -310,6 +310,7 @@ jobs:
           done
 
           printf 'Published image tags:\n%s\n' "${tags[@]}"
+
   llm-forecast-service:
     name: LLM forecast service checks
     runs-on: ubuntu-latest
