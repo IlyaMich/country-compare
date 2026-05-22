@@ -88,5 +88,5 @@ services:
 
       LLM_LOG_LEVEL: ${LLM_LOG_LEVEL:-INFO}
       LLM_DEBUG_LOG_PAYLOADS: ${LLM_DEBUG_LOG_PAYLOADS:-false}
-    expose:
-      - "8080"      
+    ports:
+      - "8080:8080"      
