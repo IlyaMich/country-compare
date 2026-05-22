@@ -12,6 +12,10 @@ from country_compare.prediction.forecasters import (
     LinearTrendForecaster,
     MovingAverageForecaster,
 )
+from country_compare.prediction.llm.forecasters import (
+    LLMForecastForecaster,
+    is_llm_forecast_available,
+)
 from country_compare.prediction.ml_forecasters import (
     ElasticNetTrendForecaster,
     is_elasticnet_available,
@@ -76,6 +80,12 @@ def _ensure_builtin_forecasters_registered() -> None:
         register_forecaster(
             ElasticNetTrendForecaster.method_id,
             ElasticNetTrendForecaster,
+            replace=True,
+        )
+    if is_llm_forecast_available():
+        register_forecaster(
+            LLMForecastForecaster.method_id,
+            LLMForecastForecaster,
             replace=True,
         )
     _BUILTINS_REGISTERED = True
