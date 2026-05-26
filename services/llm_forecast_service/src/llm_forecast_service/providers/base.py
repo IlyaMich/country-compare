@@ -9,16 +9,23 @@ from llm_forecast_service.schemas import (
 
 
 class LLMProvider(Protocol):
-    def generate_adjustment(
-        self, request: ForecastAdjustmentRequest
-    ) -> ForecastAdjustmentOutput: ...
+    provider_name: str
+
+    async def generate_adjustment(
+        self,
+        request: ForecastAdjustmentRequest,
+    ) -> ForecastAdjustmentOutput:
+        ...
 
 
 class BaselineEchoProvider:
-    """Temporary PR1 provider that performs no external LLM call."""
+    """Fallback/dev provider that performs no external LLM call."""
 
-    def generate_adjustment(
-        self, request: ForecastAdjustmentRequest
+    provider_name = "baseline_echo"
+
+    async def generate_adjustment(
+        self,
+        request: ForecastAdjustmentRequest,
     ) -> ForecastAdjustmentOutput:
         return ForecastAdjustmentOutput(
             forecast_points=request.baseline_forecast,
