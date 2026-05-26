@@ -39,6 +39,7 @@ class ServiceSettings:
     mistral_zdr_confirmed: bool = False
     timeout_seconds: float = 20.0
     max_retries: int = 1
+    max_concurrent_requests: int = 1
     temperature: float = 0.0
     max_output_tokens: int = 800
     max_series_per_request: int = 3
@@ -68,6 +69,7 @@ class ServiceSettings:
             mistral_zdr_confirmed=_get_bool("MISTRAL_ZDR_CONFIRMED", False),
             timeout_seconds=_get_float("LLM_TIMEOUT_SECONDS", 20.0),
             max_retries=_get_int("LLM_MAX_RETRIES", 1),
+            max_concurrent_requests=_get_int("LLM_MAX_CONCURRENT_REQUESTS", 1),
             temperature=_get_float("LLM_TEMPERATURE", 0.0),
             max_output_tokens=_get_int("LLM_MAX_OUTPUT_TOKENS", 800),
             max_series_per_request=_get_int("LLM_MAX_SERIES_PER_REQUEST", 3),
@@ -84,6 +86,9 @@ class ServiceSettings:
 
         if self.provider not in VALID_PROVIDERS:
             issues.append(f"Unsupported LLM_PROVIDER: {self.provider}")
+        
+        if self.max_concurrent_requests < 1:
+            issues.append("LLM_MAX_CONCURRENT_REQUESTS must be at least 1")
 
         if self.deployment_profile not in VALID_DEPLOYMENT_PROFILES:
             issues.append(
