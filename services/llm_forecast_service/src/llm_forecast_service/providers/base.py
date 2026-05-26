@@ -14,8 +14,7 @@ class LLMProvider(Protocol):
     async def generate_adjustment(
         self,
         request: ForecastAdjustmentRequest,
-    ) -> ForecastAdjustmentOutput:
-        ...
+    ) -> ForecastAdjustmentOutput: ...
 
 
 class BaselineEchoProvider:

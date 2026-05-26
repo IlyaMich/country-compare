@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from llm_forecast_service.main import create_app
+from llm_forecast_service.providers import BaselineEchoProvider
 from llm_forecast_service.schemas import (
     ForecastAdjustmentOutput,
     ForecastAdjustmentRequest,
@@ -12,8 +13,11 @@ from llm_forecast_service.settings import ServiceSettings
 
 
 class TooLargeAdjustmentProvider:
-    def generate_adjustment(
-        self, _request: ForecastAdjustmentRequest
+    provider_name = "test"
+
+    async def generate_adjustment(
+        self,
+        _request: ForecastAdjustmentRequest,
     ) -> ForecastAdjustmentOutput:
         return ForecastAdjustmentOutput(
             forecast_points=[TimeSeriesPoint(year=2030, value=130.0)],
@@ -63,7 +67,9 @@ def test_forecast_adjust_requires_bearer_token() -> None:
 
 
 def test_forecast_adjust_returns_baseline_echo_response() -> None:
-    client = TestClient(create_app(settings=_settings()))
+    client = TestClient(
+        create_app(settings=_settings(), provider=BaselineEchoProvider())
+    )
 
     response = client.post(
         "/v1/forecast/adjust",
