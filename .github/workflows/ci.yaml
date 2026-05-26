@@ -2,6 +2,24 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      image_target:
+        description: "Image target for manual runs."
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - backend
+          - llm
+      publish_images:
+        description: "Publish selected image(s) to GHCR. Allowed only from main, develop, or v* tags."
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
   push:
     branches:
       - develop
@@ -21,6 +39,7 @@ jobs:
   python-quality:
     name: Python quality checks
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'
 
     steps:
       - name: Check out repository
@@ -68,6 +87,7 @@ jobs:
   package-build:
     name: Build and install package artifacts
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'
 
     steps:
       - name: Check out repository
@@ -142,6 +162,7 @@ jobs:
   dependency-security:
     name: Dependency security scan
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'
 
     steps:
       - name: Check out repository
@@ -162,6 +183,7 @@ jobs:
   docker-build:
     name: Docker build, smoke, and release image
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'    
     permissions:
       contents: read
       packages: write
@@ -261,6 +283,7 @@ jobs:
           docker rm -f country-compare-backend-ci || true
 
       - name: Build LLM forecast service image for integration smoke
+        if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all'      
         run: |
           docker build \
             --file services/llm_forecast_service/Dockerfile \
@@ -268,6 +291,7 @@ jobs:
             .
 
       - name: Smoke test backend-to-LLM readiness
+        if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all'      
         run: |
           set -euo pipefail
 
@@ -327,9 +351,37 @@ jobs:
           ignore-unfixed: true
           severity: CRITICAL,HIGH
 
+      - name: Resolve backend image publish policy
+        id: backend_publish_policy
+        shell: bash
+        env:
+          PUBLISH_IMAGES: ${{ inputs.publish_images || 'false' }}
+        run: |
+          set -euo pipefail
+
+          should_publish=false
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            if [ "${GITHUB_REF}" = "refs/heads/main" ] || [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              should_publish=true
+            fi
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${PUBLISH_IMAGES}" = "true" ]; then
+            if [ "${GITHUB_REF}" = "refs/heads/main" ] || \
+               [ "${GITHUB_REF}" = "refs/heads/develop" ] || \
+               [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              should_publish=true
+            else
+              echo "Manual backend image publishing is allowed only from main, develop, or v* tags." >&2
+              echo "Current ref: ${GITHUB_REF}" >&2
+              exit 1
+            fi
+          fi
+
+          echo "should_publish=${should_publish}" >> "$GITHUB_OUTPUT"
+
       - name: Resolve GHCR image name
         id: image
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        if: steps.backend_publish_policy.outputs.should_publish == 'true'
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           echo "name=ghcr.io/${owner}/country-compare-api" >> "$GITHUB_OUTPUT"
@@ -372,6 +424,10 @@ jobs:
   llm-forecast-service:
     name: LLM forecast service checks
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'llm'    
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Check out repository
@@ -482,3 +538,77 @@ jobs:
           exit-code: "0"
           ignore-unfixed: true
           severity: CRITICAL,HIGH
+      
+      - name: Resolve LLM forecast image publish policy
+        id: llm_publish_policy
+        shell: bash
+        env:
+          PUBLISH_IMAGES: ${{ inputs.publish_images || 'false' }}
+        run: |
+          set -euo pipefail
+
+          should_publish=false
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            if [ "${GITHUB_REF}" = "refs/heads/main" ] || [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              should_publish=true
+            fi
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${PUBLISH_IMAGES}" = "true" ]; then
+            if [ "${GITHUB_REF}" = "refs/heads/main" ] || \
+               [ "${GITHUB_REF}" = "refs/heads/develop" ] || \
+               [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              should_publish=true
+            else
+              echo "Manual LLM image publishing is allowed only from main, develop, or v* tags." >&2
+              echo "Current ref: ${GITHUB_REF}" >&2
+              exit 1
+            fi
+          fi
+
+          echo "should_publish=${should_publish}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve GHCR LLM forecast image name
+        id: llm_image
+        if: steps.llm_publish_policy.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "name=ghcr.io/${owner}/country-compare-llm-forecast" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR for LLM forecast image
+        if: steps.llm_image.outputs.name != ''
+        shell: bash
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            --username "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Publish LLM forecast service image to GHCR
+        if: steps.llm_image.outputs.name != ''
+        env:
+          IMAGE_NAME: ${{ steps.llm_image.outputs.name }}
+          SHORT_SHA: ${{ steps.llm_image.outputs.short_sha }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tags=("${IMAGE_NAME}:sha-${SHORT_SHA}")
+
+          if [ "${REF_TYPE}" = "branch" ] && [ "${REF_NAME}" = "main" ]; then
+            tags+=("${IMAGE_NAME}:main" "${IMAGE_NAME}:latest")
+          fi
+
+          if [ "${REF_TYPE}" = "tag" ]; then
+            tags+=("${IMAGE_NAME}:${REF_NAME}")
+          fi
+
+          for tag in "${tags[@]}"; do
+            docker tag llm-forecast-service:ci "${tag}"
+            docker push "${tag}"
+          done
+
+          printf 'Published LLM forecast image tags:\n%s\n' "${tags[@]}"
