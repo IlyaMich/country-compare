@@ -651,10 +651,22 @@ def _render_prediction_metrics(
     status_counts = dict(diagnostics_summary.get("status_counts") or {})
 
     method_used = metadata.get("method_used") or summary.get("method_used")
+
     if method_used is None:
-        forecaster_info = summary.get("forecaster_info")
-        if isinstance(forecaster_info, list) and forecaster_info:
-            method_used = forecaster_info[0].get("method_id")
+        methods_used = summary.get("methods_used")
+        if isinstance(methods_used, list) and methods_used:
+            method_used = ", ".join(str(method) for method in methods_used)
+
+    if method_used is None:
+        forecasters = summary.get("forecasters") or summary.get("forecaster_info")
+        if isinstance(forecasters, list) and forecasters:
+            method_ids = [
+                str(item.get("method_id"))
+                for item in forecasters
+                if isinstance(item, Mapping) and item.get("method_id")
+            ]
+            if method_ids:
+                method_used = ", ".join(method_ids)
 
     cols = st.columns(4)
     cols[0].metric("Forecast rows", _metric_value(forecast_summary.get("row_count")))
