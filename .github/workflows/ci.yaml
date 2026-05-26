@@ -260,6 +260,64 @@ jobs:
         run: |
           docker rm -f country-compare-backend-ci || true
 
+      - name: Build LLM forecast service image for integration smoke
+        run: |
+          docker build \
+            --file services/llm_forecast_service/Dockerfile \
+            --tag llm-forecast-service:ci \
+            .
+
+      - name: Smoke test backend-to-LLM readiness
+        run: |
+          set -euo pipefail
+
+          cleanup() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              echo "::group::LLM forecast service logs"
+              docker logs llm-forecast-service-ci || true
+              echo "::endgroup::"
+
+              echo "::group::Backend LLM smoke logs"
+              docker logs country-compare-backend-llm-ci || true
+              echo "::endgroup::"
+            fi
+
+            docker rm -f country-compare-backend-llm-ci llm-forecast-service-ci || true
+            docker network rm country-compare-llm-smoke || true
+            exit "$status"
+          }
+
+          trap cleanup EXIT
+
+          docker network rm country-compare-llm-smoke || true
+          docker network create country-compare-llm-smoke
+
+          docker run -d \
+            --name llm-forecast-service-ci \
+            --network country-compare-llm-smoke \
+            --env LLM_SERVICE_TOKEN=ci-llm-token \
+            --env MISTRAL_API_KEY=ci-dummy-key \
+            --env LLM_LOG_LEVEL=INFO \
+            llm-forecast-service:ci
+
+          docker run -d \
+            --name country-compare-backend-llm-ci \
+            --network country-compare-llm-smoke \
+            --publish 8002:8000 \
+            --env COUNTRY_COMPARE_API_ENABLE_DOCS=true \
+            --env COUNTRY_COMPARE_API_KEY=ci-smoke-key \
+            --env COUNTRY_COMPARE_ENABLE_LLM_FORECAST=true \
+            --env COUNTRY_COMPARE_LLM_SERVICE_URL=http://llm-forecast-service-ci:8080 \
+            --env COUNTRY_COMPARE_LLM_SERVICE_TOKEN=ci-llm-token \
+            --env COUNTRY_COMPARE_LLM_SERVICE_TIMEOUT_SECONDS=3 \
+            country-compare-backend:ci
+
+          python scripts/smoke_api_container.py \
+            --base-url http://127.0.0.1:8002 \
+            --api-key ci-smoke-key \
+            --check-llm-readiness          
+
       - name: Run Trivy backend image scan in non-blocking mode
         uses: aquasecurity/trivy-action@master
         with:

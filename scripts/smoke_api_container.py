@@ -111,6 +111,11 @@ def main() -> int:
         default=None,
         help="Optional API key to send as the X-API-Key header.",
     )
+    parser.add_argument(
+        "--check-llm-readiness",
+        action="store_true",
+        help="Also verify backend-to-LLM-service readiness through /ready/llm.",
+    )
     args = parser.parse_args()
 
     client = SmokeClient(
@@ -120,6 +125,9 @@ def main() -> int:
     )
 
     _wait_for_operational_endpoints(client, wait_seconds=args.wait_seconds)
+
+    if args.check_llm_readiness:
+        _check_llm_readiness(client)
     countries = _check_countries_metadata(client)
     metrics = _check_metrics_metadata(client)
     _check_dataset_metadata(client)
@@ -158,6 +166,31 @@ def _wait_for_operational_endpoints(
         f"API did not become healthy/ready within {wait_seconds} seconds: "
         f"{last_error!r}"
     )
+
+
+def _check_llm_readiness(client: SmokeClient) -> None:
+    response = client.get(
+        "/ready/llm",
+        request_id="ci-smoke-llm-ready",
+    )
+    _assert_status(response, expected=200, label="/ready/llm")
+    _assert_request_id_header(response, expected="ci-smoke-llm-ready")
+
+    payload = response.payload
+    if payload.get("status") != "ready":
+        raise SmokeFailure(f"/ready/llm did not report ready: {payload}")
+
+    capabilities = payload.get("capabilities")
+    if not isinstance(capabilities, dict):
+        raise SmokeFailure(f"/ready/llm returned invalid capabilities: {payload}")
+
+    if capabilities.get("supports_structured_output") is not True:
+        raise SmokeFailure("LLM service does not support structured output.")
+
+    if capabilities.get("supports_bounded_adjustment") is not True:
+        raise SmokeFailure("LLM service does not support bounded adjustment.")
+
+    print("Backend-to-LLM readiness smoke check passed.")
 
 
 def _check_dataset_metadata(client: SmokeClient) -> None:
