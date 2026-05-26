@@ -18,7 +18,7 @@ COPY config /app/config
 COPY data /app/data
 
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install ".[ui]" \
+    && python -m pip install ".[ui, ml]" \
     && groupadd --system app \
     && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app \
     && mkdir -p /app/data/processed /app/data/audit /app/data/exports \

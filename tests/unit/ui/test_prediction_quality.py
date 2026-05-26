@@ -226,3 +226,31 @@ def test_build_prediction_method_notices_warns_for_llm_fallback() -> None:
     assert len(notices) == 1
     assert notices[0].level == "warning"
     assert "fallback was used" in notices[0].message
+
+
+def test_build_prediction_quality_summary_counts_result_warnings_as_notices() -> None:
+    summary = build_prediction_quality_summary(
+        diagnostics=[DemoDiagnostic(status=DemoStatus.OK)],
+        result_warnings=[
+            "llm_forecast is experimental",
+            "llm_forecast is experimental",
+            "Forecast assumes stable conditions",
+        ],
+    )
+
+    assert summary.warning_count == 0
+    assert summary.result_notice_count == 2
+    assert summary.notice_count == 2
+    assert summary.quality_label == "Usable with caveats"
+
+
+def test_build_prediction_quality_notice_warns_on_result_notice() -> None:
+    summary = build_prediction_quality_summary(
+        diagnostics=[DemoDiagnostic(status=DemoStatus.OK)],
+        result_warnings=["Forecast assumes stable conditions"],
+    )
+
+    notice = build_prediction_quality_notice(quality=summary, mode="prediction")
+
+    assert notice.level == "warning"
+    assert "caveats" in notice.message

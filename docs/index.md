@@ -41,6 +41,7 @@ This documentation set describes the `v0.1 beta` state of the project.
 - [Manual QA checklist](manual_qa.md)
 - [Troubleshooting](troubleshooting.md)
 - [Release notes](release_notes_v0_1_beta.md)
+- [LLM forecast service](llm_forecast_service.md)
 
 ## Important package rule
 

@@ -55,3 +55,15 @@ class ReadyResponse(StrictBaseModel):
     dataset: ReadyDatasetStatus
     config: ReadyConfigStatus
     warnings: list[str] = Field(default_factory=list)
+
+
+class LLMReadyResponse(StrictBaseModel):
+    status: Literal["ready", "not_ready"]
+    enabled: bool
+    service_url_configured: bool
+    service_token_configured: bool
+    provider: str = ""
+    model: str = ""
+    capabilities: dict[str, object] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    error: str | None = None

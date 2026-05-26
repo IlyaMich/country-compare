@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal, TypedDict
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
@@ -9,9 +9,20 @@ from country_compare import __version__
 from country_compare.api.dependencies import get_app_facade
 from country_compare.api.schemas.health import (
     HealthResponse,
+    LLMReadyResponse,
     ReadyConfigStatus,
     ReadyDatasetStatus,
     ReadyResponse,
+)
+from country_compare.prediction.llm.forecasters import (
+    ENV_ENABLE_LLM_FORECAST,
+    ENV_LLM_SERVICE_TOKEN,
+    ENV_LLM_SERVICE_URL,
+    load_llm_forecast_settings,
+)
+from country_compare.prediction.llm.remote_client import (
+    RemoteLLMForecastClient,
+    RemoteLLMForecastError,
 )
 from country_compare.services.facade import AppFacade
 from country_compare.services.models import OverviewStatus
@@ -48,6 +59,32 @@ def ready(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content=payload.model_dump(),
     )
+
+
+@router.get(
+    "/ready/llm",
+    response_model=LLMReadyResponse,
+    responses={status.HTTP_503_SERVICE_UNAVAILABLE: {"model": LLMReadyResponse}},
+)
+def llm_ready() -> LLMReadyResponse | JSONResponse:
+    """Return backend-to-LLM-service readiness without running a forecast."""
+
+    payload = _build_llm_ready_response()
+    if payload.status == "ready":
+        return payload
+
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content=payload.model_dump(mode="json"),
+    )
+
+
+class _LLMReadyBasePayload(TypedDict):
+    enabled: bool
+    service_url_configured: bool
+    service_token_configured: bool
+    provider: str
+    model: str
 
 
 def _build_ready_response(overview: OverviewStatus) -> ReadyResponse:
@@ -154,3 +191,105 @@ def _deduplicate(values: list[str]) -> list[str]:
             unique_values.append(value)
 
     return unique_values
+
+
+def _build_llm_ready_response() -> LLMReadyResponse:
+    settings = load_llm_forecast_settings()
+    base_payload: _LLMReadyBasePayload = {
+        "enabled": settings.enabled,
+        "service_url_configured": bool(settings.service_url),
+        "service_token_configured": bool(settings.service_token),
+        "provider": settings.provider,
+        "model": settings.model,
+    }
+
+    config_warnings = _llm_config_warnings(
+        enabled=settings.enabled,
+        service_url=settings.service_url,
+        service_token=settings.service_token,
+    )
+    if config_warnings:
+        return LLMReadyResponse(
+            status="not_ready",
+            **base_payload,
+            warnings=config_warnings,
+        )
+
+    client = RemoteLLMForecastClient(
+        service_url=settings.service_url,
+        service_token=settings.service_token,
+        timeout_seconds=min(settings.service_timeout_seconds, 5.0),
+        max_adjustment_pct=settings.max_adjustment_pct,
+    )
+
+    try:
+        capabilities = client.capabilities()
+    except RemoteLLMForecastError as exc:
+        return LLMReadyResponse(
+            status="not_ready",
+            **base_payload,
+            warnings=["Backend could not reach a ready LLM forecast service."],
+            error=str(exc),
+        )
+    except Exception as exc:
+        return LLMReadyResponse(
+            status="not_ready",
+            **base_payload,
+            warnings=["Backend LLM readiness check failed unexpectedly."],
+            error=f"{exc.__class__.__name__}: {exc}",
+        )
+
+    capability_warnings = _llm_capability_warnings(capabilities)
+    return LLMReadyResponse(
+        status="ready" if not capability_warnings else "not_ready",
+        **base_payload,
+        capabilities={str(key): value for key, value in capabilities.items()},
+        warnings=capability_warnings,
+    )
+
+
+def _llm_config_warnings(
+    *,
+    enabled: bool,
+    service_url: str,
+    service_token: str,
+) -> list[str]:
+    warnings: list[str] = []
+
+    if not enabled:
+        warnings.append(
+            f"llm_forecast is disabled; set {ENV_ENABLE_LLM_FORECAST}=true "
+            "to enable it."
+        )
+    if not service_url:
+        warnings.append(f"{ENV_LLM_SERVICE_URL} is not configured.")
+    if not service_token:
+        warnings.append(f"{ENV_LLM_SERVICE_TOKEN} is not configured.")
+
+    return warnings
+
+
+def _llm_capability_warnings(capabilities: dict[str, Any]) -> list[str]:
+    warnings: list[str] = []
+
+    if not bool(capabilities.get("supports_structured_output")):
+        warnings.append("LLM service does not report structured output support.")
+    if not bool(capabilities.get("supports_bounded_adjustment")):
+        warnings.append("LLM service does not report bounded adjustment support.")
+
+    max_series_per_request = _optional_int(capabilities.get("max_series_per_request"))
+    if max_series_per_request is None or max_series_per_request < 1:
+        warnings.append("LLM service max_series_per_request is invalid.")
+
+    max_horizon_years = _optional_int(capabilities.get("max_horizon_years"))
+    if max_horizon_years is None or max_horizon_years < 1:
+        warnings.append("LLM service max_horizon_years is invalid.")
+
+    return warnings
+
+
+def _optional_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

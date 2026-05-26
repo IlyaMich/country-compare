@@ -50,6 +50,10 @@ def reset_llm_forecast_state(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("COUNTRY_COMPARE_LLM_PROVIDER", raising=False)
     monkeypatch.delenv("COUNTRY_COMPARE_LLM_MODEL", raising=False)
     monkeypatch.delenv("COUNTRY_COMPARE_LLM_BASELINE_METHOD", raising=False)
+    monkeypatch.delenv("COUNTRY_COMPARE_LLM_SERVICE_URL", raising=False)
+    monkeypatch.delenv("COUNTRY_COMPARE_LLM_SERVICE_TOKEN", raising=False)
+    monkeypatch.delenv("COUNTRY_COMPARE_LLM_SERVICE_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv("COUNTRY_COMPARE_LLM_MAX_SERIES_PER_REQUEST", raising=False)
     clear_forecasters()
 
     yield
@@ -59,6 +63,10 @@ def reset_llm_forecast_state(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("COUNTRY_COMPARE_LLM_PROVIDER", raising=False)
     monkeypatch.delenv("COUNTRY_COMPARE_LLM_MODEL", raising=False)
     monkeypatch.delenv("COUNTRY_COMPARE_LLM_BASELINE_METHOD", raising=False)
+    monkeypatch.delenv("COUNTRY_COMPARE_LLM_SERVICE_URL", raising=False)
+    monkeypatch.delenv("COUNTRY_COMPARE_LLM_SERVICE_TOKEN", raising=False)
+    monkeypatch.delenv("COUNTRY_COMPARE_LLM_SERVICE_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv("COUNTRY_COMPARE_LLM_MAX_SERIES_PER_REQUEST", raising=False)
     clear_forecasters()
 
 
