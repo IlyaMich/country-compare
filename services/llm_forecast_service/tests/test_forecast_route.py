@@ -80,7 +80,7 @@ def test_forecast_adjust_returns_baseline_echo_response() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["forecast_points"] == [{"year": 2030, "value": 100.0}]
-    assert payload["metadata"]["provider"] == "mistral"
+    assert payload["metadata"]["provider"] == "baseline_echo"
     assert payload["metadata"]["llm_calls"] == 0
     assert payload["warnings"]
 

@@ -65,7 +65,7 @@ def test_ready_enforces_public_zdr_gate() -> None:
 
     assert response.status_code == 503
     assert (
-        "LLM_REQUIRE_ZDR must be true for public deployment"
+        "LLM_REQUIRE_ZDR must be true for public deployments"
         in response.json()["issues"]
     )
 
