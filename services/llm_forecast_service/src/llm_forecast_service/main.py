@@ -6,7 +6,11 @@ from fastapi.responses import JSONResponse
 from llm_forecast_service import __version__
 from llm_forecast_service.errors import ServiceError, register_exception_handlers
 from llm_forecast_service.limits import enforce_request_limits
-from llm_forecast_service.providers import BaselineEchoProvider, LLMProvider
+from llm_forecast_service.providers import (
+    BaselineEchoProvider,
+    LLMProvider,
+    MistralProvider,
+)
 from llm_forecast_service.schemas import (
     CapabilitiesResponse,
     ForecastAdjustmentRequest,
@@ -21,13 +25,19 @@ from llm_forecast_service.validation import validate_candidate_output
 SERVICE_NAME = "llm-forecast-service"
 
 
+def build_provider(settings: ServiceSettings) -> LLMProvider:
+    if settings.provider == "mistral" and settings.mistral_api_key:
+        return MistralProvider(settings)
+    return BaselineEchoProvider()
+
+
 def create_app(
     settings: ServiceSettings | None = None,
     provider: LLMProvider | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Country Compare LLM Forecast Service", version=__version__)
     app.state.settings = settings or ServiceSettings.from_env()
-    app.state.provider = provider or BaselineEchoProvider()
+    app.state.provider = provider or build_provider(app.state.settings)
     register_exception_handlers(app)
 
     @app.get("/health", response_model=HealthResponse)
@@ -98,7 +108,7 @@ def create_app(
             )
 
         enforce_request_limits(request, current_settings)
-        raw_candidate = app.state.provider.generate_adjustment(request)
+        raw_candidate = await app.state.provider.generate_adjustment(request)
         candidate = validate_candidate_output(raw_candidate, request)
         return ForecastAdjustmentResponse(
             forecast_points=candidate.forecast_points,
@@ -109,7 +119,7 @@ def create_app(
                 "provider": current_settings.provider,
                 "model": current_settings.mistral_model,
                 "prompt_version": request.prompt_version,
-                "llm_calls": 0,
+                "llm_calls": 1 if app.state.provider.provider_name == "mistral" else 0,
             },
         )
 
