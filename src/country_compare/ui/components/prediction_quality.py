@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -16,6 +16,8 @@ class PredictionQualitySummary:
     failed_series: int
     fallback_series: int
     warning_count: int
+    result_notice_count: int
+    notice_count: int
     error_count: int
     missing_year_count: int
     quality_label: str
@@ -32,6 +34,7 @@ def build_prediction_quality_summary(
     *,
     diagnostics: Sequence[Any] | None = None,
     summary: Mapping[str, Any] | None = None,
+    result_warnings: Sequence[Any] | None = None,
 ) -> PredictionQualitySummary:
     diagnostics = list(diagnostics or [])
     summary = dict(summary or {})
@@ -56,6 +59,16 @@ def build_prediction_quality_summary(
     warning_count = sum(
         len(list(getattr(item, "warnings", []) or [])) for item in diagnostics
     )
+    diagnostic_warning_messages = _dedupe_strings(
+        warning
+        for item in diagnostics
+        for warning in list(getattr(item, "warnings", []) or [])
+    )
+    result_notice_messages = _dedupe_strings(result_warnings or [])
+    notice_count = len(
+        _dedupe_strings([*diagnostic_warning_messages, *result_notice_messages])
+    )
+    result_notice_count = len(result_notice_messages)
     error_count = sum(
         len(list(getattr(item, "errors", []) or [])) for item in diagnostics
     )
@@ -66,10 +79,15 @@ def build_prediction_quality_summary(
     if failed_series > 0 or error_count > 0:
         quality_label = "Needs review"
         quality_message = "At least one requested series failed or produced errors."
-    elif warning_series > 0 or fallback_series > 0 or warning_count > 0:
+    elif (
+        warning_series > 0
+        or fallback_series > 0
+        or warning_count > 0
+        or notice_count > 0
+    ):
         quality_label = "Usable with caveats"
         quality_message = (
-            "Forecasts completed, but diagnostics include warnings or fallback usage."
+            "Forecasts completed, but diagnostics or notices include caveats."
         )
     elif total_series > 0:
         quality_label = "Good"
@@ -85,6 +103,8 @@ def build_prediction_quality_summary(
         failed_series=failed_series,
         fallback_series=fallback_series,
         warning_count=warning_count,
+        result_notice_count=result_notice_count,
+        notice_count=notice_count,
         error_count=error_count,
         missing_year_count=missing_year_count,
         quality_label=quality_label,
@@ -111,13 +131,13 @@ def build_prediction_quality_notice(
     if (
         quality.warning_series > 0
         or quality.fallback_series > 0
-        or quality.warning_count > 0
+        or quality.notice_count > 0
         or quality.missing_year_count > 0
     ):
         return PredictionQualityNotice(
             level="warning",
             message=(
-                "Use this output with caveats: diagnostics include warnings, "
+                "Use this output with caveats: diagnostics or notices include warnings, "
                 "fallback usage, or sparse internal history."
             ),
         )
@@ -236,10 +256,12 @@ def render_prediction_quality_panel(
     diagnostics: Sequence[Any] | None = None,
     summary: Mapping[str, Any] | None = None,
     mode: str | None = None,
+    result_warnings: Sequence[Any] | None = None,
 ) -> None:
     quality = build_prediction_quality_summary(
         diagnostics=diagnostics,
         summary=summary,
+        result_warnings=result_warnings,
     )
 
     st.markdown("### Prediction quality")
@@ -247,7 +269,7 @@ def render_prediction_quality_panel(
     cols = st.columns(4)
     cols[0].metric("Quality", quality.quality_label)
     cols[1].metric("Series", _metric_value(quality.total_series))
-    cols[2].metric("Warnings", _metric_value(quality.warning_count))
+    cols[2].metric("Notices", _metric_value(quality.notice_count))
     cols[3].metric("Failed", _metric_value(quality.failed_series))
 
     st.caption(quality.quality_message)
@@ -264,7 +286,9 @@ def render_prediction_quality_panel(
             {"check": "Warning series", "value": quality.warning_series},
             {"check": "Failed series", "value": quality.failed_series},
             {"check": "Fallback series", "value": quality.fallback_series},
-            {"check": "Warning messages", "value": quality.warning_count},
+            {"check": "Diagnostic warning messages", "value": quality.warning_count},
+            {"check": "User-visible notices", "value": quality.result_notice_count},
+            {"check": "Total notices", "value": quality.notice_count},
             {"check": "Error messages", "value": quality.error_count},
             {"check": "Missing internal years", "value": quality.missing_year_count},
         ]
@@ -288,6 +312,25 @@ def _status_count(diagnostics: Sequence[Any], expected_status: str) -> int:
             count += 1
 
     return count
+
+
+def _dedupe_strings(values: Iterable[Any]) -> list[str]:
+    seen: set[str] = set()
+    deduped: list[str] = []
+
+    for value in values:
+        text = str(value).strip()
+        if not text:
+            continue
+
+        key = text.casefold()
+        if key in seen:
+            continue
+
+        seen.add(key)
+        deduped.append(text)
+
+    return deduped
 
 
 def _metric_value(value: Any) -> str:

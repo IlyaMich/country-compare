@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 
@@ -11,6 +11,7 @@ from country_compare.prediction.errors import PredictionErrorCode, PredictionExc
 from country_compare.prediction.forecasters import BaseForecaster
 from country_compare.prediction.llm.client import (
     DisabledLLMForecastClient,
+    LLMForecastAvailabilityClient,
     LLMForecastClient,
     LLMForecastRequest,
     LLMForecastResponse,
@@ -28,8 +29,12 @@ from country_compare.settings.defaults import (
     DEFAULT_LLM_MAX_ADJUSTMENT_PCT,
     DEFAULT_LLM_MAX_HISTORY_POINTS,
     DEFAULT_LLM_MAX_RETRIES,
+    DEFAULT_LLM_MAX_SERIES_PER_REQUEST,
     DEFAULT_LLM_MODEL,
     DEFAULT_LLM_PROVIDER,
+    DEFAULT_LLM_SERVICE_TIMEOUT_SECONDS,
+    DEFAULT_LLM_SERVICE_TOKEN,
+    DEFAULT_LLM_SERVICE_URL,
     DEFAULT_LLM_TIMEOUT_SECONDS,
 )
 
@@ -41,6 +46,10 @@ ENV_LLM_MAX_RETRIES = "COUNTRY_COMPARE_LLM_MAX_RETRIES"
 ENV_LLM_BASELINE_METHOD = "COUNTRY_COMPARE_LLM_BASELINE_METHOD"
 ENV_LLM_MAX_HISTORY_POINTS = "COUNTRY_COMPARE_LLM_MAX_HISTORY_POINTS"
 ENV_LLM_MAX_ADJUSTMENT_PCT = "COUNTRY_COMPARE_LLM_MAX_ADJUSTMENT_PCT"
+ENV_LLM_SERVICE_URL = "COUNTRY_COMPARE_LLM_SERVICE_URL"
+ENV_LLM_SERVICE_TOKEN = "COUNTRY_COMPARE_LLM_SERVICE_TOKEN"
+ENV_LLM_SERVICE_TIMEOUT_SECONDS = "COUNTRY_COMPARE_LLM_SERVICE_TIMEOUT_SECONDS"
+ENV_LLM_MAX_SERIES_PER_REQUEST = "COUNTRY_COMPARE_LLM_MAX_SERIES_PER_REQUEST"
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +62,10 @@ class LLMForecastSettings:
     baseline_method: str = DEFAULT_LLM_BASELINE_METHOD
     max_history_points: int = DEFAULT_LLM_MAX_HISTORY_POINTS
     max_adjustment_pct: float = DEFAULT_LLM_MAX_ADJUSTMENT_PCT
+    service_url: str = DEFAULT_LLM_SERVICE_URL
+    service_token: str = field(default=DEFAULT_LLM_SERVICE_TOKEN, repr=False)
+    service_timeout_seconds: float = DEFAULT_LLM_SERVICE_TIMEOUT_SECONDS
+    max_series_per_request: int = DEFAULT_LLM_MAX_SERIES_PER_REQUEST
 
 
 _CLIENT_OVERRIDE: LLMForecastClient | None = None
@@ -92,6 +105,22 @@ def load_llm_forecast_settings() -> LLMForecastSettings:
                 DEFAULT_LLM_MAX_ADJUSTMENT_PCT,
             ),
         ),
+        service_url=_env_text(ENV_LLM_SERVICE_URL, DEFAULT_LLM_SERVICE_URL),
+        service_token=_env_text(ENV_LLM_SERVICE_TOKEN, DEFAULT_LLM_SERVICE_TOKEN),
+        service_timeout_seconds=max(
+            0.1,
+            _env_float(
+                ENV_LLM_SERVICE_TIMEOUT_SECONDS,
+                DEFAULT_LLM_SERVICE_TIMEOUT_SECONDS,
+            ),
+        ),
+        max_series_per_request=max(
+            1,
+            _env_int(
+                ENV_LLM_MAX_SERIES_PER_REQUEST,
+                DEFAULT_LLM_MAX_SERIES_PER_REQUEST,
+            ),
+        ),
     )
 
 
@@ -99,12 +128,38 @@ def get_configured_llm_forecast_client() -> LLMForecastClient:
     if _CLIENT_OVERRIDE is not None:
         return _CLIENT_OVERRIDE
 
-    return DisabledLLMForecastClient()
+    settings = load_llm_forecast_settings()
+    if not _has_remote_service_config(settings):
+        return DisabledLLMForecastClient()
+
+    return _remote_client_from_settings(settings)
 
 
 def is_llm_forecast_available() -> bool:
     settings = load_llm_forecast_settings()
-    return settings.enabled and _CLIENT_OVERRIDE is not None
+    if not settings.enabled:
+        return False
+
+    if _CLIENT_OVERRIDE is not None:
+        return True
+
+    if not _has_remote_service_config(settings):
+        return False
+
+    client = _remote_client_from_settings(
+        settings,
+        timeout_seconds=min(settings.service_timeout_seconds, 3.0),
+    )
+    if isinstance(client, DisabledLLMForecastClient):
+        return False
+
+    if not isinstance(client, LLMForecastAvailabilityClient):
+        return False
+
+    try:
+        return bool(client.is_available())
+    except Exception:
+        return False
 
 
 class LLMForecastForecaster(BaseForecaster):
@@ -508,3 +563,25 @@ def _env_bool(name: str, default: bool) -> bool:
         return bool(default)
 
     return raw_value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _has_remote_service_config(settings: LLMForecastSettings) -> bool:
+    return bool(settings.service_url and settings.service_token)
+
+
+def _remote_client_from_settings(
+    settings: LLMForecastSettings,
+    *,
+    timeout_seconds: float | None = None,
+) -> LLMForecastClient:
+    try:
+        from country_compare.prediction.llm.remote_client import RemoteLLMForecastClient
+    except ImportError:
+        return DisabledLLMForecastClient()
+
+    return RemoteLLMForecastClient(
+        service_url=settings.service_url,
+        service_token=settings.service_token,
+        timeout_seconds=timeout_seconds or settings.service_timeout_seconds,
+        max_adjustment_pct=settings.max_adjustment_pct,
+    )

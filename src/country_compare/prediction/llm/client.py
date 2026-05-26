@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 
 class LLMForecastClientUnavailable(RuntimeError):
@@ -55,6 +55,12 @@ class LLMForecastResponse:
 class LLMForecastClient(Protocol):
     def forecast(self, request: LLMForecastRequest) -> LLMForecastResponse:
         """Return a structured forecast response for a prepared forecast request."""
+
+
+@runtime_checkable
+class LLMForecastAvailabilityClient(Protocol):
+    def is_available(self) -> bool:
+        """Return whether the configured LLM client is currently usable."""
 
 
 class DisabledLLMForecastClient:

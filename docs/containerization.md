@@ -9,6 +9,7 @@ Typical Compose services:
 ```text
 backend
 ui
+llm-forecast optional, profile-gated
 ```
 
 ### Backend container
@@ -39,6 +40,14 @@ Streamlit path under `/src` layout:
 
 ```bash
 python -m streamlit run src/country_compare/ui/app.py --server.address=0.0.0.0 --server.port=8501
+```
+
+## Optional LLM forecast service
+
+The `llm-forecast` service is disabled by default and only starts with the `llm` Compose profile.
+
+```bash
+docker compose --profile llm up --build
 ```
 
 ## Run Docker Compose

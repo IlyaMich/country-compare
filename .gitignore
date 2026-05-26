@@ -214,3 +214,6 @@ data/exports/golden_demo/*
 !data/processed/.gitkeep
 !data/examples/.gitkeep
 *.png
+
+# Docker
+docker-compose.llm-local.yml

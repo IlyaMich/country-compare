@@ -2,6 +2,24 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      image_target:
+        description: "Image target for manual runs."
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - backend
+          - llm
+      publish_images:
+        description: "Publish selected image(s) to GHCR. Allowed only from main, develop, or v* tags."
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
   push:
     branches:
       - develop
@@ -21,6 +39,7 @@ jobs:
   python-quality:
     name: Python quality checks
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'
 
     steps:
       - name: Check out repository
@@ -68,6 +87,7 @@ jobs:
   package-build:
     name: Build and install package artifacts
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'
 
     steps:
       - name: Check out repository
@@ -142,6 +162,7 @@ jobs:
   dependency-security:
     name: Dependency security scan
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'
 
     steps:
       - name: Check out repository
@@ -162,6 +183,7 @@ jobs:
   docker-build:
     name: Docker build, smoke, and release image
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'    
     permissions:
       contents: read
       packages: write
@@ -260,6 +282,66 @@ jobs:
         run: |
           docker rm -f country-compare-backend-ci || true
 
+      - name: Build LLM forecast service image for integration smoke
+        if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all'      
+        run: |
+          docker build \
+            --file services/llm_forecast_service/Dockerfile \
+            --tag llm-forecast-service:ci \
+            .
+
+      - name: Smoke test backend-to-LLM readiness
+        if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all'      
+        run: |
+          set -euo pipefail
+
+          cleanup() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              echo "::group::LLM forecast service logs"
+              docker logs llm-forecast-service-ci || true
+              echo "::endgroup::"
+
+              echo "::group::Backend LLM smoke logs"
+              docker logs country-compare-backend-llm-ci || true
+              echo "::endgroup::"
+            fi
+
+            docker rm -f country-compare-backend-llm-ci llm-forecast-service-ci || true
+            docker network rm country-compare-llm-smoke || true
+            exit "$status"
+          }
+
+          trap cleanup EXIT
+
+          docker network rm country-compare-llm-smoke || true
+          docker network create country-compare-llm-smoke
+
+          docker run -d \
+            --name llm-forecast-service-ci \
+            --network country-compare-llm-smoke \
+            --env LLM_SERVICE_TOKEN=ci-llm-token \
+            --env MISTRAL_API_KEY=ci-dummy-key \
+            --env LLM_LOG_LEVEL=INFO \
+            llm-forecast-service:ci
+
+          docker run -d \
+            --name country-compare-backend-llm-ci \
+            --network country-compare-llm-smoke \
+            --publish 8002:8000 \
+            --env COUNTRY_COMPARE_API_ENABLE_DOCS=true \
+            --env COUNTRY_COMPARE_API_KEY=ci-smoke-key \
+            --env COUNTRY_COMPARE_ENABLE_LLM_FORECAST=true \
+            --env COUNTRY_COMPARE_LLM_SERVICE_URL=http://llm-forecast-service-ci:8080 \
+            --env COUNTRY_COMPARE_LLM_SERVICE_TOKEN=ci-llm-token \
+            --env COUNTRY_COMPARE_LLM_SERVICE_TIMEOUT_SECONDS=3 \
+            country-compare-backend:ci
+
+          python scripts/smoke_api_container.py \
+            --base-url http://127.0.0.1:8002 \
+            --api-key ci-smoke-key \
+            --check-llm-readiness          
+
       - name: Run Trivy backend image scan in non-blocking mode
         uses: aquasecurity/trivy-action@master
         with:
@@ -269,9 +351,37 @@ jobs:
           ignore-unfixed: true
           severity: CRITICAL,HIGH
 
+      - name: Resolve backend image publish policy
+        id: backend_publish_policy
+        shell: bash
+        env:
+          PUBLISH_IMAGES: ${{ inputs.publish_images || 'false' }}
+        run: |
+          set -euo pipefail
+
+          should_publish=false
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            if [ "${GITHUB_REF}" = "refs/heads/main" ] || [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              should_publish=true
+            fi
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${PUBLISH_IMAGES}" = "true" ]; then
+            if [ "${GITHUB_REF}" = "refs/heads/main" ] || \
+               [ "${GITHUB_REF}" = "refs/heads/develop" ] || \
+               [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              should_publish=true
+            else
+              echo "Manual backend image publishing is allowed only from main, develop, or v* tags." >&2
+              echo "Current ref: ${GITHUB_REF}" >&2
+              exit 1
+            fi
+          fi
+
+          echo "should_publish=${should_publish}" >> "$GITHUB_OUTPUT"
+
       - name: Resolve GHCR image name
         id: image
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        if: steps.backend_publish_policy.outputs.should_publish == 'true'
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           echo "name=ghcr.io/${owner}/country-compare-api" >> "$GITHUB_OUTPUT"
@@ -310,3 +420,195 @@ jobs:
           done
 
           printf 'Published image tags:\n%s\n' "${tags[@]}"
+
+  llm-forecast-service:
+    name: LLM forecast service checks
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'llm'    
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/llm_forecast_service/pyproject.toml
+
+      - name: Install LLM forecast service dev dependencies
+        run: |
+          cd services/llm_forecast_service
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e ".[dev]"
+
+      - name: Run LLM forecast service tests
+        run: |
+          cd services/llm_forecast_service
+          python -m pytest
+
+      - name: Check LLM forecast service formatting
+        run: |
+          cd services/llm_forecast_service
+          python -m black --check src tests
+
+      - name: Run LLM forecast service ruff
+        run: |
+          cd services/llm_forecast_service
+          python -m ruff check src tests
+
+      - name: Run LLM forecast service mypy
+        run: |
+          cd services/llm_forecast_service
+          python -m mypy src
+
+      - name: Run LLM forecast service dependency scan in non-blocking mode
+        continue-on-error: true
+        run: |
+          cd services/llm_forecast_service
+          python -m pip_audit
+
+      - name: Build LLM forecast service Docker image
+        run: |
+          docker build \
+            --file services/llm_forecast_service/Dockerfile \
+            --tag llm-forecast-service:ci \
+            .
+
+      - name: Smoke test LLM forecast service Docker image
+        run: |
+          set -euo pipefail
+
+          docker run -d \
+            --name llm-forecast-service-ci \
+            --publish 18080:18080 \
+            --env PORT=18080 \
+            --env LLM_SERVICE_TOKEN=ci-smoke-token \
+            --env LLM_PROVIDER=mistral \
+            --env MISTRAL_API_KEY=dummy-mistral-key \
+            --env MISTRAL_MODEL=mistral-large-latest \
+            --env LLM_DEPLOYMENT_PROFILE=local \
+            --env LLM_REQUIRE_ZDR=false \
+            --env MISTRAL_ZDR_CONFIRMED=false \
+            --env LLM_MAX_CONCURRENT_REQUESTS=1 \
+            --env LLM_MAX_RETRIES=0 \
+            --env LLM_TIMEOUT_SECONDS=5 \
+            llm-forecast-service:ci
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:18080/health; then
+              break
+            fi
+
+            if [ "$attempt" -eq 30 ]; then
+              echo "LLM forecast service did not become healthy."
+              docker logs llm-forecast-service-ci || true
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          curl --fail --silent --show-error http://127.0.0.1:18080/ready
+
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ci-smoke-token" \
+            http://127.0.0.1:18080/v1/capabilities
+
+      - name: Show LLM forecast service logs on failure
+        if: failure()
+        run: |
+          docker logs llm-forecast-service-ci || true
+
+      - name: Stop LLM forecast service smoke container
+        if: always()
+        run: |
+          docker rm -f llm-forecast-service-ci || true
+
+      - name: Run Trivy LLM forecast service image scan in non-blocking mode
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: llm-forecast-service:ci
+          format: table
+          exit-code: "0"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+      
+      - name: Resolve LLM forecast image publish policy
+        id: llm_publish_policy
+        shell: bash
+        env:
+          PUBLISH_IMAGES: ${{ inputs.publish_images || 'false' }}
+        run: |
+          set -euo pipefail
+
+          should_publish=false
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            if [ "${GITHUB_REF}" = "refs/heads/main" ] || [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              should_publish=true
+            fi
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${PUBLISH_IMAGES}" = "true" ]; then
+            if [ "${GITHUB_REF}" = "refs/heads/main" ] || \
+               [ "${GITHUB_REF}" = "refs/heads/develop" ] || \
+               [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              should_publish=true
+            else
+              echo "Manual LLM image publishing is allowed only from main, develop, or v* tags." >&2
+              echo "Current ref: ${GITHUB_REF}" >&2
+              exit 1
+            fi
+          fi
+
+          echo "should_publish=${should_publish}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve GHCR LLM forecast image name
+        id: llm_image
+        if: steps.llm_publish_policy.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "name=ghcr.io/${owner}/country-compare-llm-forecast" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR for LLM forecast image
+        if: steps.llm_image.outputs.name != ''
+        shell: bash
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            --username "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Publish LLM forecast service image to GHCR
+        if: steps.llm_image.outputs.name != ''
+        env:
+          IMAGE_NAME: ${{ steps.llm_image.outputs.name }}
+          SHORT_SHA: ${{ steps.llm_image.outputs.short_sha }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tags=("${IMAGE_NAME}:sha-${SHORT_SHA}")
+
+          if [ "${REF_TYPE}" = "branch" ] && [ "${REF_NAME}" = "main" ]; then
+            tags+=("${IMAGE_NAME}:main" "${IMAGE_NAME}:latest")
+          fi
+
+          if [ "${REF_TYPE}" = "tag" ]; then
+            tags+=("${IMAGE_NAME}:${REF_NAME}")
+          fi
+
+          for tag in "${tags[@]}"; do
+            docker tag llm-forecast-service:ci "${tag}"
+            docker push "${tag}"
+          done
+
+          printf 'Published LLM forecast image tags:\n%s\n' "${tags[@]}"
