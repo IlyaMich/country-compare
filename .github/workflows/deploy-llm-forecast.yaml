@@ -128,7 +128,7 @@ jobs:
           echo "Unsupported deploy_provider: ${DEPLOY_PROVIDER}" >&2
           exit 1
 
-            - name: Run post-deploy LLM forecast service smoke checks
+      - name: Run post-deploy LLM forecast service smoke checks
         if: inputs.run_smoke_test == 'true'
         env:
           LLM_BASE_URL: ${{ secrets.COUNTRY_COMPARE_LLM_SERVICE_BASE_URL }}
