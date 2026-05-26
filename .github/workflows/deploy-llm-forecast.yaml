@@ -128,7 +128,7 @@ jobs:
           echo "Unsupported deploy_provider: ${DEPLOY_PROVIDER}" >&2
           exit 1
 
-      - name: Run post-deploy LLM forecast service smoke checks
+            - name: Run post-deploy LLM forecast service smoke checks
         if: inputs.run_smoke_test == 'true'
         env:
           LLM_BASE_URL: ${{ secrets.COUNTRY_COMPARE_LLM_SERVICE_BASE_URL }}
@@ -175,9 +175,37 @@ jobs:
             sleep 6
           done
 
-          echo "Checking readiness."
-          curl --fail --silent --show-error --max-time 15 "${base_url}/ready"
-          echo
+          echo "Waiting for LLM forecast service readiness at ${base_url}/ready"
+
+          for attempt in $(seq 1 70); do
+            ready_status="$(
+              curl \
+                --silent \
+                --show-error \
+                --max-time 15 \
+                --output /tmp/llm-ready-response.json \
+                --write-out "%{http_code}" \
+                "${base_url}/ready" || true
+            )"
+
+            if [ "${ready_status}" = "200" ]; then
+              cat /tmp/llm-ready-response.json
+              echo
+              echo "LLM forecast service readiness check passed."
+              break
+            fi
+
+            echo "Readiness attempt ${attempt}/70 returned HTTP ${ready_status}."
+            cat /tmp/llm-ready-response.json || true
+            echo
+
+            if [ "${attempt}" -eq 70 ]; then
+              echo "LLM forecast service did not become ready in time." >&2
+              exit 1
+            fi
+
+            sleep 6
+          done
 
           echo "Checking authenticated capabilities endpoint."
           curl --fail --silent --show-error --max-time 15 \
