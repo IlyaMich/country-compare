@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -121,17 +124,24 @@ class MistralProvider:
                         headers=headers,
                         json=payload,
                     )
+
                 except httpx.TimeoutException as exc:
                     if attempt_index < attempts - 1:
                         await _retry_sleep(attempt_index)
                         continue
+
                     raise ServiceError(
                         "provider_timeout",
                         "Mistral request timed out.",
                         status_code=504,
                         details={"provider": "mistral"},
                     ) from exc
+
                 except httpx.RequestError as exc:
+                    if attempt_index < attempts - 1:
+                        await _retry_sleep(attempt_index)
+                        continue
+
                     raise ServiceError(
                         "provider_unavailable",
                         "Mistral request failed.",
@@ -141,8 +151,12 @@ class MistralProvider:
 
                 if response.status_code == 429:
                     if attempt_index < attempts - 1:
-                        await _retry_sleep(attempt_index)
+                        await _retry_sleep(
+                            attempt_index,
+                            retry_after=response.headers.get("Retry-After"),
+                        )
                         continue
+
                     raise ServiceError(
                         "provider_rate_limited",
                         "Mistral rate limit was reached.",
@@ -159,7 +173,10 @@ class MistralProvider:
                     )
 
                 if response.status_code >= 500 and attempt_index < attempts - 1:
-                    await _retry_sleep(attempt_index)
+                    await _retry_sleep(
+                        attempt_index,
+                        retry_after=response.headers.get("Retry-After"),
+                    )
                     continue
 
                 if response.status_code >= 400:
@@ -311,5 +328,52 @@ def _extract_message_content(response_payload: dict[str, Any]) -> str:
     )
 
 
-async def _retry_sleep(attempt_index: int) -> None:
-    await asyncio.sleep(min(0.25 * (attempt_index + 1), 1.0))
+async def _retry_sleep(
+    attempt_index: int,
+    *,
+    retry_after: str | None = None,
+) -> None:
+    await asyncio.sleep(_retry_delay_seconds(attempt_index, retry_after=retry_after))
+
+
+def _retry_delay_seconds(
+    attempt_index: int,
+    *,
+    retry_after: str | None = None,
+) -> float:
+    retry_after_delay = _parse_retry_after_seconds(retry_after)
+    if retry_after_delay is not None:
+        return retry_after_delay
+
+    base_delay = min(0.25 * (2**attempt_index), 2.0)
+    jitter = random.uniform(0.0, base_delay * 0.25)
+    return base_delay + jitter
+
+
+def _parse_retry_after_seconds(raw_value: str | None) -> float | None:
+    if raw_value is None:
+        return None
+
+    value = raw_value.strip()
+    if not value:
+        return None
+
+    try:
+        delay = float(value)
+    except ValueError:
+        delay = _parse_retry_after_http_date_seconds(value)
+
+    return min(max(delay, 0.0), 10.0)
+
+
+def _parse_retry_after_http_date_seconds(value: str) -> float:
+    try:
+        retry_at = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+    if retry_at.tzinfo is None:
+        retry_at = retry_at.replace(tzinfo=timezone.utc)
+
+    delay = (retry_at - datetime.now(timezone.utc)).total_seconds()
+    return min(max(delay, 0.0), 10.0)
