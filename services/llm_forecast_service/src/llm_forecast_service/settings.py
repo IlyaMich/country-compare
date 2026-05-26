@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+VALID_DEPLOYMENT_PROFILES = frozenset({"local", "public"})
+VALID_PROVIDERS = frozenset({"mistral"})
+
 
 def _get_bool(name: str, default: bool) -> bool:
     raw = os.getenv(name)
@@ -79,23 +82,41 @@ class ServiceSettings:
     def readiness_issues(self) -> list[str]:
         issues: list[str] = []
 
-        if self.provider != "mistral":
+        if self.provider not in VALID_PROVIDERS:
             issues.append(f"Unsupported LLM_PROVIDER: {self.provider}")
+
+        if self.deployment_profile not in VALID_DEPLOYMENT_PROFILES:
+            issues.append(
+                f"Unsupported LLM_DEPLOYMENT_PROFILE: {self.deployment_profile}"
+            )
+
         if not self.service_token:
             issues.append("LLM_SERVICE_TOKEN is not configured")
-        if not self.mistral_api_key:
-            issues.append("MISTRAL_API_KEY is not configured")
-        if not self.mistral_model:
-            issues.append("MISTRAL_MODEL is not configured")
-        if self.deployment_profile not in {"local", "public"}:
-            issues.append("LLM_DEPLOYMENT_PROFILE must be one of: local, public")
-        if self.deployment_profile == "public" and not self.require_zdr:
-            issues.append("LLM_REQUIRE_ZDR must be true for public deployment")
-        if self.require_zdr and not self.mistral_zdr_confirmed:
-            issues.append("MISTRAL_ZDR_CONFIRMED must be true when ZDR is required")
+
+        if self.provider == "mistral":
+            if not self.mistral_api_key:
+                issues.append("MISTRAL_API_KEY is not configured")
+            if not self.mistral_model:
+                issues.append("MISTRAL_MODEL is not configured")
+
+        if self.is_public_deployment:
+            if not self.require_zdr:
+                issues.append("LLM_REQUIRE_ZDR must be true for public deployments")
+            if not self.mistral_zdr_confirmed:
+                issues.append(
+                    "MISTRAL_ZDR_CONFIRMED must be true for public deployments"
+                )
 
         return issues
 
     @property
     def is_ready(self) -> bool:
         return not self.readiness_issues()
+
+    @property
+    def is_public_deployment(self) -> bool:
+        return self.deployment_profile == "public"
+
+    @property
+    def effective_debug_log_payloads(self) -> bool:
+        return bool(self.debug_log_payloads and not self.is_public_deployment)
