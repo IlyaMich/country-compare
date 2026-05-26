@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 
@@ -27,6 +28,39 @@ SERVICE_NAME = "llm-forecast-service"
 
 logger = logging.getLogger(__name__)
 
+def _llm_calls_for_provider(provider: LLMProvider) -> int:
+    return 1 if provider.provider_name == "mistral" else 0
+
+
+def _log_forecast_adjust_request(
+    *,
+    request: ForecastAdjustmentRequest,
+    provider_name: str,
+    model: str,
+    status: str,
+    latency_ms: int,
+    queue_wait_ms: int,
+    llm_calls: int,
+    error_code: str | None,
+) -> None:
+    logger.info(
+        "llm_forecast_adjust_completed "
+        "request_id=%s country_code=%s metric_id=%s horizon_years=%s "
+        "provider=%s model=%s status=%s latency_ms=%s queue_wait_ms=%s "
+        "llm_calls=%s error_code=%s",
+        request.request_id,
+        request.country_code,
+        request.metric_id,
+        request.constraints.horizon_years,
+        provider_name,
+        model,
+        status,
+        latency_ms,
+        queue_wait_ms,
+        llm_calls,
+        error_code or "",
+    )
+
 
 def build_provider(settings: ServiceSettings) -> LLMProvider:
     if settings.provider == "mistral" and settings.mistral_api_key:
@@ -46,6 +80,10 @@ def create_app(
     logging.basicConfig(level=resolved_settings.log_level.upper())
 
     app.state.provider = provider or build_provider(resolved_settings)
+    app.state.provider = provider or build_provider(resolved_settings)
+    app.state.forecast_semaphore = asyncio.Semaphore(
+        resolved_settings.max_concurrent_requests
+    )
     register_exception_handlers(app)
 
     @app.get("/health", response_model=HealthResponse)
@@ -111,48 +149,86 @@ def create_app(
     async def forecast_adjust(
         request: ForecastAdjustmentRequest,
     ) -> ForecastAdjustmentResponse:
-        issues = resolved_settings.readiness_issues()
-        if issues:
-            raise ServiceError(
-                code="service_not_ready",
-                message="LLM forecast service is not ready.",
-                status_code=503,
-                details={"issues": issues},
+        started_at = time.perf_counter()
+        queue_wait_ms = 0
+        status = "error"
+        error_code: str | None = None
+
+        provider = app.state.provider
+        provider_name = provider.provider_name
+        llm_calls = _llm_calls_for_provider(provider)
+
+        try:
+            issues = resolved_settings.readiness_issues()
+            if issues:
+                raise ServiceError(
+                    code="service_not_ready",
+                    message="LLM forecast service is not ready.",
+                    status_code=503,
+                    details={"issues": issues},
+                )
+
+            enforce_request_limits(request, resolved_settings)
+
+            queue_started_at = time.perf_counter()
+            async with app.state.forecast_semaphore:
+                queue_wait_ms = int((time.perf_counter() - queue_started_at) * 1000)
+                raw_candidate = await provider.generate_adjustment(request)
+
+            candidate = validate_candidate_output(raw_candidate, request)
+            latency_ms = int((time.perf_counter() - started_at) * 1000)
+            status = "ok"
+
+            return ForecastAdjustmentResponse(
+                forecast_points=candidate.forecast_points,
+                rationale=candidate.rationale,
+                assumptions=candidate.assumptions,
+                warnings=candidate.warnings,
+                metadata=safe_metadata(
+                    {
+                        "provider": provider_name,
+                        "model": resolved_settings.mistral_model,
+                        "prompt_version": request.prompt_version,
+                        "llm_calls": llm_calls,
+                        "latency_ms": latency_ms,
+                        "queue_wait_ms": queue_wait_ms,
+                        "deployment_profile": resolved_settings.deployment_profile,
+                        "zdr_required": resolved_settings.require_zdr,
+                        "zdr_confirmed": resolved_settings.mistral_zdr_confirmed,
+                        "max_horizon_years": resolved_settings.max_horizon_years,
+                        "max_history_points": resolved_settings.max_history_points,
+                        "max_input_chars": resolved_settings.max_input_chars,
+                        "max_output_tokens": resolved_settings.max_output_tokens,
+                        "max_adjustment_pct": resolved_settings.max_adjustment_pct,
+                        "max_concurrent_requests": (
+                            resolved_settings.max_concurrent_requests
+                        ),
+                    }
+                ),
             )
 
-        enforce_request_limits(request, resolved_settings)
+        except ServiceError as exc:
+            error_code = exc.code
+            raise
 
-        started_at = time.perf_counter()
-        raw_candidate = await app.state.provider.generate_adjustment(request)
-        candidate = validate_candidate_output(raw_candidate, request)
-        latency_ms = int((time.perf_counter() - started_at) * 1000)
-        return ForecastAdjustmentResponse(
-            forecast_points=candidate.forecast_points,
-            rationale=candidate.rationale,
-            assumptions=candidate.assumptions,
-            warnings=candidate.warnings,
-            metadata=safe_metadata(
-                {
-                    "provider": app.state.provider.provider_name,
-                    "model": resolved_settings.mistral_model,
-                    "prompt_version": request.prompt_version,
-                    "llm_calls": (
-                        1 if app.state.provider.provider_name == "mistral" else 0
-                    ),
-                    "latency_ms": latency_ms,
-                    "deployment_profile": resolved_settings.deployment_profile,
-                    "zdr_required": resolved_settings.require_zdr,
-                    "zdr_confirmed": resolved_settings.mistral_zdr_confirmed,
-                    "max_horizon_years": resolved_settings.max_horizon_years,
-                    "max_history_points": resolved_settings.max_history_points,
-                    "max_input_chars": resolved_settings.max_input_chars,
-                    "max_output_tokens": resolved_settings.max_output_tokens,
-                    "max_adjustment_pct": resolved_settings.max_adjustment_pct,
-                }
-            ),
-        )
+        except Exception:
+            error_code = "unexpected_error"
+            raise
 
-    return app
+        finally:
+            latency_ms = int((time.perf_counter() - started_at) * 1000)
+            _log_forecast_adjust_request(
+                request=request,
+                provider_name=provider_name,
+                model=resolved_settings.mistral_model,
+                status=status,
+                latency_ms=latency_ms,
+                queue_wait_ms=queue_wait_ms,
+                llm_calls=llm_calls if status == "ok" else 0,
+                error_code=error_code,
+            )
+
+    return app        
 
 
 app = create_app()
