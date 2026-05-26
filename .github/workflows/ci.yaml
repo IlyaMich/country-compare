@@ -352,9 +352,75 @@ jobs:
           cd services/llm_forecast_service
           python -m mypy src
 
+      - name: Run LLM forecast service dependency scan in non-blocking mode
+        continue-on-error: true
+        run: |
+          cd services/llm_forecast_service
+          python -m pip_audit
+
       - name: Build LLM forecast service Docker image
         run: |
           docker build \
             --file services/llm_forecast_service/Dockerfile \
             --tag llm-forecast-service:ci \
-            .          
+            .
+
+      - name: Smoke test LLM forecast service Docker image
+        run: |
+          set -euo pipefail
+
+          docker run -d \
+            --name llm-forecast-service-ci \
+            --publish 18080:18080 \
+            --env PORT=18080 \
+            --env LLM_SERVICE_TOKEN=ci-smoke-token \
+            --env LLM_PROVIDER=mistral \
+            --env MISTRAL_API_KEY=dummy-mistral-key \
+            --env MISTRAL_MODEL=mistral-large-latest \
+            --env LLM_DEPLOYMENT_PROFILE=local \
+            --env LLM_REQUIRE_ZDR=false \
+            --env MISTRAL_ZDR_CONFIRMED=false \
+            --env LLM_MAX_CONCURRENT_REQUESTS=1 \
+            --env LLM_MAX_RETRIES=0 \
+            --env LLM_TIMEOUT_SECONDS=5 \
+            llm-forecast-service:ci
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:18080/health; then
+              break
+            fi
+
+            if [ "$attempt" -eq 30 ]; then
+              echo "LLM forecast service did not become healthy."
+              docker logs llm-forecast-service-ci || true
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          curl --fail --silent --show-error http://127.0.0.1:18080/ready
+
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ci-smoke-token" \
+            http://127.0.0.1:18080/v1/capabilities
+
+      - name: Show LLM forecast service logs on failure
+        if: failure()
+        run: |
+          docker logs llm-forecast-service-ci || true
+
+      - name: Stop LLM forecast service smoke container
+        if: always()
+        run: |
+          docker rm -f llm-forecast-service-ci || true
+
+      - name: Run Trivy LLM forecast service image scan in non-blocking mode
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: llm-forecast-service:ci
+          format: table
+          exit-code: "0"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH

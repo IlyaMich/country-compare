@@ -8,6 +8,7 @@ LLM_SERVICE_DIR := services/llm_forecast_service
 .PHONY: help install install-dev format format-check lint lint-fix typecheck test check check-strict clean
 .PHONY: llm-install llm-install-dev llm-test llm-lint llm-format llm-format-check llm-typecheck llm-check llm-run llm-run-dev
 .PHONY: check-all docker-build docker-up container-build
+.PHONY: help install install-dev test lint lint-fix format format-check typecheck check run run-dev audit clean
 
 help:
 	@echo "Country Compare targets:"
@@ -24,6 +25,7 @@ help:
 	@echo "  make check-all        Run main app and LLM service checks"
 	@echo "  make docker-build     Build Docker Compose services"
 	@echo "  make docker-up        Start Docker Compose stack"
+	@echo "  make audit         Run dependency vulnerability audit"
 
 install:
 	$(PYTHON) -m pip install -r requirements-dev.txt
@@ -96,3 +98,6 @@ container-build: docker-build
 
 docker-up:
 	docker compose up --build
+
+audit:
+	$(PYTHON) -m pip_audit
