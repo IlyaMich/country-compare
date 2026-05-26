@@ -77,6 +77,7 @@ services:
     profiles:
       - llm
     environment:
+      PORT: ${LLM_PORT:-8080}
       LLM_SERVICE_TOKEN: ${COUNTRY_COMPARE_LLM_SERVICE_TOKEN:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-mistral}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
@@ -100,14 +101,12 @@ services:
       LLM_LOG_LEVEL: ${LLM_LOG_LEVEL:-INFO}
       LLM_DEBUG_LOG_PAYLOADS: ${LLM_DEBUG_LOG_PAYLOADS:-false}
     expose:
-      - "8080"
+      - "${LLM_PORT:-8080}"
     healthcheck:
       test:
         [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)",
+          "CMD-SHELL",
+          "python -c 'import os, urllib.request; urllib.request.urlopen(\"http://localhost:%s/health\" % os.getenv(\"PORT\", \"8080\"), timeout=2)'",
         ]
       interval: 30s
       timeout: 5s
