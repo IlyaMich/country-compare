@@ -28,6 +28,7 @@ SERVICE_NAME = "llm-forecast-service"
 
 logger = logging.getLogger(__name__)
 
+
 def _llm_calls_for_provider(provider: LLMProvider) -> int:
     return 1 if provider.provider_name == "mistral" else 0
 
@@ -228,7 +229,7 @@ def create_app(
                 error_code=error_code,
             )
 
-    return app        
+    return app
 
 
 app = create_app()

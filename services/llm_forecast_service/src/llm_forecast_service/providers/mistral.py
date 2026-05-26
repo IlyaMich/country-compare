@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import random
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -373,7 +373,7 @@ def _parse_retry_after_http_date_seconds(value: str) -> float:
         return 0.0
 
     if retry_at.tzinfo is None:
-        retry_at = retry_at.replace(tzinfo=timezone.utc)
+        retry_at = retry_at.replace(tzinfo=UTC)
 
-    delay = (retry_at - datetime.now(timezone.utc)).total_seconds()
+    delay = (retry_at - datetime.now(UTC)).total_seconds()
     return min(max(delay, 0.0), 10.0)

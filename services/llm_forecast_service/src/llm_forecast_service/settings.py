@@ -86,7 +86,7 @@ class ServiceSettings:
 
         if self.provider not in VALID_PROVIDERS:
             issues.append(f"Unsupported LLM_PROVIDER: {self.provider}")
-        
+
         if self.max_concurrent_requests < 1:
             issues.append("LLM_MAX_CONCURRENT_REQUESTS must be at least 1")
 
