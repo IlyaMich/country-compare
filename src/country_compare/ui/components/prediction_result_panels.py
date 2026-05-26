@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -304,6 +304,7 @@ def render_prediction_service_result(
             summary=summary,
             debug=debug,
             download_key_prefix=download_key_prefix,
+            result_warnings=warnings,
         )
         return
 
@@ -314,6 +315,7 @@ def render_prediction_service_result(
             summary=summary,
             debug=debug,
             download_key_prefix=download_key_prefix,
+            result_warnings=warnings,
         )
         return
 
@@ -324,6 +326,7 @@ def render_prediction_service_result(
             summary=summary,
             debug=debug,
             download_key_prefix=download_key_prefix,
+            result_warnings=warnings,
         )
         return
 
@@ -433,6 +436,7 @@ def _render_prediction_result_body(
     summary: Mapping[str, Any],
     debug: bool,
     download_key_prefix: str,
+    result_warnings: Sequence[Any] | None = None,
 ) -> None:
     prediction_result = result.prediction_result
     forecast_table_df = build_forecast_table_dataframe(prediction_result)
@@ -446,6 +450,7 @@ def _render_prediction_result_body(
         diagnostics=getattr(prediction_result, "diagnostics", []),
         summary=summary,
         mode=mode,
+        result_warnings=result_warnings,
     )
 
     if not forecast_table_df.empty:
@@ -495,6 +500,7 @@ def _render_predicted_comparison_body(
     summary: Mapping[str, Any],
     debug: bool,
     download_key_prefix: str,
+    result_warnings: Sequence[Any] | None = None,
 ) -> None:
     comparison_result = result.predicted_comparison_result
     dataframe = getattr(result, "dataframe", None)
@@ -520,6 +526,7 @@ def _render_predicted_comparison_body(
         diagnostics=getattr(comparison_result, "diagnostics", []),
         summary=summary,
         mode=mode,
+        result_warnings=result_warnings,
     )
 
     if isinstance(dataframe, pd.DataFrame):
@@ -571,6 +578,7 @@ def _render_backtest_body(
     summary: Mapping[str, Any],
     debug: bool,
     download_key_prefix: str,
+    result_warnings: Sequence[Any] | None = None,
 ) -> None:
     backtest_result = result.backtest_result
     metrics = dict(
@@ -601,6 +609,7 @@ def _render_backtest_body(
         diagnostics=getattr(backtest_result, "diagnostics", []),
         summary=summary,
         mode=mode,
+        result_warnings=result_warnings,
     )
 
     actual_vs_predicted_df = getattr(backtest_result, "actual_vs_predicted_df", None)
