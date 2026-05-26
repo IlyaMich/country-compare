@@ -25,6 +25,16 @@ services:
       COUNTRY_COMPARE_SCORING_CONFIG: /app/config/scoring_profiles.yaml
       COUNTRY_COMPARE_AUDIT_DIR: /app/data/audit
       COUNTRY_COMPARE_EXPORT_DIR: /app/data/exports
+      COUNTRY_COMPARE_ENABLE_LLM_FORECAST: ${COUNTRY_COMPARE_ENABLE_LLM_FORECAST:-false}
+      COUNTRY_COMPARE_LLM_PROVIDER: ${COUNTRY_COMPARE_LLM_PROVIDER:-mistral}
+      COUNTRY_COMPARE_LLM_MODEL: ${COUNTRY_COMPARE_LLM_MODEL:-mistral-large-latest}
+      COUNTRY_COMPARE_LLM_SERVICE_URL: ${COUNTRY_COMPARE_LLM_SERVICE_URL:-http://llm-forecast:8080}
+      COUNTRY_COMPARE_LLM_SERVICE_TOKEN: ${COUNTRY_COMPARE_LLM_SERVICE_TOKEN:-}
+      COUNTRY_COMPARE_LLM_SERVICE_TIMEOUT_SECONDS: ${COUNTRY_COMPARE_LLM_SERVICE_TIMEOUT_SECONDS:-25}
+      COUNTRY_COMPARE_LLM_MAX_SERIES_PER_REQUEST: ${COUNTRY_COMPARE_LLM_MAX_SERIES_PER_REQUEST:-3}
+      COUNTRY_COMPARE_LLM_BASELINE_METHOD: ${COUNTRY_COMPARE_LLM_BASELINE_METHOD:-holt_linear}
+      COUNTRY_COMPARE_LLM_MAX_HISTORY_POINTS: ${COUNTRY_COMPARE_LLM_MAX_HISTORY_POINTS:-40}
+      COUNTRY_COMPARE_LLM_MAX_ADJUSTMENT_PCT: ${COUNTRY_COMPARE_LLM_MAX_ADJUSTMENT_PCT:-20.0}
     volumes:
       - ./config:/app/config:ro
       - ./data:/app/data:ro
@@ -66,9 +76,9 @@ services:
     profiles:
       - llm
     environment:
-      LLM_SERVICE_TOKEN: ${COUNTRY_COMPARE_LLM_SERVICE_TOKEN:-dev-token}
+      LLM_SERVICE_TOKEN: ${COUNTRY_COMPARE_LLM_SERVICE_TOKEN:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-mistral}
-      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-dummy}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
       MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-large-latest}
 
       LLM_DEPLOYMENT_PROFILE: ${LLM_DEPLOYMENT_PROFILE:-local}
@@ -88,5 +98,17 @@ services:
 
       LLM_LOG_LEVEL: ${LLM_LOG_LEVEL:-INFO}
       LLM_DEBUG_LOG_PAYLOADS: ${LLM_DEBUG_LOG_PAYLOADS:-false}
-    ports:
-      - "8080:8080"      
+    expose:
+      - "8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s     
