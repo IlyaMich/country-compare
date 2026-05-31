@@ -4,7 +4,31 @@ from fastapi.testclient import TestClient
 
 from llm_forecast_service import metrics
 from llm_forecast_service.main import create_app
+from llm_forecast_service.schemas import ForecastAdjustmentOutput
 from llm_forecast_service.settings import ServiceSettings
+
+
+class _UnsafeAdjustmentProvider:
+    @property
+    def provider_name(self) -> str:
+        return "test_provider"
+
+    @property
+    def model_name(self) -> str:
+        return "test_model"
+
+    async def generate_adjustment(self, request) -> ForecastAdjustmentOutput:
+        return ForecastAdjustmentOutput(
+            forecast_points=[
+                {
+                    "year": request.baseline_forecast[0].year,
+                    "value": request.baseline_forecast[0].value * 10,
+                }
+            ],
+            rationale="Returns a structurally valid but unsafe adjustment.",
+            assumptions=[],
+            warnings=[],
+        )
 
 
 def _settings(*, protect_metrics: bool = False) -> ServiceSettings:
@@ -87,3 +111,40 @@ def test_request_validation_error_records_metric() -> None:
     assert metrics_response.status_code == 200
     assert "llm_validation_failures_total" in metrics_response.text
     assert 'code="invalid_request"' in metrics_response.text
+
+
+def test_provider_output_validation_error_records_metric() -> None:
+    metrics.reset_metrics_for_tests()
+    app = create_app(
+        settings=_settings(protect_metrics=False),
+        provider=_UnsafeAdjustmentProvider(),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/forecast/adjust",
+        headers={"Authorization": "Bearer test-token"},
+        json={
+            "request_id": "req-1",
+            "country_code": "ISR",
+            "metric_id": "gdp_per_capita",
+            "prompt_version": "test",
+            "history": [{"year": 2021, "value": 100.0}],
+            "baseline_forecast": [{"year": 2022, "value": 100.0}],
+            "constraints": {
+                "horizon_years": 1,
+                "max_adjustment_pct": 10.0,
+            },
+        },
+    )
+
+    assert response.status_code in {400, 413, 422, 502}
+
+    payload = response.json()
+    error_code = payload["error"]["code"]
+
+    metrics_response = client.get("/metrics")
+
+    assert metrics_response.status_code == 200
+    assert "llm_validation_failures_total" in metrics_response.text
+    assert f'code="{error_code}"' in metrics_response.text

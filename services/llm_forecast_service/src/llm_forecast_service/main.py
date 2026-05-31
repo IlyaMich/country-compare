@@ -454,7 +454,11 @@ def create_app(
         except ServiceError as exc:
             error_code = exc.code
 
-            if exc.code in _VALIDATION_ERROR_CODES:
+            if exc.code in _VALIDATION_ERROR_CODES or exc.status_code in {
+                400,
+                413,
+                422,
+            }:
                 metrics.record_validation_failure(code=exc.code)
 
             if exc.code in _PROVIDER_ERROR_CODES:
