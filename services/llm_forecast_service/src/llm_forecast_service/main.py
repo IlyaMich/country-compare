@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
+from llm_forecast_service import metrics
 from llm_forecast_service.errors import ServiceError, register_exception_handlers
 from llm_forecast_service.limits import enforce_request_limits
 from llm_forecast_service.privacy import safe_metadata
@@ -31,6 +32,19 @@ from llm_forecast_service.validation import validate_candidate_output
 
 SERVICE_NAME = "llm-forecast-service"
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
+
+_PROVIDER_ERROR_CODES = frozenset(
+    {
+        "llm_provider_not_configured",
+        "llm_provider_unavailable",
+        "llm_timeout",
+        "llm_rate_limited",
+        "llm_response_invalid",
+        "llm_schema_parse_failed",
+        "forecast_adjustment_rejected",
+    }
+)
+
 logger = logging.getLogger(__name__)
 access_logger = logging.getLogger("llm_forecast_service.access")
 
@@ -112,18 +126,24 @@ async def _acquire_forecast_slot(
     settings: ServiceSettings,
 ) -> int:
     started_at = time.perf_counter()
+
     try:
         await asyncio.wait_for(
             semaphore.acquire(), timeout=settings.queue_timeout_seconds
         )
     except TimeoutError as exc:
+        metrics.record_queue_rejection()
+        metrics.observe_queue_wait(duration_seconds=settings.queue_timeout_seconds)
         raise ServiceError(
             code="service_overloaded",
             message="LLM forecast service is busy. Please retry later.",
             status_code=429,
             details={"queue_timeout_seconds": settings.queue_timeout_seconds},
         ) from exc
-    return int((time.perf_counter() - started_at) * 1000)
+
+    queue_wait_seconds = time.perf_counter() - started_at
+    metrics.observe_queue_wait(duration_seconds=queue_wait_seconds)
+    return int(queue_wait_seconds * 1000)
 
 
 def create_app(
@@ -131,13 +151,18 @@ def create_app(
     provider: LLMProvider | None = None,
 ) -> FastAPI:
     resolved_settings = settings or ServiceSettings.from_env()
+
     app = FastAPI(title="LLM Forecast Service")
     app.state.settings = resolved_settings
+
     _configure_logging(resolved_settings.log_level.upper())
+
     app.state.provider = provider or build_provider(resolved_settings)
     app.state.forecast_semaphore = asyncio.Semaphore(
         max(1, resolved_settings.max_concurrent_requests)
     )
+    app.state.inflight_forecast_requests = 0
+
     register_exception_handlers(app)
 
     @app.middleware("http")
@@ -148,15 +173,32 @@ def create_app(
         started_at = time.perf_counter()
         request_id = _valid_or_new_request_id(request.headers.get("X-Request-ID"))
         request.state.request_id = request_id
+
+        response: Response | None = None
         status_code = 500
+
         try:
             response = await call_next(request)
             status_code = response.status_code
             return response
+        except Exception as exc:
+            metrics.record_exception(exc_type=type(exc).__name__)
+            status_code = 500
+            raise
         finally:
-            duration_ms = int((time.perf_counter() - started_at) * 1000)
-            if "response" in locals():
+            duration_seconds = time.perf_counter() - started_at
+            duration_ms = int(duration_seconds * 1000)
+
+            if response is not None:
                 response.headers["X-Request-ID"] = request_id
+
+            metrics.record_http_request(
+                method=request.method,
+                path=request.url.path,
+                status_code=status_code,
+                duration_seconds=duration_seconds,
+            )
+
             _json_log(
                 access_logger,
                 "http_request_completed",
@@ -175,6 +217,7 @@ def create_app(
     def ready() -> JSONResponse:
         issues = resolved_settings.readiness_issues()
         provider_ = app.state.provider
+
         payload: dict[str, object] = {
             "status": "ready" if not issues else "not_ready",
             "provider": provider_.provider_name,
@@ -182,17 +225,35 @@ def create_app(
             "deployment_profile": resolved_settings.deployment_profile,
             "zdr_required": resolved_settings.require_zdr,
             "zdr_confirmed": resolved_settings.mistral_zdr_confirmed,
-            "debug_payload_logging_enabled": (
-                resolved_settings.effective_debug_log_payloads
-            ),
+            "debug_payload_logging_enabled": resolved_settings.effective_debug_log_payloads,
             "issues": issues,
         }
+
         return JSONResponse(status_code=503 if issues else 200, content=payload)
+
+    if resolved_settings.enable_metrics:
+        metrics_dependencies = (
+            [Depends(require_service_token)]
+            if resolved_settings.protect_metrics
+            else []
+        )
+
+        @app.get(
+            "/metrics",
+            include_in_schema=False,
+            dependencies=metrics_dependencies,
+        )
+        def prometheus_metrics() -> Response:
+            return Response(
+                content=metrics.render_metrics(),
+                media_type="text/plain; version=0.0.4; charset=utf-8",
+            )
 
     @app.get("/v1/capabilities", dependencies=[Depends(require_service_token)])
     def capabilities() -> dict[str, object]:
         settings_ = app.state.settings
         issues = settings_.readiness_issues()
+
         if issues:
             raise ServiceError(
                 code="service_not_ready",
@@ -200,7 +261,9 @@ def create_app(
                 status_code=503,
                 details={"issues": issues},
             )
+
         provider_ = app.state.provider
+
         return {
             "provider": provider_.provider_name,
             "model": _provider_model(provider_, settings_),
@@ -228,13 +291,16 @@ def create_app(
     ) -> ForecastAdjustmentResponse:
         started_at = time.perf_counter()
         queue_wait_ms = 0
+        provider_latency_ms = 0
         status = "error"
         error_code: str | None = None
         acquired = False
+
         provider_ = app.state.provider
         provider_name = provider_.provider_name
         provider_model = _provider_model(provider_, resolved_settings)
         llm_calls = _llm_calls_for_provider(provider_)
+
         try:
             issues = resolved_settings.readiness_issues()
             if issues:
@@ -244,19 +310,35 @@ def create_app(
                     status_code=503,
                     details={"issues": issues},
                 )
+
             enforce_request_limits(request, resolved_settings)
+
             queue_wait_ms = await _acquire_forecast_slot(
-                app.state.forecast_semaphore, resolved_settings
+                app.state.forecast_semaphore,
+                resolved_settings,
             )
             acquired = True
+
+            app.state.inflight_forecast_requests += 1
+            metrics.set_inflight_requests(app.state.inflight_forecast_requests)
+
             provider_started_at = time.perf_counter()
-            raw_candidate = await provider_.generate_adjustment(request)
-            provider_latency_ms = int(
-                (time.perf_counter() - provider_started_at) * 1000
-            )
+            try:
+                raw_candidate = await provider_.generate_adjustment(request)
+            finally:
+                provider_latency_seconds = time.perf_counter() - provider_started_at
+                provider_latency_ms = int(provider_latency_seconds * 1000)
+                metrics.record_provider_duration(
+                    provider=provider_name,
+                    model=provider_model,
+                    duration_seconds=provider_latency_seconds,
+                )
+
             candidate = validate_candidate_output(raw_candidate, request)
+
             latency_ms = int((time.perf_counter() - started_at) * 1000)
             status = "ok"
+
             return ForecastAdjustmentResponse(
                 forecast_points=candidate.forecast_points,
                 rationale=candidate.rationale,
@@ -286,16 +368,39 @@ def create_app(
                     }
                 ),
             )
+
         except ServiceError as exc:
             error_code = exc.code
+            if exc.code in _PROVIDER_ERROR_CODES:
+                metrics.record_provider_error(
+                    provider=provider_name,
+                    error_code=exc.code,
+                )
             raise
+
         except Exception:
             error_code = "internal_error"
             raise
+
         finally:
             if acquired:
+                app.state.inflight_forecast_requests = max(
+                    0,
+                    app.state.inflight_forecast_requests - 1,
+                )
+                metrics.set_inflight_requests(app.state.inflight_forecast_requests)
                 app.state.forecast_semaphore.release()
-            latency_ms = int((time.perf_counter() - started_at) * 1000)
+
+            latency_seconds = time.perf_counter() - started_at
+            latency_ms = int(latency_seconds * 1000)
+
+            metrics.record_forecast_request(
+                status=status,
+                provider=provider_name,
+                error_code=error_code,
+                duration_seconds=latency_seconds,
+            )
+
             _log_forecast_adjust_request(
                 request=request,
                 http_request_id=getattr(http_request.state, "request_id", ""),
