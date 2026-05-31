@@ -66,8 +66,18 @@ class ForecastAdjustmentRequest(BaseModel):
 class ForecastAdjustmentOutput(BaseModel):
     forecast_points: list[TimeSeriesPoint] = Field(min_length=1)
     rationale: str = Field(default="", max_length=2_000)
-    assumptions: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list, max_length=5)
+    warnings: list[str] = Field(default_factory=list, max_length=5)
+
+    @field_validator("assumptions", "warnings")
+    @classmethod
+    def provider_text_lists_are_bounded(cls, values: list[str]) -> list[str]:
+        for value in values:
+            if len(value) > 500:
+                raise ValueError(
+                    "provider text list entries must be at most 500 characters"
+                )
+        return values
 
 
 class ForecastAdjustmentResponse(ForecastAdjustmentOutput):
