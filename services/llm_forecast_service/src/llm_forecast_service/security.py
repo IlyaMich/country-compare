@@ -41,3 +41,23 @@ def verify_bearer_token(authorization: str | None, settings: ServiceSettings) ->
 def require_service_token(request: Request) -> None:
     settings = request.app.state.settings
     verify_bearer_token(request.headers.get("Authorization"), settings)
+
+
+def has_valid_service_token(request: Request) -> bool:
+    """Return whether the request has a valid service bearer token.
+
+    This is intentionally non-raising and does not record auth failures.
+    It is used by endpoints like /ready that may return a minimal public
+    response but richer details only to authenticated callers.
+    """
+
+    settings = request.app.state.settings
+    if not settings.service_token:
+        return False
+
+    scheme, token = get_authorization_scheme_param(request.headers.get("Authorization"))
+
+    if scheme.lower() != "bearer" or not token:
+        return False
+
+    return hmac.compare_digest(token, settings.service_token)
