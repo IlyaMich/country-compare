@@ -128,13 +128,33 @@ def _settings_from_mapping(raw: dict[str, Any]) -> AppSettings:
 
 
 def _environment_overrides() -> dict[str, Any]:
+    config_dir = os.getenv("COUNTRY_COMPARE_CONFIG_DIR")
+    data_dir = os.getenv("COUNTRY_COMPARE_DATA_DIR")
+
+    metrics_config_path = os.getenv("COUNTRY_COMPARE_METRICS_CONFIG")
+    scoring_config_path = os.getenv("COUNTRY_COMPARE_SCORING_CONFIG")
+    audit_dir = os.getenv("COUNTRY_COMPARE_AUDIT_DIR")
+    export_dir = os.getenv("COUNTRY_COMPARE_EXPORT_DIR")
+
+    if config_dir:
+        config_root = Path(config_dir).expanduser()
+        metrics_config_path = metrics_config_path or str(config_root / "metrics.yaml")
+        scoring_config_path = scoring_config_path or str(
+            config_root / "scoring_profiles.yaml"
+        )
+
+    if data_dir:
+        data_root = Path(data_dir).expanduser()
+        audit_dir = audit_dir or str(data_root / "audit")
+        export_dir = export_dir or str(data_root / "exports")
+
     return {
-        "metrics_config_path": os.getenv("COUNTRY_COMPARE_METRICS_CONFIG"),
-        "scoring_config_path": os.getenv("COUNTRY_COMPARE_SCORING_CONFIG"),
+        "metrics_config_path": metrics_config_path,
+        "scoring_config_path": scoring_config_path,
         "store_backend": os.getenv("COUNTRY_COMPARE_STORE_BACKEND"),
         "store_path": os.getenv("COUNTRY_COMPARE_STORE_PATH"),
-        "audit_dir": os.getenv("COUNTRY_COMPARE_AUDIT_DIR"),
-        "export_dir": os.getenv("COUNTRY_COMPARE_EXPORT_DIR"),
+        "audit_dir": audit_dir,
+        "export_dir": export_dir,
         "debug": os.getenv("COUNTRY_COMPARE_DEBUG"),
         "app_title": os.getenv("COUNTRY_COMPARE_UI_APP_TITLE"),
         "page_title": os.getenv("COUNTRY_COMPARE_UI_PAGE_TITLE"),

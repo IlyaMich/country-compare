@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from country_compare import __version__
 from country_compare.api.errors import register_exception_handlers
+from country_compare.api.metrics import metrics_response
 from country_compare.api.openapi import install_openapi_security
 from country_compare.api.request_context import (
     configure_api_logging,
@@ -14,11 +17,22 @@ from country_compare.api.routes import include_routers
 from country_compare.api.security import enforce_optional_api_key
 from country_compare.api.settings import ApiSettings
 
+LOGGER = logging.getLogger("country_compare.api")
+
 
 def create_app(settings: ApiSettings | None = None) -> FastAPI:
     """Create and configure the FastAPI application."""
 
     resolved_settings = settings or ApiSettings.from_env()
+
+    if resolved_settings.configure_logging:
+        configure_api_logging(
+            level=resolved_settings.log_level,
+            log_format=resolved_settings.log_format,
+            propagate=resolved_settings.log_propagate,
+            clear_handlers=resolved_settings.log_clear_handlers,
+        )
+
     docs_url = "/docs" if resolved_settings.enable_docs else None
     redoc_url = "/redoc" if resolved_settings.enable_docs else None
     openapi_url = "/openapi.json" if resolved_settings.enable_docs else None
@@ -36,7 +50,24 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
         openapi_url=openapi_url,
     )
     app.state.api_settings = resolved_settings
-    configure_api_logging(level=resolved_settings.log_level)
+
+    LOGGER.info(
+        "api.startup",
+        extra={
+            "runtime_env": resolved_settings.runtime_env,
+            "auth_enabled": resolved_settings.auth_enabled,
+            "auth_required": resolved_settings.auth_required,
+            "docs_enabled": resolved_settings.enable_docs,
+            "metrics_enabled": resolved_settings.enable_metrics,
+        },
+    )
+
+    app.add_api_route(
+        "/metrics",
+        metrics_response,
+        methods=["GET"],
+        include_in_schema=False,
+    )
 
     app.middleware("http")(enforce_optional_api_key)
     app.middleware("http")(request_context_middleware)
@@ -53,7 +84,6 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
 
     register_exception_handlers(app)
     include_routers(app)
-
     return app
 
 
