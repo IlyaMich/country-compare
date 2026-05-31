@@ -92,6 +92,7 @@ class ServiceSettings:
     debug_log_payloads: bool = False
     enable_metrics: bool = True
     protect_metrics: bool = True
+    protect_ready_details: bool = True
 
     @classmethod
     def from_env(cls) -> ServiceSettings:
@@ -141,6 +142,7 @@ class ServiceSettings:
             debug_log_payloads=debug_log_payloads,
             enable_metrics=_get_bool("LLM_ENABLE_METRICS", True),
             protect_metrics=_get_bool("LLM_PROTECT_METRICS", True),
+            protect_ready_details=_get_bool("LLM_PROTECT_READY_DETAILS", True),
         )
         issues = settings.readiness_issues(include_runtime_dependencies=False)
         if issues:
