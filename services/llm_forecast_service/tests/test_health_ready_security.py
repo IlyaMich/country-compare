@@ -169,3 +169,82 @@ def test_ready_details_can_be_unprotected_for_local_use() -> None:
     assert payload["provider"] == "baseline_echo"
     assert payload["model"] == "baseline_echo"
     assert payload["issues"] == []
+
+
+def test_docs_can_be_disabled() -> None:
+    settings = ServiceSettings(
+        service_token="test-token",
+        provider="baseline_echo",
+        deployment_profile="local",
+        enable_docs=False,
+    )
+    client = TestClient(create_app(settings=settings))
+
+    assert client.get("/docs").status_code == 404
+    assert client.get("/redoc").status_code == 404
+    assert client.get("/openapi.json").status_code == 404
+
+
+def test_docs_are_disabled_for_public_profile() -> None:
+    settings = ServiceSettings(
+        service_token="test-token",
+        provider="baseline_echo",
+        deployment_profile="public",
+        require_zdr=True,
+        mistral_zdr_confirmed=True,
+        enable_docs=True,
+    )
+    client = TestClient(create_app(settings=settings))
+
+    assert client.get("/docs").status_code == 404
+    assert client.get("/redoc").status_code == 404
+    assert client.get("/openapi.json").status_code == 404
+
+
+def test_openapi_marks_protected_routes_with_bearer_auth() -> None:
+    settings = ServiceSettings(
+        service_token="test-token",
+        provider="baseline_echo",
+        deployment_profile="local",
+        enable_docs=True,
+    )
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    schema = response.json()
+
+    assert schema["components"]["securitySchemes"]["BearerAuth"] == {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "service-token",
+        "description": "Private service bearer token.",
+    }
+
+    assert schema["paths"]["/v1/capabilities"]["get"]["security"] == [
+        {"BearerAuth": []}
+    ]
+    assert schema["paths"]["/v1/forecast/adjust"]["post"]["security"] == [
+        {"BearerAuth": []}
+    ]
+
+
+def test_capabilities_reports_single_series_support() -> None:
+    settings = ServiceSettings(
+        service_token="test-token",
+        provider="baseline_echo",
+        deployment_profile="local",
+        max_series_per_request=25,
+    )
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get(
+        "/v1/capabilities",
+        headers={"Authorization": "Bearer test-token"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["one_call_per_series"] is True
+    assert payload["max_series_per_request"] == 1

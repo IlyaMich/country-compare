@@ -93,6 +93,7 @@ class ServiceSettings:
     enable_metrics: bool = True
     protect_metrics: bool = True
     protect_ready_details: bool = True
+    enable_docs: bool = True
 
     @classmethod
     def from_env(cls) -> ServiceSettings:
@@ -143,6 +144,7 @@ class ServiceSettings:
             enable_metrics=_get_bool("LLM_ENABLE_METRICS", True),
             protect_metrics=_get_bool("LLM_PROTECT_METRICS", True),
             protect_ready_details=_get_bool("LLM_PROTECT_READY_DETAILS", True),
+            enable_docs=_get_bool("LLM_ENABLE_DOCS", True),
         )
         issues = settings.readiness_issues(include_runtime_dependencies=False)
         if issues:
@@ -210,3 +212,12 @@ class ServiceSettings:
     @property
     def effective_debug_log_payloads(self) -> bool:
         return bool(self.debug_log_payloads and not self.is_public_deployment)
+
+    @property
+    def effective_enable_docs(self) -> bool:
+        """Return whether interactive docs/OpenAPI should be exposed."""
+
+        if self.deployment_profile == "public":
+            return False
+
+        return self.enable_docs

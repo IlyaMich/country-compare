@@ -10,6 +10,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from fastapi import Depends, FastAPI, Request, Response
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from llm_forecast_service import metrics
@@ -52,6 +53,13 @@ _VALIDATION_ERROR_CODES = frozenset(
         "llm_response_invalid",
         "llm_schema_parse_failed",
         "forecast_adjustment_rejected",
+    }
+)
+
+_PROTECTED_OPENAPI_PATHS = frozenset(
+    {
+        "/v1/capabilities",
+        "/v1/forecast/adjust",
     }
 )
 
@@ -125,6 +133,45 @@ def _log_forecast_adjust_request(
     )
 
 
+def _build_openapi_schema(app: FastAPI) -> dict[str, Any]:
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    schema = get_openapi(
+        title="LLM Forecast Service",
+        version="0.1.0",
+        description=(
+            "Private, token-protected LLM forecast adjustment service. "
+            "This service should remain internal/private."
+        ),
+        routes=app.routes,
+    )
+
+    components = schema.setdefault("components", {})
+    security_schemes = components.setdefault("securitySchemes", {})
+    security_schemes["BearerAuth"] = {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "service-token",
+        "description": "Private service bearer token.",
+    }
+
+    paths = schema.get("paths", {})
+    if isinstance(paths, dict):
+        for path, path_item in paths.items():
+            if path not in _PROTECTED_OPENAPI_PATHS:
+                continue
+            if not isinstance(path_item, dict):
+                continue
+
+            for operation in path_item.values():
+                if isinstance(operation, dict):
+                    operation["security"] = [{"BearerAuth": []}]
+
+    app.openapi_schema = schema
+    return app.openapi_schema
+
+
 def build_provider(settings: ServiceSettings) -> LLMProvider:
     if settings.provider == "baseline_echo":
         return BaselineEchoProvider()
@@ -161,8 +208,18 @@ def create_app(
     provider: LLMProvider | None = None,
 ) -> FastAPI:
     resolved_settings = settings or ServiceSettings.from_env()
+    docs_enabled = resolved_settings.effective_enable_docs
 
-    app = FastAPI(title="LLM Forecast Service")
+    app = FastAPI(
+        title="LLM Forecast Service",
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
+    )
+
+    if docs_enabled:
+        app.openapi = lambda: _build_openapi_schema(app)  # type: ignore[method-assign]
+
     app.state.settings = resolved_settings
 
     _configure_logging(resolved_settings.log_level.upper())
@@ -294,7 +351,7 @@ def create_app(
             "model": _provider_model(provider_, settings_),
             "supports_structured_output": True,
             "supports_bounded_adjustment": True,
-            "max_series_per_request": settings_.max_series_per_request,
+            "max_series_per_request": 1,
             "max_horizon_years": settings_.max_horizon_years,
             "max_history_points": settings_.max_history_points,
             "max_input_chars": settings_.max_input_chars,
