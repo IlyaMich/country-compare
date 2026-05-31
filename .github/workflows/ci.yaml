@@ -235,21 +235,61 @@ jobs:
           docker compose down --volumes --remove-orphans
 
       - name: Build backend-only Compose service
+        env:
+          COUNTRY_COMPARE_API_KEY: ci-smoke-key
+          COUNTRY_COMPARE_API_PORT: "8000"
+          PORT: "8000"
         run: |
           docker compose -f compose.api.yml build backend
 
       - name: Smoke test backend-only Compose service
+        env:
+          COUNTRY_COMPARE_API_ENV: production
+          COUNTRY_COMPARE_API_AUTH_REQUIRED: "true"
+          COUNTRY_COMPARE_API_KEY: ci-smoke-key
+          COUNTRY_COMPARE_API_ENABLE_DOCS: "false"
+          COUNTRY_COMPARE_API_PROTECT_DOCS: "true"
+          COUNTRY_COMPARE_API_ENABLE_METRICS: "true"
+          COUNTRY_COMPARE_API_PROTECT_METRICS: "true"
+          COUNTRY_COMPARE_API_PORT: "8000"
+          PORT: "8000"
         run: |
+          set -euo pipefail
+
+          trap '
+            echo "::group::backend-only compose ps"
+            docker compose -f compose.api.yml ps -a || true
+            echo "::endgroup::"
+
+            echo "::group::backend-only compose logs"
+            docker compose -f compose.api.yml logs --no-color backend || true
+            echo "::endgroup::"
+          ' ERR
+
           docker compose -f compose.api.yml up -d backend
-          python scripts/smoke_api_container.py --base-url http://127.0.0.1:8000
+          docker compose -f compose.api.yml ps -a
+
+          python scripts/smoke_api_container.py \
+            --base-url http://127.0.0.1:8000 \
+            --api-key ci-smoke-key \
+            --wait-seconds 180
 
       - name: Show backend-only Compose logs on failure
         if: failure()
+        env:
+          COUNTRY_COMPARE_API_KEY: ci-smoke-key
+          COUNTRY_COMPARE_API_PORT: "8000"
+          PORT: "8000"
         run: |
-          docker compose -f compose.api.yml logs backend
+          docker compose -f compose.api.yml ps -a || true
+          docker compose -f compose.api.yml logs --no-color backend || true
 
       - name: Stop backend-only Compose services
         if: always()
+        env:
+          COUNTRY_COMPARE_API_KEY: ci-smoke-key
+          COUNTRY_COMPARE_API_PORT: "8000"
+          PORT: "8000"
         run: |
           docker compose -f compose.api.yml down --volumes --remove-orphans
 
@@ -265,8 +305,12 @@ jobs:
           docker run -d \
             --name country-compare-backend-ci \
             --publish 8001:8000 \
-            --env COUNTRY_COMPARE_API_ENABLE_DOCS=true \
+            --env COUNTRY_COMPARE_API_ENV=production \
+            --env COUNTRY_COMPARE_API_AUTH_REQUIRED=true \
             --env COUNTRY_COMPARE_API_KEY=ci-smoke-key \
+            --env COUNTRY_COMPARE_API_ENABLE_DOCS=false \
+            --env COUNTRY_COMPARE_API_ENABLE_METRICS=true \
+            --env COUNTRY_COMPARE_API_PROTECT_METRICS=true \
             country-compare-backend:ci
           python scripts/smoke_api_container.py \
             --base-url http://127.0.0.1:8001 \
@@ -329,8 +373,12 @@ jobs:
             --name country-compare-backend-llm-ci \
             --network country-compare-llm-smoke \
             --publish 8002:8000 \
-            --env COUNTRY_COMPARE_API_ENABLE_DOCS=true \
+            --env COUNTRY_COMPARE_API_ENV=production \
+            --env COUNTRY_COMPARE_API_AUTH_REQUIRED=true \
             --env COUNTRY_COMPARE_API_KEY=ci-smoke-key \
+            --env COUNTRY_COMPARE_API_ENABLE_DOCS=false \
+            --env COUNTRY_COMPARE_API_ENABLE_METRICS=true \
+            --env COUNTRY_COMPARE_API_PROTECT_METRICS=true \
             --env COUNTRY_COMPARE_ENABLE_LLM_FORECAST=true \
             --env COUNTRY_COMPARE_LLM_SERVICE_URL=http://llm-forecast-service-ci:8080 \
             --env COUNTRY_COMPARE_LLM_SERVICE_TOKEN=ci-llm-token \
