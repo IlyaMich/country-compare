@@ -26,7 +26,7 @@ from llm_forecast_service.schemas import (
     ForecastAdjustmentResponse,
     HealthResponse,
 )
-from llm_forecast_service.security import require_service_token
+from llm_forecast_service.security import has_valid_service_token, require_service_token
 from llm_forecast_service.settings import ServiceSettings
 from llm_forecast_service.validation import validate_candidate_output
 
@@ -214,20 +214,35 @@ def create_app(
         return HealthResponse(status="ok", service=SERVICE_NAME)
 
     @app.get("/ready", response_model=None)
-    def ready() -> JSONResponse:
+    def ready(request: Request) -> JSONResponse:
         issues = resolved_settings.readiness_issues()
         provider_ = app.state.provider
+        status = "ready" if not issues else "not_ready"
+
+        include_details = (
+            not resolved_settings.protect_ready_details
+            or has_valid_service_token(request)
+        )
 
         payload: dict[str, object] = {
-            "status": "ready" if not issues else "not_ready",
-            "provider": provider_.provider_name,
-            "model": _provider_model(provider_, resolved_settings),
-            "deployment_profile": resolved_settings.deployment_profile,
-            "zdr_required": resolved_settings.require_zdr,
-            "zdr_confirmed": resolved_settings.mistral_zdr_confirmed,
-            "debug_payload_logging_enabled": resolved_settings.effective_debug_log_payloads,
-            "issues": issues,
+            "status": status,
+            "service": SERVICE_NAME,
         }
+
+        if include_details:
+            payload.update(
+                {
+                    "provider": provider_.provider_name,
+                    "model": _provider_model(provider_, resolved_settings),
+                    "deployment_profile": resolved_settings.deployment_profile,
+                    "zdr_required": resolved_settings.require_zdr,
+                    "zdr_confirmed": resolved_settings.mistral_zdr_confirmed,
+                    "debug_payload_logging_enabled": (
+                        resolved_settings.effective_debug_log_payloads
+                    ),
+                    "issues": issues,
+                }
+            )
 
         return JSONResponse(status_code=503 if issues else 200, content=payload)
 
