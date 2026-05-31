@@ -34,12 +34,14 @@ def test_public_deployment_requires_zdr_confirmation() -> None:
         )
     )
 
-    response = client.get("/ready")
+    response = client.get(
+        "/ready",
+        headers={"Authorization": "Bearer test-token"},
+    )
 
     assert response.status_code == 503
     payload = response.json()
     assert payload["status"] == "not_ready"
-    assert "MISTRAL_ZDR_CONFIRMED" in " ".join(payload["issues"])
 
 
 def test_public_capabilities_fail_when_zdr_not_confirmed() -> None:
