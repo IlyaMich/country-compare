@@ -151,6 +151,14 @@ jobs:
             exit 1
           fi
 
+          if [ -z "${API_KEY}" ]; then
+            cat >&2 <<'EOF'
+          COUNTRY_COMPARE_API_KEY is not configured for this environment.
+          Set it to the same value as the deployed API service COUNTRY_COMPARE_API_KEY.
+          EOF
+            exit 1
+          fi
+
           python scripts/smoke_api_container.py \
             --base-url "${API_BASE_URL}" \
             --api-key "${API_KEY:-}" \
