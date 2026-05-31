@@ -9,7 +9,11 @@ from llm_forecast_service.schemas import (
 
 
 class LLMProvider(Protocol):
-    provider_name: str
+    @property
+    def provider_name(self) -> str: ...
+
+    @property
+    def model_name(self) -> str: ...
 
     async def generate_adjustment(
         self,
@@ -20,7 +24,13 @@ class LLMProvider(Protocol):
 class BaselineEchoProvider:
     """Fallback/dev provider that performs no external LLM call."""
 
-    provider_name = "baseline_echo"
+    @property
+    def provider_name(self) -> str:
+        return "baseline_echo"
+
+    @property
+    def model_name(self) -> str:
+        return "baseline_echo"
 
     async def generate_adjustment(
         self,
