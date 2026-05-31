@@ -9,6 +9,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from llm_forecast_service import metrics
+
 logger = logging.getLogger(__name__)
 _MAX_DETAIL_STRING_LENGTH = 500
 _ALLOWED_VALIDATION_ERROR_KEYS = {"loc", "msg", "type", "url"}
@@ -122,27 +124,35 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(RequestValidationError)
-    async def handle_request_validation_error(
-        request: Request, exc: RequestValidationError
+    async def request_validation_exception_handler(
+        request: Request,
+        exc: RequestValidationError,
     ) -> JSONResponse:
+        metrics.record_validation_failure(code="invalid_request")
+        request_id = getattr(request.state, "request_id", None)
+
         return error_response(
-            "invalid_request",
-            "Request validation failed.",
+            code="invalid_request",
+            message="Request validation failed.",
             status_code=422,
+            request_id=request_id,
             details={"errors": _sanitize_validation_errors(exc.errors())},
-            request_id=_request_id_from(request),
         )
 
     @app.exception_handler(ValidationError)
-    async def handle_validation_error(
-        request: Request, exc: ValidationError
+    async def pydantic_validation_exception_handler(
+        request: Request,
+        exc: ValidationError,
     ) -> JSONResponse:
+        metrics.record_validation_failure(code="llm_response_invalid")
+        request_id = getattr(request.state, "request_id", None)
+
         return error_response(
-            "validation_error",
-            "Response validation failed.",
+            code="llm_response_invalid",
+            message="Provider response validation failed.",
             status_code=502,
+            request_id=request_id,
             details={"errors": _sanitize_validation_errors(exc.errors())},
-            request_id=_request_id_from(request),
         )
 
     @app.exception_handler(Exception)

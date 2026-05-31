@@ -67,3 +67,23 @@ def test_queue_rejection_metric_can_be_recorded() -> None:
     rendered = metrics.render_metrics()
 
     assert "llm_queue_rejections_total" in rendered
+
+
+def test_request_validation_error_records_metric() -> None:
+    metrics.reset_metrics_for_tests()
+    app = create_app(settings=_settings(protect_metrics=False))
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/forecast/adjust",
+        headers={"Authorization": "Bearer test-token"},
+        json={"invalid": "payload"},
+    )
+
+    assert response.status_code == 422
+
+    metrics_response = client.get("/metrics")
+
+    assert metrics_response.status_code == 200
+    assert "llm_validation_failures_total" in metrics_response.text
+    assert 'code="invalid_request"' in metrics_response.text

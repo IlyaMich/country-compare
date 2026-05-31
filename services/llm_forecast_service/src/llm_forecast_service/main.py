@@ -45,6 +45,16 @@ _PROVIDER_ERROR_CODES = frozenset(
     }
 )
 
+_VALIDATION_ERROR_CODES = frozenset(
+    {
+        "invalid_request",
+        "input_limit_exceeded",
+        "llm_response_invalid",
+        "llm_schema_parse_failed",
+        "forecast_adjustment_rejected",
+    }
+)
+
 logger = logging.getLogger(__name__)
 access_logger = logging.getLogger("llm_forecast_service.access")
 
@@ -386,11 +396,16 @@ def create_app(
 
         except ServiceError as exc:
             error_code = exc.code
+
+            if exc.code in _VALIDATION_ERROR_CODES:
+                metrics.record_validation_failure(code=exc.code)
+
             if exc.code in _PROVIDER_ERROR_CODES:
                 metrics.record_provider_error(
                     provider=provider_name,
                     error_code=exc.code,
                 )
+
             raise
 
         except Exception:
