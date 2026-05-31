@@ -28,3 +28,20 @@ def test_explicit_settings_override_environment(monkeypatch):
     )
 
     assert settings.paths.store_backend == "custom_backend"
+
+
+def test_load_app_settings_supports_config_and_data_dir_overrides(
+    monkeypatch, tmp_path
+):
+    config_dir = tmp_path / "config"
+    data_dir = tmp_path / "data"
+
+    monkeypatch.setenv("COUNTRY_COMPARE_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("COUNTRY_COMPARE_DATA_DIR", str(data_dir))
+
+    settings = load_app_settings(app_config_path="missing-app-settings.yaml")
+
+    assert settings.paths.metrics_config_path == config_dir / "metrics.yaml"
+    assert settings.paths.scoring_config_path == config_dir / "scoring_profiles.yaml"
+    assert settings.paths.audit_dir == data_dir / "audit"
+    assert settings.paths.export_dir == data_dir / "exports"
