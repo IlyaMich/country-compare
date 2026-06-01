@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import os
 from dataclasses import dataclass, field
@@ -37,6 +38,9 @@ from country_compare.settings.defaults import (
     DEFAULT_LLM_SERVICE_URL,
     DEFAULT_LLM_TIMEOUT_SECONDS,
 )
+
+LOGGER = logging.getLogger(__name__)
+_LLM_FALLBACK_CODE = "llm_forecast_failed"
 
 ENV_ENABLE_LLM_FORECAST = "COUNTRY_COMPARE_ENABLE_LLM_FORECAST"
 ENV_LLM_PROVIDER = "COUNTRY_COMPARE_LLM_PROVIDER"
@@ -266,11 +270,16 @@ class LLMForecastForecaster(BaseForecaster):
                 max_adjustment_pct=settings.max_adjustment_pct,
             )
         except Exception as exc:
+            LOGGER.warning(
+                "llm_forecast.fallback_to_baseline",
+                extra={"error_type": exc.__class__.__name__},
+                exc_info=True,
+            )
             return self._fallback_result(
                 baseline_result,
                 settings=settings,
                 baseline_method=baseline_method,
-                failure_reason=str(exc),
+                failure_reason_code=_LLM_FALLBACK_CODE,
             )
 
         metadata = self._metadata(
@@ -414,8 +423,12 @@ class LLMForecastForecaster(BaseForecaster):
         *,
         settings: LLMForecastSettings,
         baseline_method: str,
-        failure_reason: str,
+        failure_reason_code: str,
     ) -> RawForecastResult:
+        user_message = (
+            "LLM forecast adjustment was unavailable, so the validated deterministic "
+            "baseline forecast was returned."
+        )
         metadata = self._metadata(
             settings=settings,
             baseline_method=baseline_method,
@@ -423,16 +436,16 @@ class LLMForecastForecaster(BaseForecaster):
             validation_status="fallback",
             fallback_used=True,
             fallback_method=baseline_method,
-            failure_reason=failure_reason,
+            failure_reason_code=failure_reason_code,
+            diagnostic_messages={
+                "user": [user_message],
+                "operator": ["See backend logs for the LLM forecast fallback reason."],
+            },
         )
-
         warnings = [
-            "llm_forecast could not produce a valid forecast; returned the "
-            f"validated baseline forecast from '{baseline_method}' instead",
-            f"llm_forecast failure reason: {failure_reason}",
+            user_message,
             *baseline_result.warnings,
         ]
-
         return RawForecastResult(
             method_id=self.method_id,
             points=list(baseline_result.points),
@@ -450,12 +463,14 @@ class LLMForecastForecaster(BaseForecaster):
         validation_status: str,
         fallback_used: bool,
         fallback_method: str | None = None,
-        failure_reason: str | None = None,
+        failure_reason_code: str | None = None,
+        diagnostic_messages: dict[str, list[str]] | None = None,
         rationale: str = "",
         assumptions: list[str] | None = None,
         risk_warnings: list[str] | None = None,
         raw_provider_metadata: dict[str, object] | None = None,
     ) -> dict[str, object]:
+        diagnostics = diagnostic_messages or {"user": [], "operator": []}
         return {
             "method": self.method_id,
             "experimental": True,
@@ -472,7 +487,11 @@ class LLMForecastForecaster(BaseForecaster):
             "validation_status": validation_status,
             "fallback_used": fallback_used,
             "fallback_method": fallback_method,
-            "failure_reason": failure_reason,
+            "failure_reason_code": failure_reason_code,
+            "diagnostic_messages": {
+                "user": list(diagnostics.get("user", [])),
+                "operator": list(diagnostics.get("operator", [])),
+            },
             "rationale": rationale,
             "assumptions": list(assumptions or []),
             "risk_warnings": list(risk_warnings or []),

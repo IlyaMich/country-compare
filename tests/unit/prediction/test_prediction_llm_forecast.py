@@ -222,15 +222,27 @@ def test_llm_forecast_falls_back_to_baseline_on_wrong_horizon(
     diagnostic = result.diagnostics[0]
     assert diagnostic.status == PredictionDiagnosticStatus.WARNING
     assert any(
-        "returned the validated baseline forecast" in warning
-        for warning in diagnostic.warnings
+        "baseline forecast was returned" in warning for warning in diagnostic.warnings
     )
 
     info = result.forecaster_info[0]
     assert info.metadata["validation_status"] == "fallback"
     assert info.metadata["fallback_used"] is True
     assert info.metadata["fallback_method"] == "last_observed"
-    assert "forecast point count" in str(info.metadata["failure_reason"])
+    assert info.metadata["failure_reason_code"] == "llm_forecast_failed"
+
+    diagnostic_messages = info.metadata["diagnostic_messages"]
+    assert diagnostic_messages["user"]
+    assert diagnostic_messages["operator"] == [
+        "See backend logs for the LLM forecast fallback reason."
+    ]
+
+    serialized_metadata = str(info.metadata)
+    assert "forecast point count" not in serialized_metadata
+    assert (
+        "LLM response forecast point count did not match requested horizon"
+        not in serialized_metadata
+    )
 
 
 def test_llm_forecast_falls_back_when_provider_raises(
@@ -256,8 +268,22 @@ def test_llm_forecast_falls_back_when_provider_raises(
     )
 
     assert result.forecast_df["value"].tolist() == pytest.approx([40.0])
-    assert result.forecaster_info[0].metadata["fallback_used"] is True
-    assert "mock timeout" in str(result.forecaster_info[0].metadata["failure_reason"])
+
+    metadata = result.forecaster_info[0].metadata
+
+    assert metadata["fallback_used"] is True
+    assert metadata["fallback_method"] == "last_observed"
+    assert metadata["failure_reason_code"] == "llm_forecast_failed"
+
+    diagnostic_messages = metadata["diagnostic_messages"]
+    assert diagnostic_messages["user"]
+    assert diagnostic_messages["operator"] == [
+        "See backend logs for the LLM forecast fallback reason."
+    ]
+
+    serialized_metadata = str(metadata)
+    assert "mock timeout" not in serialized_metadata
+    assert "TimeoutError" not in serialized_metadata
 
 
 def test_llm_response_from_json_parses_valid_payload() -> None:
