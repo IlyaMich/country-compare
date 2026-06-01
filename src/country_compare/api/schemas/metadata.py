@@ -85,3 +85,18 @@ class ProfilesMetadataResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     profiles: list[ProfileOptionResponse]
+
+
+class PredictionMethodResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    method_id: str
+    display_name: str
+    description: str
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class PredictionMethodsMetadataResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    methods: list[PredictionMethodResponse]
