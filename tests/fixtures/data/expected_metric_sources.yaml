@@ -1,0 +1,309 @@
+# Source-family expectations for data correctness tests.
+#
+# These rules are intentionally family-based rather than exact URL-based.
+# That makes the tests stable across source URL changes while still catching
+# metric/source swaps, missing source metadata, and clearly wrong source families.
+#
+# The synthetic example dataset uses:
+#   source_name: Example Source
+#   source_url: https://example.org/...
+#
+# The real release/configured dataset currently uses mostly:
+#   source_name/source: World Bank
+#
+# Rule behavior expected by the test:
+# - source_name_contains: at least one item must appear in source_name
+# - source_url_contains: at least one item must appear in source_url
+# - unit: optional exact expected unit
+# - category: optional exact expected category
+
+defaults:
+  source_name_contains:
+    - Example Source
+    - World Bank
+  source_url_contains:
+    - example.org
+    - worldbank.org
+    - api.worldbank.org
+    - data.worldbank.org
+
+metrics:
+  # ---------------------------------------------------------------------------
+  # Synthetic/example dataset metrics
+  # ---------------------------------------------------------------------------
+
+  gdp_per_capita:
+    source_name_contains:
+      - Example Source
+      - World Bank
+    source_url_contains:
+      - example.org/gdp
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: USD
+    category: economy
+
+  rule_of_law:
+    source_name_contains:
+      - Example Source
+      - World Bank
+      - Worldwide Governance Indicators
+      - WGI
+    source_url_contains:
+      - example.org/rule-of-law
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: index
+    category: governance
+
+  democracy_index:
+    source_name_contains:
+      - Example Source
+      - Economist Intelligence Unit
+      - EIU
+    source_url_contains:
+      - example.org/democracy-index
+      - eiu.com
+      - economist.com
+    unit: score_0_10
+    category: governance
+
+  inflation:
+    source_name_contains:
+      - Example Source
+      - World Bank
+    source_url_contains:
+      - example.org/inflation
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: economy
+
+  life_expectancy:
+    source_name_contains:
+      - Example Source
+      - World Bank
+    source_url_contains:
+      - example.org/life-expectancy
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: years
+    category: health
+
+  # ---------------------------------------------------------------------------
+  # Real/configured World Bank metrics
+  # ---------------------------------------------------------------------------
+
+  compensation_employees_lcu:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: LCU
+    category: fiscal
+
+  taxes_goods_services_lcu:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: LCU
+    category: fiscal
+
+  external_debt_total:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: USD
+    category: finance
+
+  journal_articles:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: count
+    category: innovation
+
+  rnd_expenditure_pct_gdp:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: innovation
+
+  internet_users_pct:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: technology
+
+  military_exp_pct_gdp:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: defense
+
+  market_cap_pct_gdp:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: finance
+
+  consumer_price_index:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: index_2010_100
+    category: economy
+
+  imports_growth_pct:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: trade
+
+  exports_growth_pct:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: trade
+
+  gdp_current_usd:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: USD
+    category: economy
+
+  unemployment_pct:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: labor
+
+  labor_participation_pct:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: labor
+
+  youth_literacy_pct:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: education
+
+  education_spending_pct_gdp:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: education
+
+  crude_death_rate:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: per_1000_people
+    category: health
+
+  life_expectancy_female:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: years
+    category: health
+
+  life_expectancy_male:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: years
+    category: health
+
+  population_growth_pct:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: demographics
+
+  top10_income_share:
+    source_name_contains:
+      - World Bank
+    source_url_contains:
+      - worldbank.org
+      - api.worldbank.org
+      - data.worldbank.org
+    unit: percent
+    category: inequality

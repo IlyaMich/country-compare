@@ -1,0 +1,153 @@
+# Expected units and broad unit-scale rules for data correctness tests.
+#
+# Use this fixture to catch wrong-unit and wrong-scale mistakes, for example:
+# - HDI-like index stored as 74 instead of 0.74
+# - percentage stored as 0.63 when the app expects 63
+# - GDP per capita accidentally stored as total GDP
+# - life expectancy stored in months instead of years
+
+unit_scale_rules:
+  USD:
+    min_value: 0
+    max_value: null
+
+  LCU:
+    min_value: 0
+    max_value: null
+
+  count:
+    min_value: 0
+    max_value: null
+
+  years:
+    min_value: 0
+    max_value: 130
+
+  percent:
+    # Allows inflation/trade-growth negatives and extreme macroeconomic cases,
+    # while still catching obvious scale bugs.
+    min_value: -150
+    max_value: 1000
+
+  index:
+    min_value: -10
+    max_value: 10
+
+  score_0_10:
+    min_value: 0
+    max_value: 10
+
+  index_2010_100:
+    min_value: 0
+    max_value: 1000
+
+  per_1000_people:
+    min_value: 0
+    max_value: 100
+
+metrics:
+  # Example/synthetic dataset metrics
+  gdp_per_capita:
+    unit: USD
+    category: economy
+
+  rule_of_law:
+    unit: index
+    category: governance
+
+  democracy_index:
+    unit: score_0_10
+    category: governance
+
+  inflation:
+    unit: percent
+    category: economy
+
+  life_expectancy:
+    unit: years
+    category: health
+
+  # Configured/release metrics
+  compensation_employees_lcu:
+    unit: LCU
+    category: fiscal
+
+  taxes_goods_services_lcu:
+    unit: LCU
+    category: fiscal
+
+  external_debt_total:
+    unit: USD
+    category: finance
+
+  journal_articles:
+    unit: count
+    category: innovation
+
+  rnd_expenditure_pct_gdp:
+    unit: percent
+    category: innovation
+
+  internet_users_pct:
+    unit: percent
+    category: technology
+
+  military_exp_pct_gdp:
+    unit: percent
+    category: defense
+
+  market_cap_pct_gdp:
+    unit: percent
+    category: finance
+
+  consumer_price_index:
+    unit: index_2010_100
+    category: economy
+
+  imports_growth_pct:
+    unit: percent
+    category: trade
+
+  exports_growth_pct:
+    unit: percent
+    category: trade
+
+  gdp_current_usd:
+    unit: USD
+    category: economy
+
+  unemployment_pct:
+    unit: percent
+    category: labor
+
+  labor_participation_pct:
+    unit: percent
+    category: labor
+
+  youth_literacy_pct:
+    unit: percent
+    category: education
+
+  education_spending_pct_gdp:
+    unit: percent
+    category: education
+
+  crude_death_rate:
+    unit: per_1000_people
+    category: health
+
+  life_expectancy_female:
+    unit: years
+    category: health
+
+  life_expectancy_male:
+    unit: years
+    category: health
+
+  population_growth_pct:
+    unit: percent
+    category: demographics
+
+  top10_income_share:
+    unit: percent
+    category: inequality
