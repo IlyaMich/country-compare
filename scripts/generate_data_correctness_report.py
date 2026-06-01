@@ -12,11 +12,14 @@ import pandas as pd
 
 from country_compare.data.access import load_metric_dataframe
 from country_compare.data.contract import PRIMARY_KEY_COLUMNS, REQUIRED_COLUMNS
+from country_compare.data.trend_quality import load_trend_rules, scan_trend_anomalies
 from country_compare.data.validation import validate_dataframe
 
 PASS = "PASS"
 WARN = "WARN"
 FAIL = "FAIL"
+
+DEFAULT_TREND_RULES_PATH = Path("tests/fixtures/data/trend_review_rules.yaml")
 
 
 @dataclass(frozen=True)
@@ -317,89 +320,53 @@ def _check_coverage(df: pd.DataFrame) -> CorrectnessCheck:
 def _check_trend_anomalies(
     df: pd.DataFrame,
     *,
-    pct_change_warning_threshold: float,
+    trend_rules_path: Path,
     max_examples: int = 25,
 ) -> CorrectnessCheck:
-    required_columns = {"country_code", "metric_id", "year", "value"}
-    missing_columns = sorted(required_columns - set(df.columns))
-
-    if missing_columns:
+    if not trend_rules_path.exists():
         return CorrectnessCheck(
             name="trend_anomaly_scan",
             status=FAIL,
-            message=f"Cannot scan trend anomalies; missing {missing_columns}.",
-            details={"missing_columns": missing_columns},
+            message=f"Trend rules file not found: {trend_rules_path}",
+            details={"trend_rules_path": str(trend_rules_path)},
         )
 
-    working = df.loc[:, ["country_code", "metric_id", "year", "value"]].copy()
-    working["year"] = pd.to_numeric(working["year"], errors="coerce")
-    working["value"] = pd.to_numeric(working["value"], errors="coerce")
-    working = working.dropna(subset=["country_code", "metric_id", "year", "value"])
+    rules = load_trend_rules(trend_rules_path)
+    result = scan_trend_anomalies(df, rules, max_examples=max_examples)
 
-    anomalies: list[dict[str, Any]] = []
+    if result["missing_columns"]:
+        return CorrectnessCheck(
+            name="trend_anomaly_scan",
+            status=FAIL,
+            message=(
+                "Cannot scan trend anomalies; missing " f"{result['missing_columns']}."
+            ),
+            details=result,
+        )
 
-    for (country_code, metric_id), group in working.groupby(
-        ["country_code", "metric_id"]
-    ):
-        group = group.sort_values("year")
+    unreviewed_count = int(result["unreviewed_anomaly_count"])
+    reviewed_count = int(result["reviewed_anomaly_count"])
 
-        previous_year: int | None = None
-        previous_value: float | None = None
-
-        for row in group.itertuples(index=False):
-            current_year = int(row.year)
-            current_value = float(row.value)
-
-            if (
-                previous_year is not None
-                and previous_value is not None
-                and previous_value != 0
-            ):
-                pct_change = (current_value - previous_value) / abs(previous_value)
-
-                if abs(pct_change) > pct_change_warning_threshold:
-                    anomalies.append(
-                        {
-                            "country_code": country_code,
-                            "metric_id": metric_id,
-                            "previous_year": previous_year,
-                            "current_year": current_year,
-                            "previous_value": previous_value,
-                            "current_value": current_value,
-                            "pct_change": pct_change,
-                        }
-                    )
-
-            previous_year = current_year
-            previous_value = current_value
-
-    if anomalies:
+    if unreviewed_count:
         return CorrectnessCheck(
             name="trend_anomaly_scan",
             status=WARN,
             message=(
-                f"Found {len(anomalies)} year-over-year change(s) above "
-                f"{pct_change_warning_threshold:.0%}. Review whether these are expected."
+                f"Found {unreviewed_count} unreviewed metric-aware "
+                "time-series anomaly/anomalies. Review, fix the data, "
+                "or document accepted exceptions."
             ),
-            details={
-                "pct_change_warning_threshold": pct_change_warning_threshold,
-                "anomaly_count": len(anomalies),
-                "sample_anomalies": anomalies[:max_examples],
-            },
+            details=result,
         )
 
     return CorrectnessCheck(
         name="trend_anomaly_scan",
         status=PASS,
         message=(
-            "No year-over-year value changes exceeded "
-            f"{pct_change_warning_threshold:.0%}."
+            "No unreviewed metric-aware time-series anomalies found. "
+            f"Reviewed anomaly count: {reviewed_count}."
         ),
-        details={
-            "pct_change_warning_threshold": pct_change_warning_threshold,
-            "anomaly_count": 0,
-            "sample_anomalies": [],
-        },
+        details=result,
     )
 
 
@@ -503,7 +470,7 @@ def generate_report(
     data_path: Path | None,
     output: Path,
     json_output: Path | None,
-    pct_change_warning_threshold: float,
+    trend_rules_path: Path,
 ) -> str:
     df, source = _load_dataframe(data_path)
 
@@ -517,7 +484,7 @@ def generate_report(
         _check_coverage(df),
         _check_trend_anomalies(
             df,
-            pct_change_warning_threshold=pct_change_warning_threshold,
+            trend_rules_path=trend_rules_path,
         ),
     ]
 
@@ -570,8 +537,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--pct-change-warning-threshold",
         type=float,
-        default=0.50,
-        help="Warn when year-over-year absolute percentage change exceeds this value.",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--trend-rules-path",
+        type=Path,
+        default=DEFAULT_TREND_RULES_PATH,
+        help="YAML file containing metric-aware trend anomaly rules.",
     )
     parser.add_argument(
         "--fail-on-warning",
@@ -588,7 +561,7 @@ def main(argv: list[str] | None = None) -> int:
         data_path=args.data_path,
         output=args.output,
         json_output=args.json_output,
-        pct_change_warning_threshold=args.pct_change_warning_threshold,
+        trend_rules_path=args.trend_rules_path,
     )
 
     print(f"Data correctness report written to {args.output} with status {status}.")

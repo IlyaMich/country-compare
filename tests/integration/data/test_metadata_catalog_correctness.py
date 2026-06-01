@@ -92,12 +92,15 @@ def test_dataset_metadata_matches_metrics_config_when_applicable(
     metrics_config = load_metrics_config(config_path)
 
     catalog_by_metric = {
-        str(row.metric_id): row
-        for row in catalog.itertuples(index=False)
+        str(row.metric_id): row for row in catalog.itertuples(index=False)
     }
 
-    overlapping_metric_ids = sorted(set(catalog_by_metric) & set(metrics_config.metrics))
-    assert overlapping_metric_ids, "No overlap between dataset metadata and metrics config."
+    overlapping_metric_ids = sorted(
+        set(catalog_by_metric) & set(metrics_config.metrics)
+    )
+    assert (
+        overlapping_metric_ids
+    ), "No overlap between dataset metadata and metrics config."
 
     mismatches: list[dict[str, object]] = []
 
@@ -108,7 +111,10 @@ def test_dataset_metadata_matches_metrics_config_when_applicable(
         checks = {
             "unit": (str(row.unit), configured.unit),
             "category": (str(row.category), configured.category),
-            "higher_is_better": (bool(row.higher_is_better), configured.higher_is_better),
+            "higher_is_better": (
+                bool(row.higher_is_better),
+                configured.higher_is_better,
+            ),
         }
 
         for field_name, (actual, expected) in checks.items():

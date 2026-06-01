@@ -1,0 +1,288 @@
+release_dataset:
+  golden_values:
+  - country_code: CAN
+    metric_id: consumer_price_index
+    year: 2023
+    expected_value: 134.895535203205
+    tolerance_abs: 0.01
+    unit: index_2010_100
+    category: economy
+    higher_is_better: false
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: DEU
+    metric_id: consumer_price_index
+    year: 2023
+    expected_value: 131.892448207043
+    tolerance_abs: 0.01
+    unit: index_2010_100
+    category: economy
+    higher_is_better: false
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: CAN
+    metric_id: crude_death_rate
+    year: 2023
+    expected_value: 8.2
+    tolerance_abs: 0.01
+    unit: per_1000_people
+    category: health
+    higher_is_better: false
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: DEU
+    metric_id: crude_death_rate
+    year: 2023
+    expected_value: 12.3
+    tolerance_abs: 0.01
+    unit: per_1000_people
+    category: health
+    higher_is_better: false
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: SGP
+    metric_id: education_spending_pct_gdp
+    year: 2023
+    expected_value: 2.1037700176239
+    tolerance_abs: 0.25
+    unit: percent
+    category: education
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: CAN
+    metric_id: education_spending_pct_gdp
+    year: 2022
+    expected_value: 4.84426021575928
+    tolerance_abs: 0.25
+    unit: percent
+    category: education
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: CAN
+    metric_id: gdp_current_usd
+    year: 2023
+    expected_value: 2173339670064.33
+    tolerance_pct: 1.0
+    unit: USD
+    category: economy
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: DEU
+    metric_id: gdp_current_usd
+    year: 2023
+    expected_value: 4562207532490.28
+    tolerance_pct: 1.0
+    unit: USD
+    category: economy
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: CAN
+    metric_id: internet_users_pct
+    year: 2023
+    expected_value: 94.14530182
+    tolerance_abs: 0.25
+    unit: percent
+    category: technology
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: DEU
+    metric_id: internet_users_pct
+    year: 2023
+    expected_value: 92.4763763
+    tolerance_abs: 0.25
+    unit: percent
+    category: technology
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: CAN
+    metric_id: labor_participation_pct
+    year: 2023
+    expected_value: 65.361
+    tolerance_abs: 0.25
+    unit: percent
+    category: labor
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: DEU
+    metric_id: labor_participation_pct
+    year: 2023
+    expected_value: 61.05
+    tolerance_abs: 0.25
+    unit: percent
+    category: labor
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: CAN
+    metric_id: life_expectancy_female
+    year: 2023
+    expected_value: 83.88
+    tolerance_abs: 0.1
+    unit: years
+    category: health
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: DEU
+    metric_id: life_expectancy_female
+    year: 2023
+    expected_value: 83.5
+    tolerance_abs: 0.1
+    unit: years
+    category: health
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: CAN
+    metric_id: life_expectancy_male
+    year: 2023
+    expected_value: 79.48
+    tolerance_abs: 0.1
+    unit: years
+    category: health
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: DEU
+    metric_id: life_expectancy_male
+    year: 2023
+    expected_value: 78.7
+    tolerance_abs: 0.1
+    unit: years
+    category: health
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: CAN
+    metric_id: population_growth_pct
+    year: 2023
+    expected_value: 2.90468017061162
+    tolerance_abs: 0.25
+    unit: percent
+    category: demographics
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: DEU
+    metric_id: population_growth_pct
+    year: 2023
+    expected_value: 0.131511079477747
+    tolerance_abs: 0.25
+    unit: percent
+    category: demographics
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: CAN
+    metric_id: rnd_expenditure_pct_gdp
+    year: 2023
+    expected_value: 1.81048
+    tolerance_abs: 0.25
+    unit: percent
+    category: innovation
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: DEU
+    metric_id: rnd_expenditure_pct_gdp
+    year: 2023
+    expected_value: 3.1539
+    tolerance_abs: 0.25
+    unit: percent
+    category: innovation
+    higher_is_better: true
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: CAN
+    metric_id: unemployment_pct
+    year: 2023
+    expected_value: 5.415
+    tolerance_abs: 0.25
+    unit: percent
+    category: labor
+    higher_is_better: false
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
+  - country_code: DEU
+    metric_id: unemployment_pct
+    year: 2023
+    expected_value: 3.071
+    tolerance_abs: 0.25
+    unit: percent
+    category: labor
+    higher_is_better: false
+    source_name_contains:
+    - World Bank
+    source_url_contains:
+    - worldbank.org
+    review_status: needs_source_verification
