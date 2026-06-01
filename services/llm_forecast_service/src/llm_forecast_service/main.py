@@ -208,6 +208,12 @@ def create_app(
     provider: LLMProvider | None = None,
 ) -> FastAPI:
     resolved_settings = settings or ServiceSettings.from_env()
+    metrics.configure_buckets(
+        http_duration_buckets=resolved_settings.http_duration_buckets,
+        forecast_duration_buckets=resolved_settings.forecast_duration_buckets,
+        provider_duration_buckets=resolved_settings.provider_duration_buckets,
+        queue_wait_buckets=resolved_settings.queue_wait_buckets,
+    )
     docs_enabled = resolved_settings.effective_enable_docs
 
     app = FastAPI(
