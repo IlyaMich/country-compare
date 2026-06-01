@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from threading import Lock
 from typing import Final
 
-_HTTP_DURATION_BUCKETS: Final = (
+DEFAULT_HTTP_DURATION_BUCKETS: Final = (
     0.005,
     0.01,
     0.025,
@@ -19,9 +19,29 @@ _HTTP_DURATION_BUCKETS: Final = (
     5.0,
     10.0,
 )
-_FORECAST_DURATION_BUCKETS: Final = (0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0)
-_PROVIDER_DURATION_BUCKETS: Final = (0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0)
-_QUEUE_WAIT_BUCKETS: Final = (
+DEFAULT_FORECAST_DURATION_BUCKETS: Final = (
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+    30.0,
+)
+DEFAULT_PROVIDER_DURATION_BUCKETS: Final = (
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+    30.0,
+)
+DEFAULT_QUEUE_WAIT_BUCKETS: Final = (
     0.001,
     0.005,
     0.01,
@@ -40,6 +60,59 @@ LabelKey = tuple[tuple[str, str], ...]
 CounterKey = tuple[str, LabelKey]
 GaugeKey = tuple[str, LabelKey]
 HistogramKey = tuple[str, LabelKey]
+
+
+@dataclass(frozen=True)
+class BucketConfig:
+    http_duration_buckets: tuple[float, ...] = DEFAULT_HTTP_DURATION_BUCKETS
+    forecast_duration_buckets: tuple[float, ...] = DEFAULT_FORECAST_DURATION_BUCKETS
+    provider_duration_buckets: tuple[float, ...] = DEFAULT_PROVIDER_DURATION_BUCKETS
+    queue_wait_buckets: tuple[float, ...] = DEFAULT_QUEUE_WAIT_BUCKETS
+
+
+_BUCKET_CONFIG = BucketConfig()
+_BUCKET_CONFIG_LOCK = Lock()
+
+
+def configure_buckets(
+    *,
+    http_duration_buckets: tuple[float, ...] = DEFAULT_HTTP_DURATION_BUCKETS,
+    forecast_duration_buckets: tuple[float, ...] = DEFAULT_FORECAST_DURATION_BUCKETS,
+    provider_duration_buckets: tuple[float, ...] = DEFAULT_PROVIDER_DURATION_BUCKETS,
+    queue_wait_buckets: tuple[float, ...] = DEFAULT_QUEUE_WAIT_BUCKETS,
+) -> None:
+    global _BUCKET_CONFIG
+
+    _validate_bucket_values("http_duration_buckets", http_duration_buckets)
+    _validate_bucket_values("forecast_duration_buckets", forecast_duration_buckets)
+    _validate_bucket_values("provider_duration_buckets", provider_duration_buckets)
+    _validate_bucket_values("queue_wait_buckets", queue_wait_buckets)
+
+    with _BUCKET_CONFIG_LOCK:
+        _BUCKET_CONFIG = BucketConfig(
+            http_duration_buckets=http_duration_buckets,
+            forecast_duration_buckets=forecast_duration_buckets,
+            provider_duration_buckets=provider_duration_buckets,
+            queue_wait_buckets=queue_wait_buckets,
+        )
+
+
+def _bucket_config() -> BucketConfig:
+    with _BUCKET_CONFIG_LOCK:
+        return _BUCKET_CONFIG
+
+
+def _validate_bucket_values(name: str, values: tuple[float, ...]) -> None:
+    if not values:
+        raise ValueError(f"{name} must contain at least one bucket")
+
+    previous: float | None = None
+    for value in values:
+        if value <= 0:
+            raise ValueError(f"{name} bucket values must be greater than zero")
+        if previous is not None and value <= previous:
+            raise ValueError(f"{name} bucket values must be strictly increasing")
+        previous = value
 
 
 @dataclass
@@ -92,7 +165,7 @@ class MetricsRegistry:
         key = (name, _labels_key(labels))
         with self._lock:
             state = self._histograms.get(key)
-            if state is None:
+            if state is None or state.buckets != buckets:
                 state = HistogramState(buckets=buckets)
                 self._histograms[key] = state
             state.observe(value)
@@ -163,7 +236,7 @@ def record_http_request(
     _REGISTRY.observe_histogram(
         "llm_http_request_duration_seconds",
         duration_seconds,
-        _HTTP_DURATION_BUCKETS,
+        _bucket_config().http_duration_buckets,
         labels,
     )
 
@@ -192,7 +265,7 @@ def record_forecast_request(
     _REGISTRY.observe_histogram(
         "llm_forecast_duration_seconds",
         duration_seconds,
-        _FORECAST_DURATION_BUCKETS,
+        _bucket_config().forecast_duration_buckets,
         {"provider": provider},
     )
 
@@ -206,7 +279,7 @@ def record_provider_duration(
     _REGISTRY.observe_histogram(
         "llm_provider_duration_seconds",
         duration_seconds,
-        _PROVIDER_DURATION_BUCKETS,
+        _bucket_config().provider_duration_buckets,
         {"provider": provider, "model": model},
     )
 
@@ -226,7 +299,7 @@ def observe_queue_wait(*, duration_seconds: float) -> None:
     _REGISTRY.observe_histogram(
         "llm_queue_wait_seconds",
         duration_seconds,
-        _QUEUE_WAIT_BUCKETS,
+        _bucket_config().queue_wait_buckets,
     )
 
 
@@ -249,6 +322,7 @@ def render_metrics() -> str:
 def reset_metrics_for_tests() -> None:
     global _REGISTRY
     _REGISTRY = MetricsRegistry()
+    configure_buckets()
 
 
 def _labels_key(labels: Mapping[str, object] | None) -> LabelKey:

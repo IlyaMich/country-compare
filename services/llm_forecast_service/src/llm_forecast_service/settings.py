@@ -3,6 +3,13 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from llm_forecast_service.metrics import (
+    DEFAULT_FORECAST_DURATION_BUCKETS,
+    DEFAULT_HTTP_DURATION_BUCKETS,
+    DEFAULT_PROVIDER_DURATION_BUCKETS,
+    DEFAULT_QUEUE_WAIT_BUCKETS,
+)
+
 VALID_DEPLOYMENT_PROFILES = frozenset({"local", "public"})
 VALID_PROVIDERS = frozenset({"mistral", "baseline_echo"})
 _BOOL_TRUE = frozenset({"1", "true", "yes", "y", "on"})
@@ -64,6 +71,39 @@ def _get_float(name: str, default: float, *, min_value: float | None = None) -> 
     return value
 
 
+def _get_float_tuple(
+    name: str,
+    default: tuple[float, ...],
+    *,
+    min_value: float = 0.0,
+) -> tuple[float, ...]:
+    raw = _get_optional_env(name)
+    if raw is None:
+        values = default
+    else:
+        parts = [part.strip() for part in raw.split(",") if part.strip()]
+        if not parts:
+            raise SettingsError(
+                f"{name} must contain at least one comma-separated number."
+            )
+        try:
+            values = tuple(float(part) for part in parts)
+        except ValueError as exc:
+            raise SettingsError(
+                f"{name} must be a comma-separated list of numbers."
+            ) from exc
+
+    previous: float | None = None
+    for value in values:
+        if value <= min_value:
+            raise SettingsError(f"{name} values must be > {min_value}.")
+        if previous is not None and value <= previous:
+            raise SettingsError(f"{name} values must be strictly increasing.")
+        previous = value
+
+    return values
+
+
 @dataclass(frozen=True)
 class ServiceSettings:
     service_token: str = ""
@@ -94,6 +134,10 @@ class ServiceSettings:
     protect_metrics: bool = True
     protect_ready_details: bool = True
     enable_docs: bool = True
+    http_duration_buckets: tuple[float, ...] = DEFAULT_HTTP_DURATION_BUCKETS
+    forecast_duration_buckets: tuple[float, ...] = DEFAULT_FORECAST_DURATION_BUCKETS
+    provider_duration_buckets: tuple[float, ...] = DEFAULT_PROVIDER_DURATION_BUCKETS
+    queue_wait_buckets: tuple[float, ...] = DEFAULT_QUEUE_WAIT_BUCKETS
 
     @classmethod
     def from_env(cls) -> ServiceSettings:
@@ -145,6 +189,22 @@ class ServiceSettings:
             protect_metrics=_get_bool("LLM_PROTECT_METRICS", True),
             protect_ready_details=_get_bool("LLM_PROTECT_READY_DETAILS", True),
             enable_docs=_get_bool("LLM_ENABLE_DOCS", True),
+            http_duration_buckets=_get_float_tuple(
+                "LLM_HTTP_DURATION_BUCKETS",
+                DEFAULT_HTTP_DURATION_BUCKETS,
+            ),
+            forecast_duration_buckets=_get_float_tuple(
+                "LLM_FORECAST_DURATION_BUCKETS",
+                DEFAULT_FORECAST_DURATION_BUCKETS,
+            ),
+            provider_duration_buckets=_get_float_tuple(
+                "LLM_PROVIDER_DURATION_BUCKETS",
+                DEFAULT_PROVIDER_DURATION_BUCKETS,
+            ),
+            queue_wait_buckets=_get_float_tuple(
+                "LLM_QUEUE_WAIT_BUCKETS",
+                DEFAULT_QUEUE_WAIT_BUCKETS,
+            ),
         )
         issues = settings.readiness_issues(include_runtime_dependencies=False)
         if issues:
@@ -179,6 +239,13 @@ class ServiceSettings:
             issues.append("LLM_MAX_INPUT_CHARS must be at least 1")
         if self.max_adjustment_pct <= 0:
             issues.append("LLM_MAX_ADJUSTMENT_PCT must be greater than 0")
+        for setting_name in (
+            "http_duration_buckets",
+            "forecast_duration_buckets",
+            "provider_duration_buckets",
+            "queue_wait_buckets",
+        ):
+            _validate_bucket_tuple(setting_name, getattr(self, setting_name), issues)
         if include_runtime_dependencies and not self.service_token:
             issues.append("LLM_SERVICE_TOKEN is not configured")
         if self.provider == "mistral":
@@ -221,3 +288,21 @@ class ServiceSettings:
             return False
 
         return self.enable_docs
+
+
+def _validate_bucket_tuple(
+    name: str,
+    values: tuple[float, ...],
+    issues: list[str],
+) -> None:
+    if not values:
+        issues.append(f"{name} must contain at least one bucket")
+        return
+
+    previous: float | None = None
+    for value in values:
+        if value <= 0:
+            issues.append(f"{name} values must be greater than 0")
+        if previous is not None and value <= previous:
+            issues.append(f"{name} values must be strictly increasing")
+        previous = value
