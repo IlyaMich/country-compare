@@ -6,7 +6,9 @@ from typing import Any, cast
 
 import httpx
 import pandas as pd
+import pytest
 
+from country_compare.clients.errors import ClientResponseError
 from country_compare.clients.http import HttpCountryCompareClient
 from country_compare.services.results import PresentationResult
 
@@ -291,3 +293,53 @@ def test_http_presentation_service_adapter_supports_export_controls() -> None:
     )
     bundle = json.loads(bundle_bytes.decode("utf-8"))
     assert bundle["mode"] == "single_metric"
+
+
+def test_http_client_fetches_prediction_methods_from_backend() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/metadata/prediction-methods"
+        return httpx.Response(
+            200,
+            json={
+                "methods": [
+                    {
+                        "method_id": "llm_forecast",
+                        "display_name": "LLM forecast — experimental",
+                        "description": "Uses the backend-configured LLM service.",
+                        "metadata": {"experimental": True},
+                    }
+                ]
+            },
+        )
+
+    http_client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="http://testserver",
+    )
+    client = HttpCountryCompareClient("http://testserver", http_client=http_client)
+
+    methods = client.list_prediction_methods()
+
+    assert methods == [
+        {
+            "method_id": "llm_forecast",
+            "display_name": "LLM forecast — experimental",
+            "description": "Uses the backend-configured LLM service.",
+            "metadata": {"experimental": True},
+        }
+    ]
+
+
+def test_http_client_rejects_invalid_prediction_methods_payload() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/metadata/prediction-methods"
+        return httpx.Response(200, json={"methods": "not-a-list"})
+
+    http_client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="http://testserver",
+    )
+    client = HttpCountryCompareClient("http://testserver", http_client=http_client)
+
+    with pytest.raises(ClientResponseError):
+        client.list_prediction_methods()
