@@ -63,7 +63,7 @@ jobs:
           test -s data/processed/metrics.parquet
           test -s data/processed/metrics_manifest.json
           test -s data/processed/catalog.json
-          
+
       - name: Run static layout guards
         run: |
           python scripts/check_static_guards.py
@@ -129,11 +129,9 @@ jobs:
           assert hasattr(bootstrap, "build_app_context")
           assert hasattr(bootstrap, "get_ui_services")
           assert hasattr(bootstrap, "bootstrap_app")
-
           assert importlib.util.find_spec("streamlit") is not None
           assert importlib.util.find_spec("httpx") is not None
           assert importlib.util.find_spec("matplotlib") is not None
-
           print("UI extra wheel install passed.")
           PY
 
@@ -183,7 +181,7 @@ jobs:
   docker-build:
     name: Docker build, smoke, and release image
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'    
+    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'
     permissions:
       contents: read
       packages: write
@@ -253,6 +251,10 @@ jobs:
           COUNTRY_COMPARE_API_PROTECT_METRICS: "true"
           COUNTRY_COMPARE_API_PORT: "8000"
           PORT: "8000"
+          COUNTRY_COMPARE_ENABLE_LLM_FORECAST: "false"
+          COUNTRY_COMPARE_LLM_SERVICE_URL: http://llm-forecast:8080
+          COUNTRY_COMPARE_LLM_SERVICE_TOKEN: ""
+          COUNTRY_COMPARE_LLM_SERVICE_TIMEOUT_SECONDS: "75"
         run: |
           set -euo pipefail
 
@@ -260,7 +262,6 @@ jobs:
             echo "::group::backend-only compose ps"
             docker compose -f compose.api.yml ps -a || true
             echo "::endgroup::"
-
             echo "::group::backend-only compose logs"
             docker compose -f compose.api.yml logs --no-color backend || true
             echo "::endgroup::"
@@ -268,7 +269,6 @@ jobs:
 
           docker compose -f compose.api.yml up -d backend
           docker compose -f compose.api.yml ps -a
-
           python scripts/smoke_api_container.py \
             --base-url http://127.0.0.1:8000 \
             --api-key ci-smoke-key \
@@ -311,7 +311,9 @@ jobs:
             --env COUNTRY_COMPARE_API_ENABLE_DOCS=false \
             --env COUNTRY_COMPARE_API_ENABLE_METRICS=true \
             --env COUNTRY_COMPARE_API_PROTECT_METRICS=true \
+            --env COUNTRY_COMPARE_ENABLE_LLM_FORECAST=false \
             country-compare-backend:ci
+
           python scripts/smoke_api_container.py \
             --base-url http://127.0.0.1:8001 \
             --api-key ci-smoke-key
@@ -327,7 +329,7 @@ jobs:
           docker rm -f country-compare-backend-ci || true
 
       - name: Build LLM forecast service image for integration smoke
-        if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all'      
+        if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all'
         run: |
           docker build \
             --file services/llm_forecast_service/Dockerfile \
@@ -335,7 +337,7 @@ jobs:
             .
 
       - name: Smoke test backend-to-LLM readiness
-        if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all'      
+        if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all'
         run: |
           set -euo pipefail
 
@@ -364,8 +366,17 @@ jobs:
           docker run -d \
             --name llm-forecast-service-ci \
             --network country-compare-llm-smoke \
+            --env LLM_PROVIDER=baseline_echo \
             --env LLM_SERVICE_TOKEN=ci-llm-token \
-            --env MISTRAL_API_KEY=ci-dummy-key \
+            --env LLM_DEPLOYMENT_PROFILE=local \
+            --env LLM_ENABLE_METRICS=true \
+            --env LLM_PROTECT_METRICS=true \
+            --env LLM_PROTECT_READY_DETAILS=true \
+            --env LLM_ENABLE_DOCS=false \
+            --env LLM_MAX_CONCURRENT_REQUESTS=1 \
+            --env LLM_QUEUE_TIMEOUT_SECONDS=2.0 \
+            --env LLM_MAX_RETRIES=0 \
+            --env LLM_TIMEOUT_SECONDS=5 \
             --env LLM_LOG_LEVEL=INFO \
             llm-forecast-service:ci
 
@@ -388,7 +399,7 @@ jobs:
           python scripts/smoke_api_container.py \
             --base-url http://127.0.0.1:8002 \
             --api-key ci-smoke-key \
-            --check-llm-readiness          
+            --check-llm-readiness
 
       - name: Run Trivy backend image scan in non-blocking mode
         uses: aquasecurity/trivy-action@master
@@ -472,7 +483,7 @@ jobs:
   llm-forecast-service:
     name: LLM forecast service checks
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'llm'    
+    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'llm'
     permissions:
       contents: read
       packages: write
@@ -527,6 +538,11 @@ jobs:
             --tag llm-forecast-service:ci \
             .
 
+      - name: Validate LLM Compose profile
+        run: |
+          docker compose --profile llm config
+          docker compose --profile llm build llm-forecast
+
       - name: Smoke test LLM forecast service Docker image
         run: |
           set -euo pipefail
@@ -535,16 +551,18 @@ jobs:
             --name llm-forecast-service-ci \
             --publish 18080:18080 \
             --env PORT=18080 \
+            --env LLM_PROVIDER=baseline_echo \
             --env LLM_SERVICE_TOKEN=ci-smoke-token \
-            --env LLM_PROVIDER=mistral \
-            --env MISTRAL_API_KEY=dummy-mistral-key \
-            --env MISTRAL_MODEL=mistral-large-latest \
             --env LLM_DEPLOYMENT_PROFILE=local \
-            --env LLM_REQUIRE_ZDR=false \
-            --env MISTRAL_ZDR_CONFIRMED=false \
             --env LLM_MAX_CONCURRENT_REQUESTS=1 \
+            --env LLM_QUEUE_TIMEOUT_SECONDS=2.0 \
+            --env LLM_ENABLE_METRICS=true \
+            --env LLM_PROTECT_METRICS=true \
+            --env LLM_PROTECT_READY_DETAILS=true \
+            --env LLM_ENABLE_DOCS=false \
             --env LLM_MAX_RETRIES=0 \
             --env LLM_TIMEOUT_SECONDS=5 \
+            --env LLM_LOG_LEVEL=INFO \
             llm-forecast-service:ci
 
           for attempt in $(seq 1 30); do
@@ -561,11 +579,49 @@ jobs:
             sleep 1
           done
 
-          curl --fail --silent --show-error http://127.0.0.1:18080/ready
+          # Unauthenticated /ready should be available but minimal.
+          ready_payload="$(curl --fail --silent --show-error http://127.0.0.1:18080/ready)"
+          echo "${ready_payload}"
+          echo "${ready_payload}" | grep '"status"'
+          if echo "${ready_payload}" | grep -q '"provider"'; then
+            echo "Expected unauthenticated /ready to hide provider details." >&2
+            exit 1
+          fi
 
+          # Authenticated capabilities should work.
           curl --fail --silent --show-error \
             --header "Authorization: Bearer ci-smoke-token" \
             http://127.0.0.1:18080/v1/capabilities
+
+          # /metrics should be protected.
+          metrics_status="$(
+            curl --silent --show-error \
+              --output /tmp/llm_metrics_unauth.txt \
+              --write-out "%{http_code}" \
+              http://127.0.0.1:18080/metrics
+          )"
+          if [ "${metrics_status}" = "200" ]; then
+            echo "Expected unauthenticated /metrics to be rejected." >&2
+            cat /tmp/llm_metrics_unauth.txt >&2 || true
+            exit 1
+          fi
+
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ci-smoke-token" \
+            http://127.0.0.1:18080/metrics
+
+          # Docs/OpenAPI should be disabled in the CI smoke container.
+          openapi_status="$(
+            curl --silent --show-error \
+              --output /tmp/llm_openapi.txt \
+              --write-out "%{http_code}" \
+              http://127.0.0.1:18080/openapi.json
+          )"
+          if [ "${openapi_status}" = "200" ]; then
+            echo "Expected /openapi.json to be disabled." >&2
+            cat /tmp/llm_openapi.txt >&2 || true
+            exit 1
+          fi
 
       - name: Show LLM forecast service logs on failure
         if: failure()
@@ -586,7 +642,7 @@ jobs:
           exit-code: "0"
           ignore-unfixed: true
           severity: CRITICAL,HIGH
-      
+
       - name: Resolve LLM forecast image publish policy
         id: llm_publish_policy
         shell: bash
