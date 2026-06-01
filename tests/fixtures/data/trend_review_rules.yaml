@@ -1,0 +1,1448 @@
+# Metric-aware release trend rules.
+#
+# The goal is to catch suspicious unreviewed changes without warning on every
+# low-base percentage metric or nonconsecutive observation gap.
+
+defaults:
+  enabled: true
+  require_consecutive_years: true
+  absolute_threshold: null
+  relative_threshold: null
+  relative_min_previous_abs: 1.0
+
+metrics:
+  # Health and bounded social indicators: use absolute point/year thresholds.
+  life_expectancy:
+    absolute_threshold: 10.0
+    relative_threshold: null
+
+  life_expectancy_female:
+    absolute_threshold: 10.0
+    relative_threshold: null
+
+  life_expectancy_male:
+    absolute_threshold: 10.0
+    relative_threshold: null
+
+  crude_death_rate:
+    absolute_threshold: 25.0
+    relative_threshold: null
+
+  youth_literacy_pct:
+    absolute_threshold: 25.0
+    relative_threshold: null
+
+  labor_participation_pct:
+    absolute_threshold: 25.0
+    relative_threshold: null
+
+  unemployment_pct:
+    absolute_threshold: 35.0
+    relative_threshold: null
+
+  internet_users_pct:
+    absolute_threshold: 40.0
+    relative_threshold: null
+
+  education_spending_pct_gdp:
+    absolute_threshold: 25.0
+    relative_threshold: null
+
+  rnd_expenditure_pct_gdp:
+    absolute_threshold: 10.0
+    relative_threshold: null
+
+  military_exp_pct_gdp:
+    absolute_threshold: 25.0
+    relative_threshold: null
+
+  market_cap_pct_gdp:
+    absolute_threshold: 500.0
+    relative_threshold: null
+
+  top10_income_share:
+    absolute_threshold: 25.0
+    relative_threshold: null
+
+  population_growth_pct:
+    absolute_threshold: 15.0
+    relative_threshold: null
+
+  # Index/count/money metrics: relative checks only when the previous value is
+  # large enough that percent-change math is meaningful.
+  consumer_price_index:
+    absolute_threshold: null
+    relative_threshold: 3.0
+    relative_min_previous_abs: 25.0
+
+  gdp_current_usd:
+    absolute_threshold: null
+    relative_threshold: 5.0
+    relative_min_previous_abs: 100000000.0
+
+  external_debt_total:
+    absolute_threshold: null
+    relative_threshold: 5.0
+    relative_min_previous_abs: 100000000.0
+
+  compensation_employees_lcu:
+    absolute_threshold: null
+    relative_threshold: 10.0
+    relative_min_previous_abs: 1000000.0
+
+  taxes_goods_services_lcu:
+    absolute_threshold: null
+    relative_threshold: 10.0
+    relative_min_previous_abs: 1000000.0
+
+  journal_articles:
+    absolute_threshold: null
+    relative_threshold: 10.0
+    relative_min_previous_abs: 100.0
+
+  # Growth-rate metrics are allowed to be volatile. Hard plausibility/unit tests
+  # still catch impossible scale mistakes.
+  imports_growth_pct:
+    enabled: false
+
+  exports_growth_pct:
+    enabled: false
+
+reviewed_anomalies:
+- country_code: AGO
+  metric_id: consumer_price_index
+  previous_year: 2023
+  current_year: 2024
+  previous_value: 804.965533144131
+  current_value: 1032.29178341065
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: AGO
+  metric_id: taxes_goods_services_lcu
+  previous_year: 2000
+  current_year: 2001
+  previous_value: 1495978615.0
+  current_value: 17300349784.0
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ARE
+  metric_id: taxes_goods_services_lcu
+  previous_year: 2018
+  current_year: 2019
+  previous_value: 891655037.16
+  current_value: 14879825762.0
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ARM
+  metric_id: life_expectancy_female
+  previous_year: 1987
+  current_year: 1988
+  previous_value: 70.737
+  current_value: 53.561
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ARM
+  metric_id: life_expectancy_female
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 53.561
+  current_value: 71.233
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ARM
+  metric_id: life_expectancy_male
+  previous_year: 1987
+  current_year: 1988
+  previous_value: 64.142
+  current_value: 51.685
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ARM
+  metric_id: life_expectancy_male
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 51.685
+  current_value: 63.981
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BDI
+  metric_id: life_expectancy_female
+  previous_year: 1971
+  current_year: 1972
+  previous_value: 44.471
+  current_value: 28.179
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BDI
+  metric_id: life_expectancy_female
+  previous_year: 1972
+  current_year: 1973
+  previous_value: 28.179
+  current_value: 39.216
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BDI
+  metric_id: life_expectancy_male
+  previous_year: 1971
+  current_year: 1972
+  previous_value: 41.812
+  current_value: 23.632
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BDI
+  metric_id: life_expectancy_male
+  previous_year: 1972
+  current_year: 1973
+  previous_value: 23.632
+  current_value: 35.598
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BGD
+  metric_id: life_expectancy_female
+  previous_year: 1971
+  current_year: 1972
+  previous_value: 32.715
+  current_value: 48.58
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BGD
+  metric_id: life_expectancy_male
+  previous_year: 1970
+  current_year: 1971
+  previous_value: 44.6
+  current_value: 22.803
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BGD
+  metric_id: life_expectancy_male
+  previous_year: 1971
+  current_year: 1972
+  previous_value: 22.803
+  current_value: 50.656
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BGD
+  metric_id: youth_literacy_pct
+  previous_year: 2000
+  current_year: 2001
+  previous_value: 100.0
+  current_value: 63.6199989318848
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BGR
+  metric_id: compensation_employees_lcu
+  previous_year: 1996
+  current_year: 1997
+  previous_value: 54700000.0
+  current_value: 645400000.0
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BIH
+  metric_id: life_expectancy_female
+  previous_year: 1991
+  current_year: 1992
+  previous_value: 75.927
+  current_value: 64.822
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BIH
+  metric_id: life_expectancy_female
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 64.522
+  current_value: 75.864
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BIH
+  metric_id: life_expectancy_male
+  previous_year: 1991
+  current_year: 1992
+  previous_value: 67.851
+  current_value: 43.329
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: BIH
+  metric_id: life_expectancy_male
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 41.878
+  current_value: 58.717
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: crude_death_rate
+  previous_year: 2008
+  current_year: 2009
+  previous_value: 14.243
+  current_value: 72.483
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: crude_death_rate
+  previous_year: 2009
+  current_year: 2010
+  previous_value: 72.483
+  current_value: 15.907
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: crude_death_rate
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 20.89
+  current_value: 55.126
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: crude_death_rate
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 55.126
+  current_value: 9.419
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_female
+  previous_year: 2008
+  current_year: 2009
+  previous_value: 50.701
+  current_value: 20.006
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_female
+  previous_year: 2009
+  current_year: 2010
+  previous_value: 20.006
+  current_value: 49.364
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_female
+  previous_year: 2018
+  current_year: 2019
+  previous_value: 55.201
+  current_value: 38.771
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_female
+  previous_year: 2019
+  current_year: 2020
+  previous_value: 38.771
+  current_value: 54.011
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_female
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 46.032
+  current_value: 25.552
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_female
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 25.552
+  current_value: 59.29
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2008
+  current_year: 2009
+  previous_value: 49.102
+  current_value: 12.383
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2009
+  current_year: 2010
+  previous_value: 12.383
+  current_value: 44.487
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2013
+  current_year: 2014
+  previous_value: 46.878
+  current_value: 35.706
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2014
+  current_year: 2015
+  previous_value: 35.706
+  current_value: 49.682
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2018
+  current_year: 2019
+  previous_value: 49.403
+  current_value: 26.386
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2019
+  current_year: 2020
+  previous_value: 26.386
+  current_value: 47.219
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2020
+  current_year: 2021
+  previous_value: 47.219
+  current_value: 35.327
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 35.327
+  current_value: 15.387
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 15.387
+  current_value: 55.26
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CHN
+  metric_id: life_expectancy_female
+  previous_year: 1961
+  current_year: 1962
+  previous_value: 41.897
+  current_value: 53.189
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CHN
+  metric_id: life_expectancy_male
+  previous_year: 1961
+  current_year: 1962
+  previous_value: 38.621
+  current_value: 48.945
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CMR
+  metric_id: life_expectancy_male
+  previous_year: 1961
+  current_year: 1962
+  previous_value: 29.831
+  current_value: 41.51
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: COG
+  metric_id: life_expectancy_male
+  previous_year: 1996
+  current_year: 1997
+  previous_value: 54.566
+  current_value: 44.12
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CYP
+  metric_id: life_expectancy_male
+  previous_year: 1973
+  current_year: 1974
+  previous_value: 65.962
+  current_value: 44.174
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: CYP
+  metric_id: life_expectancy_male
+  previous_year: 1974
+  current_year: 1975
+  previous_value: 44.174
+  current_value: 67.461
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ERI
+  metric_id: life_expectancy_male
+  previous_year: 1997
+  current_year: 1998
+  previous_value: 54.619
+  current_value: 43.781
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ERI
+  metric_id: life_expectancy_male
+  previous_year: 1999
+  current_year: 2000
+  previous_value: 37.132
+  current_value: 54.053
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ETH
+  metric_id: consumer_price_index
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 492.356913864235
+  current_value: 659.216079717135
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ETH
+  metric_id: consumer_price_index
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 659.216079717135
+  current_value: 858.423451765945
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ETH
+  metric_id: consumer_price_index
+  previous_year: 2023
+  current_year: 2024
+  previous_value: 858.423451765945
+  current_value: 1039.01639764881
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: GHA
+  metric_id: consumer_price_index
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 441.666780384402
+  current_value: 609.972588583069
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: GHA
+  metric_id: internet_users_pct
+  previous_year: 2019
+  current_year: 2020
+  previous_value: 22.0732
+  current_value: 62.51760101
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: GNQ
+  metric_id: life_expectancy_female
+  previous_year: 1968
+  current_year: 1969
+  previous_value: 47.816
+  current_value: 34.294
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: GNQ
+  metric_id: life_expectancy_female
+  previous_year: 1976
+  current_year: 1977
+  previous_value: 33.845
+  current_value: 45.214
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: GNQ
+  metric_id: life_expectancy_male
+  previous_year: 1968
+  current_year: 1969
+  previous_value: 42.046
+  current_value: 28.146
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: GNQ
+  metric_id: life_expectancy_male
+  previous_year: 1976
+  current_year: 1977
+  previous_value: 27.645
+  current_value: 38.969
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: GTM
+  metric_id: life_expectancy_male
+  previous_year: 1982
+  current_year: 1983
+  previous_value: 43.576
+  current_value: 55.342
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: HKG
+  metric_id: market_cap_pct_gdp
+  previous_year: 2007
+  current_year: 2008
+  previous_value: 1254.46804830981
+  current_value: 605.972295634199
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: HRV
+  metric_id: compensation_employees_lcu
+  previous_year: 1992
+  current_year: 1993
+  previous_value: 21129471.0996085
+  current_value: 379568650.872652
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: HRV
+  metric_id: taxes_goods_services_lcu
+  previous_year: 1992
+  current_year: 1993
+  previous_value: 46191519.0125423
+  current_value: 815360010.617825
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: HTI
+  metric_id: consumer_price_index
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 409.127368142819
+  current_value: 559.741538412178
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: HTI
+  metric_id: consumer_price_index
+  previous_year: 2023
+  current_year: 2024
+  previous_value: 559.741538412178
+  current_value: 710.586601344592
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: HTI
+  metric_id: life_expectancy_female
+  previous_year: 2009
+  current_year: 2010
+  previous_value: 64.079
+  current_value: 45.679
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: HTI
+  metric_id: life_expectancy_female
+  previous_year: 2010
+  current_year: 2011
+  previous_value: 45.679
+  current_value: 64.015
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: HTI
+  metric_id: life_expectancy_male
+  previous_year: 2009
+  current_year: 2010
+  previous_value: 59.371
+  current_value: 45.441
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: HTI
+  metric_id: life_expectancy_male
+  previous_year: 2010
+  current_year: 2011
+  previous_value: 45.441
+  current_value: 59.219
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: IRN
+  metric_id: consumer_price_index
+  previous_year: 2018
+  current_year: 2019
+  previous_value: 393.781629583152
+  current_value: 550.929425291206
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: IRN
+  metric_id: consumer_price_index
+  previous_year: 2019
+  current_year: 2020
+  previous_value: 550.929425291206
+  current_value: 719.481539670071
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: IRN
+  metric_id: consumer_price_index
+  previous_year: 2020
+  current_year: 2021
+  previous_value: 719.481539670071
+  current_value: 1031.65750196386
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: IRN
+  metric_id: consumer_price_index
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 1031.65750196386
+  current_value: 1480.30950510605
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: IRN
+  metric_id: consumer_price_index
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 1480.30950510605
+  current_value: 2140.21942916994
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: IRN
+  metric_id: consumer_price_index
+  previous_year: 2023
+  current_year: 2024
+  previous_value: 2140.21942916994
+  current_value: 2834.84629484158
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KHM
+  metric_id: crude_death_rate
+  previous_year: 1974
+  current_year: 1975
+  previous_value: 21.727
+  current_value: 86.572
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KHM
+  metric_id: crude_death_rate
+  previous_year: 1978
+  current_year: 1979
+  previous_value: 93.923
+  current_value: 19.369
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KHM
+  metric_id: external_debt_total
+  previous_year: 1990
+  current_year: 1991
+  previous_value: 264873693.3
+  current_value: 1698280868.8
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KHM
+  metric_id: life_expectancy_female
+  previous_year: 1974
+  current_year: 1975
+  previous_value: 48.165
+  current_value: 15.221
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KHM
+  metric_id: life_expectancy_female
+  previous_year: 1978
+  current_year: 1979
+  previous_value: 13.374
+  current_value: 49.963
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KHM
+  metric_id: life_expectancy_male
+  previous_year: 1969
+  current_year: 1970
+  previous_value: 44.096
+  current_value: 32.631
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KHM
+  metric_id: life_expectancy_male
+  previous_year: 1974
+  current_year: 1975
+  previous_value: 32.809
+  current_value: 11.25
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KHM
+  metric_id: life_expectancy_male
+  previous_year: 1978
+  current_year: 1979
+  previous_value: 10.25
+  current_value: 33.338
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KWT
+  metric_id: military_exp_pct_gdp
+  previous_year: 1989
+  current_year: 1990
+  previous_value: 8.53982920341593
+  current_value: 48.5172672672673
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KWT
+  metric_id: military_exp_pct_gdp
+  previous_year: 1990
+  current_year: 1991
+  previous_value: 48.5172672672673
+  current_value: 117.34982320869
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KWT
+  metric_id: military_exp_pct_gdp
+  previous_year: 1991
+  current_year: 1992
+  previous_value: 117.34982320869
+  current_value: 31.7860244470914
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KWT
+  metric_id: population_growth_pct
+  previous_year: 1989
+  current_year: 1990
+  previous_value: 3.80366037034757
+  current_value: -27.4707864795381
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KWT
+  metric_id: population_growth_pct
+  previous_year: 1991
+  current_year: 1992
+  previous_value: -22.0517787474627
+  current_value: 19.0478598691413
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: KWT
+  metric_id: population_growth_pct
+  previous_year: 1992
+  current_year: 1993
+  previous_value: 19.0478598691413
+  current_value: 2.24918707357862
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBN
+  metric_id: consumer_price_index
+  previous_year: 2020
+  current_year: 2021
+  previous_value: 240.369131329817
+  current_value: 612.355015021184
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBN
+  metric_id: consumer_price_index
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 612.355015021184
+  current_value: 1660.74042721277
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBN
+  metric_id: consumer_price_index
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 1660.74042721277
+  current_value: 5336.65059176616
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBN
+  metric_id: consumer_price_index
+  previous_year: 2023
+  current_year: 2024
+  previous_value: 5336.65059176616
+  current_value: 7751.11367489034
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBN
+  metric_id: life_expectancy_female
+  previous_year: 1975
+  current_year: 1976
+  previous_value: 67.045
+  current_value: 45.497
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBN
+  metric_id: life_expectancy_female
+  previous_year: 1976
+  current_year: 1977
+  previous_value: 45.497
+  current_value: 64.171
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBN
+  metric_id: life_expectancy_female
+  previous_year: 1982
+  current_year: 1983
+  previous_value: 54.704
+  current_value: 67.21
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBN
+  metric_id: life_expectancy_male
+  previous_year: 1974
+  current_year: 1975
+  previous_value: 64.745
+  current_value: 50.615
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBN
+  metric_id: life_expectancy_male
+  previous_year: 1975
+  current_year: 1976
+  previous_value: 50.615
+  current_value: 30.567
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBN
+  metric_id: life_expectancy_male
+  previous_year: 1976
+  current_year: 1977
+  previous_value: 30.567
+  current_value: 56.808
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBN
+  metric_id: life_expectancy_male
+  previous_year: 1981
+  current_year: 1982
+  previous_value: 56.597
+  current_value: 41.325
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBN
+  metric_id: life_expectancy_male
+  previous_year: 1982
+  current_year: 1983
+  previous_value: 41.325
+  current_value: 55.122
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBR
+  metric_id: life_expectancy_male
+  previous_year: 1989
+  current_year: 1990
+  previous_value: 42.515
+  current_value: 32.383
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBR
+  metric_id: population_growth_pct
+  previous_year: 1989
+  current_year: 1990
+  previous_value: 2.85698670551551
+  current_value: -12.4250905106672
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: LBR
+  metric_id: population_growth_pct
+  previous_year: 1991
+  current_year: 1992
+  previous_value: -12.7991272233588
+  current_value: 5.75704272691874
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: MAC
+  metric_id: population_growth_pct
+  previous_year: 1963
+  current_year: 1964
+  previous_value: 2.40326058840166
+  current_value: 21.4259113885264
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: MAC
+  metric_id: population_growth_pct
+  previous_year: 1965
+  current_year: 1966
+  previous_value: 16.3100843421728
+  current_value: -1.01746521213197
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: MWI
+  metric_id: consumer_price_index
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 600.932616885901
+  current_value: 773.939571837271
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: MWI
+  metric_id: consumer_price_index
+  previous_year: 2023
+  current_year: 2024
+  previous_value: 773.939571837271
+  current_value: 1022.99062053592
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: NGA
+  metric_id: consumer_price_index
+  previous_year: 2023
+  current_year: 2024
+  previous_value: 524.905364657231
+  current_value: 699.394913321456
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: NIC
+  metric_id: compensation_employees_lcu
+  previous_year: 1990
+  current_year: 1991
+  previous_value: 22450000.0
+  current_value: 825870000.0
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: NIC
+  metric_id: life_expectancy_male
+  previous_year: 1979
+  current_year: 1980
+  previous_value: 43.842
+  current_value: 54.065
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: NIC
+  metric_id: taxes_goods_services_lcu
+  previous_year: 1990
+  current_year: 1991
+  previous_value: 18180000.0
+  current_value: 726940000.0
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: PER
+  metric_id: taxes_goods_services_lcu
+  previous_year: 1989
+  current_year: 1990
+  previous_value: 4085000.0
+  current_value: 340210000.0
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: PRK
+  metric_id: life_expectancy_female
+  previous_year: 1994
+  current_year: 1995
+  previous_value: 73.69
+  current_value: 63.588
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: PSE
+  metric_id: life_expectancy_male
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 74.247
+  current_value: 59.691
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: QAT
+  metric_id: population_growth_pct
+  previous_year: 2020
+  current_year: 2021
+  previous_value: 5.72571544841687
+  current_value: -10.9274424335586
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: QAT
+  metric_id: population_growth_pct
+  previous_year: 2021
+  current_year: 2022
+  previous_value: -10.9274424335586
+  current_value: 5.90701824957099
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: RWA
+  metric_id: crude_death_rate
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 18.497
+  current_value: 153.963
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: RWA
+  metric_id: crude_death_rate
+  previous_year: 1994
+  current_year: 1995
+  previous_value: 153.963
+  current_value: 18.168
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: RWA
+  metric_id: life_expectancy_female
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 45.528
+  current_value: 13.325
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: RWA
+  metric_id: life_expectancy_female
+  previous_year: 1994
+  current_year: 1995
+  previous_value: 13.325
+  current_value: 43.728
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: RWA
+  metric_id: life_expectancy_male
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 40.598
+  current_value: 11.406
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: RWA
+  metric_id: life_expectancy_male
+  previous_year: 1994
+  current_year: 1995
+  previous_value: 11.406
+  current_value: 39.203
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: RWA
+  metric_id: population_growth_pct
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 3.80355388592275
+  current_value: -16.1282982694482
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: RWA
+  metric_id: population_growth_pct
+  previous_year: 1995
+  current_year: 1996
+  previous_value: -17.9882140556853
+  current_value: 16.7499598547072
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SDN
+  metric_id: consumer_price_index
+  previous_year: 2017
+  current_year: 2018
+  previous_value: 545.174403033738
+  current_value: 890.228952120137
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SDN
+  metric_id: consumer_price_index
+  previous_year: 2018
+  current_year: 2019
+  previous_value: 890.228952120137
+  current_value: 1344.19276243483
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SDN
+  metric_id: consumer_price_index
+  previous_year: 2019
+  current_year: 2020
+  previous_value: 1344.19276243483
+  current_value: 3538.6920569685
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SDN
+  metric_id: consumer_price_index
+  previous_year: 2020
+  current_year: 2021
+  previous_value: 3538.6920569685
+  current_value: 16245.8889681416
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SDN
+  metric_id: consumer_price_index
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 16245.8889681416
+  current_value: 38796.5572974048
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SLE
+  metric_id: consumer_price_index
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 378.051882667797
+  current_value: 558.166662231195
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SLE
+  metric_id: consumer_price_index
+  previous_year: 2023
+  current_year: 2024
+  previous_value: 558.166662231195
+  current_value: 717.990708885698
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SMR
+  metric_id: internet_users_pct
+  previous_year: 1998
+  current_year: 1999
+  previous_value: 1.41
+  current_value: 42.8
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SOM
+  metric_id: crude_death_rate
+  previous_year: 1990
+  current_year: 1991
+  previous_value: 18.465
+  current_value: 44.114
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SOM
+  metric_id: crude_death_rate
+  previous_year: 1992
+  current_year: 1993
+  previous_value: 42.637
+  current_value: 15.254
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SOM
+  metric_id: life_expectancy_female
+  previous_year: 1990
+  current_year: 1991
+  previous_value: 51.185
+  current_value: 27.335
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SOM
+  metric_id: life_expectancy_female
+  previous_year: 1992
+  current_year: 1993
+  previous_value: 26.254
+  current_value: 52.063
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SOM
+  metric_id: life_expectancy_female
+  previous_year: 2010
+  current_year: 2011
+  previous_value: 50.797
+  current_value: 33.651
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SOM
+  metric_id: life_expectancy_female
+  previous_year: 2011
+  current_year: 2012
+  previous_value: 33.651
+  current_value: 51.019
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SOM
+  metric_id: life_expectancy_male
+  previous_year: 1990
+  current_year: 1991
+  previous_value: 43.126
+  current_value: 23.715
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SOM
+  metric_id: life_expectancy_male
+  previous_year: 1992
+  current_year: 1993
+  previous_value: 23.875
+  current_value: 49.052
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SOM
+  metric_id: life_expectancy_male
+  previous_year: 2010
+  current_year: 2011
+  previous_value: 47.07
+  current_value: 31.294
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SOM
+  metric_id: life_expectancy_male
+  previous_year: 2011
+  current_year: 2012
+  previous_value: 31.294
+  current_value: 47.319
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SOM
+  metric_id: military_exp_pct_gdp
+  previous_year: 1985
+  current_year: 1986
+  previous_value: 0.050709706959707
+  current_value: 28.9482415394824
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: consumer_price_index
+  previous_year: 2015
+  current_year: 2016
+  previous_value: 331.74710919474
+  current_value: 1592.38474945444
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: consumer_price_index
+  previous_year: 2016
+  current_year: 2017
+  previous_value: 1592.38474945444
+  current_value: 4583.7054616258
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: consumer_price_index
+  previous_year: 2017
+  current_year: 2018
+  previous_value: 4583.7054616258
+  current_value: 8411.16962950085
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: consumer_price_index
+  previous_year: 2018
+  current_year: 2019
+  previous_value: 8411.16962950085
+  current_value: 15749.1887552482
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: consumer_price_index
+  previous_year: 2019
+  current_year: 2020
+  previous_value: 15749.1887552482
+  current_value: 20422.8933712573
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: consumer_price_index
+  previous_year: 2020
+  current_year: 2021
+  previous_value: 20422.8933712573
+  current_value: 22570.7110312611
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: consumer_price_index
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 22570.7110312611
+  current_value: 21061.3351456807
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: consumer_price_index
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 21061.3351456807
+  current_value: 21563.1855553078
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: consumer_price_index
+  previous_year: 2023
+  current_year: 2024
+  previous_value: 21563.1855553078
+  current_value: 41280.7396930496
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: crude_death_rate
+  previous_year: 1987
+  current_year: 1988
+  previous_value: 49.397
+  current_value: 77.739
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: crude_death_rate
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 77.739
+  current_value: 35.345
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: crude_death_rate
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 46.058
+  current_value: 20.088
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: crude_death_rate
+  previous_year: 1998
+  current_year: 1999
+  previous_value: 53.367
+  current_value: 19.361
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1986
+  current_year: 1987
+  previous_value: 34.504
+  current_value: 22.857
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1987
+  current_year: 1988
+  previous_value: 22.857
+  current_value: 11.274
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 11.274
+  current_value: 30.479
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 24.759
+  current_value: 46.521
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1994
+  current_year: 1995
+  previous_value: 46.521
+  current_value: 33.952
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1997
+  current_year: 1998
+  previous_value: 35.318
+  current_value: 20.677
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1998
+  current_year: 1999
+  previous_value: 20.677
+  current_value: 45.775
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 2013
+  current_year: 2014
+  previous_value: 59.711
+  current_value: 48.807
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 2017
+  current_year: 2018
+  previous_value: 38.675
+  current_value: 54.673
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 1986
+  current_year: 1987
+  previous_value: 31.161
+  current_value: 18.895
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 10.649
+  current_value: 26.129
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 20.126
+  current_value: 43.086
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 1994
+  current_year: 1995
+  previous_value: 43.086
+  current_value: 29.203
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 1997
+  current_year: 1998
+  previous_value: 30.899
+  current_value: 17.582
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 1998
+  current_year: 1999
+  previous_value: 17.582
+  current_value: 43.211
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 2013
+  current_year: 2014
+  previous_value: 56.831
+  current_value: 42.69
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 2017
+  current_year: 2018
+  previous_value: 32.406
+  current_value: 49.151
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SUR
+  metric_id: consumer_price_index
+  previous_year: 2020
+  current_year: 2021
+  previous_value: 397.496230269416
+  current_value: 632.494660552573
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SUR
+  metric_id: consumer_price_index
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 632.494660552573
+  current_value: 964.212982746744
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SUR
+  metric_id: consumer_price_index
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 964.212982746744
+  current_value: 1461.62458068448
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: SUR
+  metric_id: consumer_price_index
+  previous_year: 2023
+  current_year: 2024
+  previous_value: 1461.62458068448
+  current_value: 1698.84063621997
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: TLS
+  metric_id: life_expectancy_female
+  previous_year: 1999
+  current_year: 2000
+  previous_value: 48.717
+  current_value: 59.645
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: TLS
+  metric_id: life_expectancy_male
+  previous_year: 1974
+  current_year: 1975
+  previous_value: 35.115
+  current_value: 20.464
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: TLS
+  metric_id: life_expectancy_male
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 30.186
+  current_value: 43.365
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: TLS
+  metric_id: life_expectancy_male
+  previous_year: 1999
+  current_year: 2000
+  previous_value: 42.408
+  current_value: 56.671
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: TLS
+  metric_id: population_growth_pct
+  previous_year: 2000
+  current_year: 2001
+  previous_value: -11.356645253535
+  current_value: 8.63046111911907
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: TUR
+  metric_id: consumer_price_index
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 314.806147234679
+  current_value: 542.438807922272
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: TUR
+  metric_id: consumer_price_index
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 542.438807922272
+  current_value: 834.593142750374
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: TUR
+  metric_id: consumer_price_index
+  previous_year: 2023
+  current_year: 2024
+  previous_value: 834.593142750374
+  current_value: 1322.88396860986
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: UKR
+  metric_id: external_debt_total
+  previous_year: 1992
+  current_year: 1993
+  previous_value: 550691959.6
+  current_value: 3855492092.6
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: VEN
+  metric_id: consumer_price_index
+  previous_year: 2014
+  current_year: 2015
+  previous_value: 348.167562329311
+  current_value: 772.020086336005
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: VEN
+  metric_id: consumer_price_index
+  previous_year: 2015
+  current_year: 2016
+  previous_value: 772.020086336005
+  current_value: 2740.27398467096
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: VNM
+  metric_id: external_debt_total
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 617484768.8
+  current_value: 20705352668.4
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ZWE
+  metric_id: consumer_price_index
+  previous_year: 2018
+  current_year: 2019
+  previous_value: 116.712210556594
+  current_value: 414.684308931397
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ZWE
+  metric_id: consumer_price_index
+  previous_year: 2019
+  current_year: 2020
+  previous_value: 414.684308931397
+  current_value: 2725.3128146124
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ZWE
+  metric_id: consumer_price_index
+  previous_year: 2020
+  current_year: 2021
+  previous_value: 2725.3128146124
+  current_value: 5411.00244498777
+  reason: 'TODO: reviewed against source data before release.'
+- country_code: ZWE
+  metric_id: consumer_price_index
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 5411.00244498777
+  current_value: 11076.6017877336
+  reason: 'TODO: reviewed against source data before release.'
