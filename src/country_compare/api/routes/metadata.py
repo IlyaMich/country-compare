@@ -13,6 +13,8 @@ from country_compare.api.schemas.metadata import (
     DatasetMetadataResponse,
     MetricOptionResponse,
     MetricsMetadataResponse,
+    PredictionMethodResponse,
+    PredictionMethodsMetadataResponse,
     ProfileOptionResponse,
     ProfilesMetadataResponse,
     YearsMetadataResponse,
@@ -89,6 +91,20 @@ def get_profile_metadata(facade: FacadeDependency) -> ProfilesMetadataResponse:
     )
 
 
+@router.get("/prediction-methods", response_model=PredictionMethodsMetadataResponse)
+def get_prediction_method_metadata(
+    facade: FacadeDependency,
+) -> PredictionMethodsMetadataResponse:
+    """Return prediction method options from the backend runtime."""
+
+    return PredictionMethodsMetadataResponse(
+        methods=[
+            _to_prediction_method_response(method)
+            for method in facade.prediction.list_prediction_methods()
+        ]
+    )
+
+
 def _to_dataset_response(summary: DatasetSummary) -> DatasetMetadataResponse:
     return DatasetMetadataResponse(
         exists=summary.exists,
@@ -145,6 +161,17 @@ def _to_profile_response(
         metric_count=profile.metric_count,
         year_strategy=profile.year_strategy,
         missing_data_policy=profile.missing_data_policy,
+    )
+
+
+def _to_prediction_method_response(
+    method: Mapping[str, Any],
+) -> PredictionMethodResponse:
+    return PredictionMethodResponse(
+        method_id=str(method.get("method_id") or ""),
+        display_name=str(method.get("display_name") or method.get("method_id") or ""),
+        description=str(method.get("description") or ""),
+        metadata=dict(method.get("metadata") or {}),
     )
 
 
