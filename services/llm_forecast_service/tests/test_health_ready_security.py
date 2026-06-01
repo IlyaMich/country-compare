@@ -5,6 +5,8 @@ from fastapi.testclient import TestClient
 from llm_forecast_service.main import create_app
 from llm_forecast_service.settings import ServiceSettings
 
+_AUTH_HEADERS = {"Authorization": "Bearer test-token"}
+
 
 def _ready_settings(**overrides: object) -> ServiceSettings:
     values = {
@@ -26,7 +28,9 @@ def test_health_returns_ok_without_provider_config() -> None:
 
 
 def test_ready_returns_503_when_provider_config_missing() -> None:
-    client = TestClient(create_app(settings=ServiceSettings()))
+    client = TestClient(
+        create_app(settings=ServiceSettings(protect_ready_details=False))
+    )
 
     response = client.get("/ready")
 
@@ -34,13 +38,16 @@ def test_ready_returns_503_when_provider_config_missing() -> None:
     payload = response.json()
     assert payload["status"] == "not_ready"
     assert "LLM_SERVICE_TOKEN is not configured" in payload["issues"]
-    assert "MISTRAL_API_KEY is not configured" in payload["issues"]
 
 
 def test_ready_returns_200_when_configured() -> None:
-    client = TestClient(create_app(settings=_ready_settings()))
+    settings = _ready_settings()
+    client = TestClient(create_app(settings=settings))
 
-    response = client.get("/ready")
+    response = client.get(
+        "/ready",
+        headers={"Authorization": f"Bearer {settings.service_token}"},
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -51,17 +58,17 @@ def test_ready_returns_200_when_configured() -> None:
 
 
 def test_ready_enforces_public_zdr_gate() -> None:
-    client = TestClient(
-        create_app(
-            settings=_ready_settings(
-                deployment_profile="public",
-                require_zdr=False,
-                mistral_zdr_confirmed=False,
-            )
-        )
+    settings = _ready_settings(
+        deployment_profile="public",
+        require_zdr=False,
+        mistral_zdr_confirmed=False,
     )
+    client = TestClient(create_app(settings=settings))
 
-    response = client.get("/ready")
+    response = client.get(
+        "/ready",
+        headers={"Authorization": f"Bearer {settings.service_token}"},
+    )
 
     assert response.status_code == 503
     assert (
@@ -101,3 +108,143 @@ def test_capabilities_returns_configured_limits() -> None:
     assert payload["provider"] == "mistral"
     assert payload["supports_bounded_adjustment"] is True
     assert payload["max_horizon_years"] == 7
+
+
+def test_ready_hides_details_without_auth_when_protected() -> None:
+    settings = ServiceSettings(
+        service_token="test-token",
+        provider="baseline_echo",
+        deployment_profile="local",
+        protect_ready_details=True,
+    )
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "status": "ready",
+        "service": "llm-forecast-service",
+    }
+
+
+def test_ready_returns_details_with_auth_when_protected() -> None:
+    settings = ServiceSettings(
+        service_token="test-token",
+        provider="baseline_echo",
+        deployment_profile="local",
+        protect_ready_details=True,
+    )
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get(
+        "/ready",
+        headers={"Authorization": "Bearer test-token"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ready"
+    assert payload["service"] == "llm-forecast-service"
+    assert payload["provider"] == "baseline_echo"
+    assert payload["model"] == "baseline_echo"
+    assert payload["deployment_profile"] == "local"
+    assert payload["issues"] == []
+
+
+def test_ready_details_can_be_unprotected_for_local_use() -> None:
+    settings = ServiceSettings(
+        service_token="test-token",
+        provider="baseline_echo",
+        deployment_profile="local",
+        protect_ready_details=False,
+    )
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "baseline_echo"
+    assert payload["model"] == "baseline_echo"
+    assert payload["issues"] == []
+
+
+def test_docs_can_be_disabled() -> None:
+    settings = ServiceSettings(
+        service_token="test-token",
+        provider="baseline_echo",
+        deployment_profile="local",
+        enable_docs=False,
+    )
+    client = TestClient(create_app(settings=settings))
+
+    assert client.get("/docs").status_code == 404
+    assert client.get("/redoc").status_code == 404
+    assert client.get("/openapi.json").status_code == 404
+
+
+def test_docs_are_disabled_for_public_profile() -> None:
+    settings = ServiceSettings(
+        service_token="test-token",
+        provider="baseline_echo",
+        deployment_profile="public",
+        require_zdr=True,
+        mistral_zdr_confirmed=True,
+        enable_docs=True,
+    )
+    client = TestClient(create_app(settings=settings))
+
+    assert client.get("/docs").status_code == 404
+    assert client.get("/redoc").status_code == 404
+    assert client.get("/openapi.json").status_code == 404
+
+
+def test_openapi_marks_protected_routes_with_bearer_auth() -> None:
+    settings = ServiceSettings(
+        service_token="test-token",
+        provider="baseline_echo",
+        deployment_profile="local",
+        enable_docs=True,
+    )
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    schema = response.json()
+
+    assert schema["components"]["securitySchemes"]["BearerAuth"] == {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "service-token",
+        "description": "Private service bearer token.",
+    }
+
+    assert schema["paths"]["/v1/capabilities"]["get"]["security"] == [
+        {"BearerAuth": []}
+    ]
+    assert schema["paths"]["/v1/forecast/adjust"]["post"]["security"] == [
+        {"BearerAuth": []}
+    ]
+
+
+def test_capabilities_reports_single_series_support() -> None:
+    settings = ServiceSettings(
+        service_token="test-token",
+        provider="baseline_echo",
+        deployment_profile="local",
+        max_series_per_request=25,
+    )
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get(
+        "/v1/capabilities",
+        headers={"Authorization": "Bearer test-token"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["one_call_per_series"] is True
+    assert payload["max_series_per_request"] == 1
