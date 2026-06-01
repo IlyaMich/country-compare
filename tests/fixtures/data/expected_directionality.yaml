@@ -1,0 +1,72 @@
+# Expected metric directionality.
+#
+# higher_is_better controls ranking, scoring, profile comparison, and predicted
+# comparisons. Wrong values here can invert the product's conclusions.
+
+metrics:
+  # Example/synthetic dataset metrics
+  gdp_per_capita: true
+  rule_of_law: true
+  democracy_index: true
+  inflation: false
+  life_expectancy: true
+
+  # Configured/release metrics
+  compensation_employees_lcu: false
+  taxes_goods_services_lcu: false
+  external_debt_total: false
+  journal_articles: true
+  rnd_expenditure_pct_gdp: true
+  internet_users_pct: true
+  military_exp_pct_gdp: false
+  market_cap_pct_gdp: true
+  consumer_price_index: false
+  imports_growth_pct: true
+  exports_growth_pct: true
+  gdp_current_usd: true
+  unemployment_pct: false
+  labor_participation_pct: true
+  youth_literacy_pct: true
+  education_spending_pct_gdp: true
+  crude_death_rate: false
+  life_expectancy_female: true
+  life_expectancy_male: true
+  population_growth_pct: true
+  top10_income_share: false
+
+ranking_smoke_cases:
+  - metric_id: inflation
+    higher_is_better: false
+    note: Lower inflation is treated as better for this app's general comparison profile.
+
+  - metric_id: unemployment_pct
+    higher_is_better: false
+    note: Lower unemployment is better.
+
+  - metric_id: consumer_price_index
+    higher_is_better: false
+    note: Lower cumulative price level is treated as better in the current scoring configuration.
+
+  - metric_id: military_exp_pct_gdp
+    higher_is_better: false
+    note: Lower military spending share is treated as better for general civilian-development comparisons.
+
+  - metric_id: top10_income_share
+    higher_is_better: false
+    note: Lower top-10 income share indicates less concentration.
+
+  - metric_id: gdp_current_usd
+    higher_is_better: true
+    note: Larger GDP is treated as better, with size-sensitivity documented separately.
+
+  - metric_id: gdp_per_capita
+    higher_is_better: true
+    note: Higher GDP per capita is better.
+
+  - metric_id: life_expectancy
+    higher_is_better: true
+    note: Higher life expectancy is better.
+
+  - metric_id: rule_of_law
+    higher_is_better: true
+    note: Higher rule-of-law score is better.
