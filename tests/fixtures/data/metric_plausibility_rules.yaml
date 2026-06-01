@@ -1,0 +1,161 @@
+# Metric-level plausibility ranges.
+#
+# These are not source-of-truth statistical assertions.
+# They are release guardrails to catch impossible values and obvious mapping bugs.
+
+defaults:
+  severity: hard_fail
+
+metrics:
+  # Example/synthetic dataset metrics
+  gdp_per_capita:
+    min_value: 0
+    max_value: 250000
+    severity: hard_fail
+
+  rule_of_law:
+    min_value: -3
+    max_value: 3
+    severity: hard_fail
+
+  democracy_index:
+    min_value: 0
+    max_value: 10
+    severity: hard_fail
+
+  inflation:
+    min_value: -50
+    max_value: 500
+    severity: hard_fail
+
+  life_expectancy:
+    min_value: 20
+    max_value: 100
+    severity: hard_fail
+
+  # Configured/release metrics
+  compensation_employees_lcu:
+    min_value: 0
+    max_value: null
+    severity: hard_fail
+
+  taxes_goods_services_lcu:
+    min_value: 0
+    max_value: null
+    severity: hard_fail
+
+  external_debt_total:
+    min_value: 0
+    max_value: null
+    severity: hard_fail
+
+  journal_articles:
+    min_value: 0
+    max_value: null
+    severity: hard_fail
+
+  rnd_expenditure_pct_gdp:
+    min_value: 0
+    max_value: 20
+    severity: hard_fail
+
+  internet_users_pct:
+    min_value: 0
+    max_value: 100
+    severity: hard_fail
+
+  military_exp_pct_gdp:
+    min_value: 0
+    max_value: 100
+    severity: hard_fail
+
+  market_cap_pct_gdp:
+    min_value: 0
+    max_value: 1000
+    severity: hard_fail
+
+  consumer_price_index:
+    min_value: 0
+    max_value: 1000
+    severity: hard_fail
+
+  imports_growth_pct:
+    min_value: -100
+    max_value: 500
+    severity: hard_fail
+
+  exports_growth_pct:
+    min_value: -100
+    max_value: 500
+    severity: hard_fail
+
+  gdp_current_usd:
+    min_value: 0
+    max_value: null
+    severity: hard_fail
+
+  unemployment_pct:
+    min_value: 0
+    max_value: 100
+    severity: hard_fail
+
+  labor_participation_pct:
+    min_value: 0
+    max_value: 100
+    severity: hard_fail
+
+  youth_literacy_pct:
+    min_value: 0
+    max_value: 100
+    severity: hard_fail
+
+  education_spending_pct_gdp:
+    min_value: 0
+    max_value: 100
+    severity: hard_fail
+
+  crude_death_rate:
+    min_value: 0
+    max_value: 100
+    severity: hard_fail
+
+  life_expectancy_female:
+    min_value: 20
+    max_value: 100
+    severity: hard_fail
+
+  life_expectancy_male:
+    min_value: 20
+    max_value: 100
+    severity: hard_fail
+
+  population_growth_pct:
+    min_value: -20
+    max_value: 20
+    severity: hard_fail
+
+  top10_income_share:
+    min_value: 0
+    max_value: 100
+    severity: hard_fail
+
+unit_hard_bounds:
+  percent:
+    min_value: -150
+    max_value: 1000
+
+  years:
+    min_value: 0
+    max_value: 130
+
+  score_0_10:
+    min_value: 0
+    max_value: 10
+
+  index_2010_100:
+    min_value: 0
+    max_value: 1000
+
+  per_1000_people:
+    min_value: 0
+    max_value: 100

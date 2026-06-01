@@ -1,0 +1,127 @@
+# Coverage requirements for data correctness tests.
+#
+# The example_dataset section keeps CI stable on a fresh checkout.
+# The release_dataset section is what you should use when validating the real
+# generated parquet before tagging a release.
+
+default_minimums:
+  min_country_count: 3
+  min_metric_count: 3
+  min_year_count: 3
+  min_metrics_per_country: 3
+  min_observations_per_country_metric_for_prediction: 5
+  max_latest_year_staleness_years: 6
+
+example_dataset:
+  countries:
+    - ISR
+    - DEU
+    - SGP
+    - CAN
+    - JPN
+
+  metrics:
+    - gdp_per_capita
+    - rule_of_law
+    - democracy_index
+    - inflation
+    - life_expectancy
+
+  required_country_metric_pairs:
+    - country_code: ISR
+      metric_id: gdp_per_capita
+      min_observations: 5
+
+    - country_code: DEU
+      metric_id: rule_of_law
+      min_observations: 5
+
+    - country_code: SGP
+      metric_id: democracy_index
+      min_observations: 5
+
+    - country_code: CAN
+      metric_id: life_expectancy
+      min_observations: 5
+
+    - country_code: JPN
+      metric_id: inflation
+      min_observations: 5
+
+release_dataset:
+  # Adjust this list before the final release if you decide on a smaller
+  # official demo set.
+  countries:
+    - ISR
+    - USA
+    - FRA
+    - DEU
+    - GBR
+    - CAN
+    - JPN
+    - SGP
+
+  metrics:
+    - compensation_employees_lcu
+    - taxes_goods_services_lcu
+    - external_debt_total
+    - journal_articles
+    - rnd_expenditure_pct_gdp
+    - internet_users_pct
+    - military_exp_pct_gdp
+    - market_cap_pct_gdp
+    - consumer_price_index
+    - imports_growth_pct
+    - exports_growth_pct
+    - gdp_current_usd
+    - unemployment_pct
+    - labor_participation_pct
+    - youth_literacy_pct
+    - education_spending_pct_gdp
+    - crude_death_rate
+    - life_expectancy_female
+    - life_expectancy_male
+    - population_growth_pct
+    - top10_income_share
+
+  release_critical_metrics:
+    - gdp_current_usd
+    - internet_users_pct
+    - unemployment_pct
+    - labor_participation_pct
+    - life_expectancy_female
+    - life_expectancy_male
+    - population_growth_pct
+
+  prediction_required_metrics:
+    - gdp_current_usd
+    - internet_users_pct
+    - unemployment_pct
+    - labor_participation_pct
+    - life_expectancy_female
+    - life_expectancy_male
+
+  required_country_metric_pairs:
+    - country_code: ISR
+      metric_id: gdp_current_usd
+      min_observations: 5
+
+    - country_code: USA
+      metric_id: gdp_current_usd
+      min_observations: 5
+
+    - country_code: FRA
+      metric_id: gdp_current_usd
+      min_observations: 5
+
+    - country_code: DEU
+      metric_id: internet_users_pct
+      min_observations: 5
+
+    - country_code: CAN
+      metric_id: unemployment_pct
+      min_observations: 5
+
+    - country_code: JPN
+      metric_id: life_expectancy_female
+      min_observations: 5
