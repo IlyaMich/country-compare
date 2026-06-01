@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "country-compare-llm-forecast-service"
-version = "0.1.0"
+version = "1.0.0"
 description = "Private LLM forecast adjustment service for Country Compare."
 readme = "README.md"
 requires-python = ">=3.11"
