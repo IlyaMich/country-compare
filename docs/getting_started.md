@@ -1,77 +1,69 @@
-# Getting Started
+# Getting started
 
-This guide gets a new developer from a fresh checkout to a running `v0.1 beta` application.
+## Prerequisites
 
-## Repository
+- Python 3.11.
+- Docker and Docker Compose for containerized runs.
+- A shell that can set environment variables.
 
-```bash
-git clone https://github.com/IlyaMich/country-compare.git
-cd country-compare
-git checkout develop
-```
-
-## Install for local development
+## Local install
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
-The project uses a `/src` package layout. Editable installation is recommended so all entrypoints resolve the installed package correctly.
+## Run the Streamlit UI locally
 
-## Validate configuration and data
-
-```bash
-country-compare validate-config
-country-compare validate-data
-```
-
-These commands should pass before using the UI, API, or Docker Compose mode.
-
-## Run local Streamlit UI mode
-
-Local mode uses in-process services and does not require the FastAPI backend.
-
-Linux/macOS:
+Local mode does not require the FastAPI backend. The UI calls the in-process client, which calls services/facade directly.
 
 ```bash
-unset COUNTRY_COMPARE_API_URL
 country-compare ui
 ```
 
-Windows PowerShell:
-
-```powershell
-Remove-Item Env:COUNTRY_COMPARE_API_URL -ErrorAction SilentlyContinue
-country-compare ui
-```
-
-Alternative direct Streamlit command:
+Alternative:
 
 ```bash
 python -m streamlit run src/country_compare/ui/app.py
 ```
 
-## Run HTTP-backed UI mode
-
-Start the backend:
+## Run the backend locally
 
 ```bash
 python -m uvicorn country_compare.api.main:app --host 0.0.0.0 --port 8000
 ```
 
-Then start the UI with the backend URL configured:
+Check it:
+
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/ready
+```
+
+Open API docs when enabled:
+
+```text
+http://localhost:8000/docs
+```
+
+## Run the UI against the backend
 
 ```bash
 COUNTRY_COMPARE_API_URL=http://localhost:8000 python -m streamlit run src/country_compare/ui/app.py
 ```
 
-Open:
+Windows PowerShell:
 
-```text
-http://localhost:8501
+```powershell
+$env:COUNTRY_COMPARE_API_URL = "http://localhost:8000"
+python -m streamlit run src/country_compare/ui/app.py
 ```
 
-## Run Docker Compose mode
+When the backend uses `COUNTRY_COMPARE_API_KEY`, set the same value for the UI process.
+
+## Docker Compose quick start
 
 ```bash
 docker compose up --build
@@ -80,31 +72,50 @@ docker compose up --build
 Open:
 
 ```text
-Backend health:    http://localhost:8000/health
-Backend readiness: http://localhost:8000/ready
-Streamlit UI:      http://localhost:8501
+UI:      http://localhost:8501
+Backend: http://localhost:8000
 ```
 
-## Run checks
+Stop:
 
 ```bash
+docker compose down
+```
+
+## Optional LLM forecast quick start
+
+The optional LLM service is disabled by default and should remain private. For local testing:
+
+```bash
+docker compose --profile llm -f docker-compose.yml -f docker-compose.llm-local.yml up --build
+```
+
+Typical local environment values:
+
+```text
+COUNTRY_COMPARE_ENABLE_LLM_FORECAST=true
+COUNTRY_COMPARE_LLM_SERVICE_TOKEN=dev-token
+MISTRAL_API_KEY=<local-secret>
+MISTRAL_MODEL=mistral-large-latest
+```
+
+Check backend-to-LLM readiness:
+
+```bash
+curl http://localhost:8000/ready/llm
+```
+
+## First validation pass
+
+```bash
+country-compare validate-config
+country-compare validate-data
 python -m pytest
-python -m ruff check src/country_compare tests scripts
-python -m black --check src/country_compare tests scripts
-python -m mypy src/country_compare
-docker compose build
 ```
 
-## Import rule
+For a faster smoke pass:
 
-Use:
-
-```python
-from country_compare.services.facade import AppFacade
-```
-
-Do not use:
-
-```python
-from src.country_compare.services.facade import AppFacade
+```bash
+python -m pytest tests/smoke
+python -m pytest tests/integration/api
 ```

@@ -1,243 +1,89 @@
 # Country Compare
 
-Country Compare is a Python application for comparing countries across economic, health, governance, and social metrics.
+Country Compare is a Python 3.11 application for comparing countries across economic, health, governance, and social metrics. It converts public-data-style inputs into a canonical long-format dataset, then exposes comparison, weighted scoring, baseline forecasting, predicted comparison, backtesting, diagnostics, exports, a Streamlit UI, a read-only FastAPI backend, and an optional private LLM forecast microservice.
 
-It turns public-data-style inputs into a canonical long-format dataset, then supports:
-
-- single-metric country comparison
-- multi-metric comparison
-- weighted scoring profiles
-- baseline metric forecasting
-- predicted comparisons
-- backtesting
-- diagnostics and prediction quality panels
-- CSV, JSON, and Markdown exports
-- a read-only FastAPI backend for UI/backend separation
-- a Streamlit UI that can run locally or against the backend API
-- Docker Compose deployment with separate backend and UI containers
-- an optional private LLM forecast microservice for bounded forecast adjustment
-
-The project is designed around a stable canonical data contract so ingestion, comparison, prediction, API, UI, and exports remain modular.
-
----
-
-## Project status
-
-Current release target:
+The current implementation is designed around a stable service/domain core with two UI access modes:
 
 ```text
-v0.1 beta
+Local mode:      Streamlit UI -> in-process client -> services/facade -> domain/data/config
+Container mode:  Streamlit UI -> HTTP client -> FastAPI backend -> services/facade -> domain/data/config
+Optional LLM:    FastAPI backend -> private token-protected llm-forecast service -> provider API
 ```
 
-The beta implementation includes:
+The repository currently keeps the backend API read-only. It does not expose ingestion, config editing, scoring-profile editing, data refresh, or server-side export write endpoints.
 
-- `/src` package layout
-- canonical data contract and validation
-- manifest-driven data processing pipeline
-- local and remote source acquisition support
-- comparison and weighted-score modules
-- prediction and backtesting modules
-- app-facing service/facade layer
-- read-only FastAPI backend
-- Streamlit UI with local and HTTP-backed client modes
-- Docker Compose split for backend and UI containers
-- optional profile-gated LLM forecast service
-- export helpers
-- unit, integration, smoke, client, UI, API, and service tests
+## Main features
 
-The project is still pre-v1. APIs, UI flows, prediction methods, and configuration details may change before a stable v1 release.
-
----
-
-## Documentation
-
-The `/docs` directory is the main reference for beta usage and development.
-
-Start here:
-
-```text
-docs/index.md
-```
-
-Recommended docs:
-
-```text
-docs/getting_started.md
-docs/architecture.md
-docs/api.md
-docs/configuration.md
-docs/data_contract.md
-docs/user_guide.md
-docs/prediction.md
-docs/llm_forecast_service.md
-docs/containerization.md
-docs/development.md
-docs/testing.md
-docs/manual_qa.md
-docs/troubleshooting.md
-docs/release_notes_v0_1_beta.md
-docs/decisions.md
-```
-
----
-
-## Architecture
-
-The high-level runtime architecture is:
-
-```text
-raw source files / source manifests
-  ↓
-processing pipeline
-  ↓
-canonical long-format metric dataset
-  ↓
-data access + config
-  ↓
-comparison / scoring / prediction
-  ↓
-services / facade
-  ↓
-local client or HTTP client
-  ↓
-Streamlit UI
-```
-
-Containerized mode uses this shape:
-
-```text
-Streamlit UI container
-  ↓ HTTP client
-FastAPI backend container
-  ↓
-country_compare.services
-  ↓
-existing domain modules
-  ↓
-processed canonical dataset
-```
-
-The optional LLM forecast runtime adds a private microservice:
-
-```text
-FastAPI backend container
-  ↓ HTTP + bearer token
-llm-forecast service container
-  ↓ provider API
-Mistral
-```
-
-The backend API is intentionally a transport adapter. Business logic remains in the existing service and domain layers.
-
----
+- Streamlit UI for selecting countries, metrics, scoring profiles, and forecast options.
+- Single-metric and multi-metric comparisons.
+- Weighted profile scoring.
+- Baseline prediction workflows with `linear_trend` and `last_observed` style methods.
+- Prediction backtesting and predicted comparisons.
+- Optional `llm_forecast` method that performs bounded adjustments on deterministic forecasts through a private service.
+- Export-first result handling for tables, diagnostics, and Markdown summaries.
+- FastAPI backend with JSON-safe response envelopes, request IDs, readiness checks, optional API-key protection, CORS settings, and Prometheus-compatible metrics endpoint.
+- Docker Compose support for backend, UI, and optional LLM service profile.
+- Data/config validation and integration/data-correctness test coverage.
 
 ## Repository layout
 
 ```text
-src/
-  country_compare/
-    api/          # FastAPI app, schemas, routes, and API serialization
-    clients/      # UI-facing local/HTTP client abstraction
-    cli/          # CLI entrypoints
-    comparison/   # single- and multi-metric comparison workflows
-    config/       # config models, loaders, and validators
-    data/         # canonical contract, validation, access, stores, ingestion
-    exports/      # reusable CSV / JSON / Markdown export helpers
-    metrics/      # filtering and normalization helpers
-    output/       # charts and output helpers
-    pipelines/    # processing engine, acquisition, manifests, audit, publish
-    prediction/   # forecasting, backtesting, comparison bridge, visualization data
-    scoring/      # weighted-score workflows
-    services/     # app-facing orchestration and result models
-    settings/     # centralized application settings
-    ui/           # Streamlit app, views, state, components
+src/country_compare/
+  api/          FastAPI app, schemas, routes, errors, security, serialization
+  clients/      local and HTTP client abstraction used by the UI
+  cli/          command-line entry points
+  comparison/   comparison workflows
+  config/       config models, loaders, validators
+  data/         canonical data contract, validation, stores, ingestion helpers
+  exports/      CSV / JSON / Markdown export helpers
+  metrics/      filtering and normalization helpers
+  output/       chart and output helpers
+  pipelines/    acquisition, processing, audit, publish flows
+  prediction/   forecasting, backtesting, predicted comparison, visualization data
+  scoring/      weighted scoring workflows
+  services/     app-facing orchestration and result models
+  settings/     centralized application settings
+  ui/           Streamlit views, components, state
 
-services/
-  llm_forecast_service/
-    src/llm_forecast_service/
-    tests/
-    Dockerfile
-    Makefile
-    pyproject.toml
-    README.md
+services/llm_forecast_service/
+  src/llm_forecast_service/  private LLM adjustment service
+  tests/                     service tests
+  Dockerfile
+  Makefile
+  pyproject.toml
+  README.md
 
-config/           # metrics, scoring profiles, source manifests, demo config
-data/             # local processed data, examples, and exports
-docs/             # beta documentation
-notebooks/        # exploratory notebooks
-scripts/          # demo and operational scripts
-tests/            # unit, integration, smoke, client, UI, and API tests
+config/       metric metadata, scoring profiles, source manifests, demo config
+data/         processed/example data and local exports
+docs/         project documentation
+scripts/      demo, data, manifest, smoke, and guard scripts
+tests/        unit, integration, smoke, API, client, UI, and data correctness tests
 ```
 
-Imports must use the package name:
+Use package imports such as `import country_compare`; do not import from `src.country_compare`.
 
-```python
-import country_compare
-```
-
-Do not import from:
-
-```python
-import src.country_compare
-```
-
----
-
-## Installation
-
-Clone the repository:
-
-```bash
-git clone https://github.com/IlyaMich/country-compare.git
-cd country-compare
-```
-
-Create and activate a virtual environment.
-
-Windows PowerShell:
-
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-```
-
-macOS/Linux:
+## Quick start
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate
-```
-
-Install with development dependencies:
-
-```bash
+source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
----
-
-## Run the Streamlit UI locally
-
-Start the Streamlit UI through the CLI:
+Run the Streamlit app locally with in-process services:
 
 ```bash
 country-compare ui
 ```
 
-Or run Streamlit directly:
+or:
 
 ```bash
 python -m streamlit run src/country_compare/ui/app.py
 ```
 
-When `COUNTRY_COMPARE_API_URL` is not set, the UI uses local in-process services directly.
-
----
-
-## Run the FastAPI backend locally
-
-Start the backend API:
+Run the FastAPI backend locally:
 
 ```bash
 python -m uvicorn country_compare.api.main:app --host 0.0.0.0 --port 8000
@@ -248,20 +94,15 @@ Useful backend URLs:
 ```text
 http://localhost:8000/health
 http://localhost:8000/ready
+http://localhost:8000/ready/llm
 http://localhost:8000/docs
 ```
 
----
-
-## Run the Streamlit UI against a local backend
-
-In one terminal, start the backend:
+Run the UI against the HTTP backend:
 
 ```bash
-python -m uvicorn country_compare.api.main:app --host 0.0.0.0 --port 8000
+COUNTRY_COMPARE_API_URL=http://localhost:8000 python -m streamlit run src/country_compare/ui/app.py
 ```
-
-In another terminal, start the UI in HTTP-backed mode.
 
 Windows PowerShell:
 
@@ -270,242 +111,75 @@ $env:COUNTRY_COMPARE_API_URL = "http://localhost:8000"
 python -m streamlit run src/country_compare/ui/app.py
 ```
 
-macOS/Linux:
+## Docker Compose
 
-```bash
-COUNTRY_COMPARE_API_URL=http://localhost:8000 python -m streamlit run src/country_compare/ui/app.py
-```
-
-If the backend sets `COUNTRY_COMPARE_API_KEY`, set the same `COUNTRY_COMPARE_API_KEY` for the UI process.
-
-Selection rule:
-
-```text
-COUNTRY_COMPARE_API_URL unset -> local UI client
-COUNTRY_COMPARE_API_URL set   -> HTTP UI client
-```
-
----
-
-## Run with Docker Compose
-
-Build and start the default app stack:
+Start the normal backend + UI stack:
 
 ```bash
 docker compose up --build
 ```
 
-The backend is available at:
+Default local URLs:
 
 ```text
-http://localhost:8000
+Backend: http://localhost:8000
+UI:      http://localhost:8501
 ```
 
-Useful backend checks:
-
-```text
-http://localhost:8000/health
-http://localhost:8000/ready
-http://localhost:8000/docs
-```
-
-The Streamlit UI is available at:
-
-```text
-http://localhost:8501
-```
-
-In Compose mode, the UI container uses:
+In Compose mode the UI calls the backend through:
 
 ```text
 COUNTRY_COMPARE_API_URL=http://backend:8000
 ```
 
-That means the Streamlit container calls the FastAPI backend over HTTP instead of using the local service layer directly.
-
-Stop the containers:
+Stop the stack:
 
 ```bash
 docker compose down
 ```
 
-For more details, see:
-
-```text
-docs/containerization.md
-```
-
----
-
-## Optional LLM forecast service
-
-The experimental `llm_forecast` method uses a private FastAPI microservice under:
-
-```text
-services/llm_forecast_service/
-```
-
-The service is disabled by default and should not be exposed publicly.
-
-The default stack does not start it. To include it locally:
+Build containers without starting them:
 
 ```bash
-docker compose --profile llm -f docker-compose.yml -f docker-compose.llm-local.yml up --build
+docker compose build
+docker compose --profile llm build llm-forecast
 ```
-
-Required local secrets should be provided through an untracked `.env` file or shell environment:
-
-```env
-COUNTRY_COMPARE_ENABLE_LLM_FORECAST=true
-COUNTRY_COMPARE_LLM_SERVICE_TOKEN=dev-token
-MISTRAL_API_KEY=<local-secret>
-MISTRAL_MODEL=mistral-large-latest
-```
-
-The backend exposes `llm_forecast` only when:
-
-- the backend flag is enabled,
-- service URL and token are configured,
-- the private service is reachable,
-- `/v1/capabilities` succeeds,
-- the service reports structured-output and bounded-adjustment support.
-
-For full setup, cost limits, privacy behavior, public deployment ZDR gate, and manual QA, see:
-
-```text
-docs/llm_forecast_service.md
-```
-
----
 
 ## API overview
 
-The backend API is read-only in v0.1 beta.
-
-Operational endpoints:
+Operational endpoints are unversioned:
 
 ```text
 GET /health
 GET /ready
+GET /ready/llm
+GET /metrics
 ```
 
-Metadata endpoints:
+Business endpoints use `/api/v1`:
 
 ```text
-GET /api/v1/metadata/dataset
-GET /api/v1/metadata/countries
-GET /api/v1/metadata/metrics
-GET /api/v1/metadata/years
-GET /api/v1/metadata/profiles
-```
-
-Comparison endpoints:
-
-```text
+GET  /api/v1/metadata/dataset
+GET  /api/v1/metadata/countries
+GET  /api/v1/metadata/metrics
+GET  /api/v1/metadata/years
+GET  /api/v1/metadata/profiles
+GET  /api/v1/metadata/prediction-methods
 POST /api/v1/compare/single-metric
 POST /api/v1/compare/multi-metric
 POST /api/v1/score/profile
-```
-
-Prediction endpoints:
-
-```text
 POST /api/v1/prediction/single-metric
 POST /api/v1/prediction/backtest
 POST /api/v1/prediction/compare/single-metric
 POST /api/v1/prediction/compare/profile
+POST /api/v1/prediction/compare/multi-metric
 ```
 
-See the full API reference:
+All computation endpoints return a JSON-safe result envelope with `ok`, `mode`, `request`, `summary`, `metadata`, `diagnostics`, `warnings`, `messages`, `tables`, `charts`, and `error` fields. Pandas, numpy, and datetime values are serialized into JSON-safe scalars or `null`.
 
-```text
-docs/api.md
-```
+Set `COUNTRY_COMPARE_API_KEY` on the backend to protect non-operational endpoints. Set the same value in the UI process when `COUNTRY_COMPARE_API_URL` is enabled.
 
----
-
-## Read-only v0.1 beta boundary
-
-Allowed in the backend API:
-
-- metadata reads
-- dataset/config readiness validation
-- comparison computation
-- weighted scoring computation
-- prediction computation
-- backtesting computation
-- JSON-safe result serialization
-
-Deferred from the v0.1 beta API:
-
-- config editing
-- scoring profile editing
-- dataset refresh
-- ingestion runs
-- pipeline execution
-- scheduled processing runs
-- server-side persistent export generation
-- user authentication and authorization
-
-Do not add write endpoints such as:
-
-```text
-POST /api/v1/ingestion/run
-POST /api/v1/data/refresh
-POST /api/v1/config/metrics
-POST /api/v1/config/scoring-profiles
-PUT /api/v1/...
-DELETE /api/v1/...
-```
-
----
-
-## Canonical dataset contract
-
-The canonical dataset uses one row per:
-
-```text
-country_code + metric_id + year
-```
-
-Required columns include:
-
-```text
-country_code
-country_name
-metric_id
-metric_name
-value
-year
-unit
-source_name
-source_url
-higher_is_better
-category
-```
-
-Optional columns include:
-
-```text
-dataset_version
-region
-income_group
-notes
-```
-
-See:
-
-```text
-docs/data_contract.md
-```
-
----
-
-## CLI commands
-
-The package exposes a `country-compare` command.
-
-Useful commands:
+## Common commands
 
 ```bash
 country-compare ui
@@ -514,64 +188,18 @@ country-compare validate-data
 country-compare update-data --manifest config/source_manifests/world_bank_real_data.yaml
 ```
 
----
+## Tests and checks
 
-## Prediction notes
-
-The prediction module provides baseline forecasting workflows, predicted comparisons, diagnostics, and backtesting.
-
-Prediction outputs should be treated as baseline statistical projections, not guarantees. Sparse histories, stale data, methodology changes, and external shocks can make forecasts unreliable.
-
-The optional `llm_forecast` method is experimental. It performs bounded adjustment on top of deterministic baseline forecasts and should not be treated as an authoritative prediction.
-
-See:
-
-```text
-docs/prediction.md
-docs/llm_forecast_service.md
-```
-
----
-
-## Export behavior
-
-Country Compare supports export-first result handling:
-
-- result tables as CSV
-- diagnostics as JSON
-- summaries as Markdown
-
-Exports are available from UI result panels and supported service/presentation workflows.
-
----
-
-## Testing and quality checks
-
-Run the main app test suite:
+Main application:
 
 ```bash
 python -m pytest
-```
-
-Run focused test groups:
-
-```bash
-python -m pytest tests/unit
-python -m pytest tests/unit/ui
-python -m pytest tests/unit/clients
-python -m pytest tests/integration/api
-python -m pytest tests/smoke
-```
-
-Run formatting, linting, and type checks for the main app:
-
-```bash
-python -m black --check src/country_compare tests scripts
 python -m ruff check src/country_compare tests scripts
+python -m black --check src/country_compare tests scripts
 python -m mypy src/country_compare
 ```
 
-Run LLM service checks:
+LLM service:
 
 ```bash
 cd services/llm_forecast_service
@@ -582,33 +210,7 @@ python -m mypy src
 cd ../..
 ```
 
-Build containers:
-
-```bash
-docker compose build
-docker compose --profile llm build llm-forecast
-```
-
-Recommended full local verification before pushing:
-
-```bash
-python -m pytest
-python -m ruff check src/country_compare tests scripts
-python -m black --check src/country_compare tests scripts
-python -m mypy src/country_compare
-
-cd services/llm_forecast_service
-python -m pytest
-python -m ruff check src tests
-python -m black --check src tests
-python -m mypy src
-cd ../..
-
-docker compose build
-docker compose --profile llm build llm-forecast
-```
-
-If you use the Makefile:
+Makefile shortcuts, when available:
 
 ```bash
 make check
@@ -617,47 +219,37 @@ make check-all
 make container-build
 ```
 
-Manual beta QA:
+## Optional LLM forecast service
 
-```text
-docs/manual_qa.md
-docs/llm_forecast_service.md
-```
+The `llm_forecast` method is experimental and disabled by default. It should be used only as a bounded adjustment to deterministic baseline forecasts and should not be treated as authoritative.
 
----
-
-## Development workflow
-
-Recommended main-app loop:
+Start the local LLM profile with local overrides:
 
 ```bash
-python -m pytest
-python -m ruff check src/country_compare tests scripts
-python -m black --check src/country_compare tests scripts
-python -m mypy src/country_compare
+docker compose --profile llm -f docker-compose.yml -f docker-compose.llm-local.yml up --build
 ```
 
-Recommended LLM service loop:
-
-```bash
-cd services/llm_forecast_service
-python -m pytest
-python -m ruff check src tests
-python -m black --check src tests
-python -m mypy src
-```
-
-For development guidance, see:
+Typical local configuration:
 
 ```text
-docs/development.md
-docs/testing.md
-docs/troubleshooting.md
-docs/decisions.md
+COUNTRY_COMPARE_ENABLE_LLM_FORECAST=true
+COUNTRY_COMPARE_LLM_SERVICE_TOKEN=dev-token
+MISTRAL_API_KEY=<local-secret>
+MISTRAL_MODEL=mistral-large-latest
 ```
 
----
+The backend only advertises `llm_forecast` when the feature flag is enabled, the service URL/token are configured, the private service is reachable, `/v1/capabilities` succeeds, and the service reports structured-output plus bounded-adjustment support.
 
-## License
+## Documentation
 
-See the repository license file.
+Start with `docs/index.md`. Key docs:
+
+- `docs/getting_started.md` for local and Compose quick start.
+- `docs/api.md` for endpoint contracts and examples.
+- `docs/architecture.md` for layer boundaries.
+- `docs/configuration.md` for config and environment variables.
+- `docs/data_contract.md` for canonical dataset requirements.
+- `docs/prediction.md` and `docs/prediction_methods.md` for forecasting workflows.
+- `docs/llm_forecast_service.md` for the optional private LLM service.
+- `docs/testing.md` and `docs/manual_qa.md` for validation.
+- `docs/deployment_api.md` for deploying the backend.

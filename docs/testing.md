@@ -1,330 +1,109 @@
-# Testing Guide
+# Testing and validation
 
-Country Compare uses unit, integration, smoke, service, container, and manual QA checks.
-
-Run commands from the repository root unless a section says otherwise.
-
----
-
-## Full main-app test and quality suite
+## Full main application checks
 
 ```bash
 python -m pytest
 python -m ruff check src/country_compare tests scripts
 python -m black --check src/country_compare tests scripts
 python -m mypy src/country_compare
-docker compose build
 ```
 
----
-
-## LLM forecast service test and quality suite
-
-The LLM forecast service is an independently installable package.
-
-Run from the service directory:
+## Focused test groups
 
 ```bash
-cd services/llm_forecast_service
-python -m pip install -e ".[dev]"
-python -m pytest
-python -m ruff check src tests
-python -m black --check src tests
-python -m mypy src
-cd ../..
+python -m pytest tests/unit
+python -m pytest tests/unit/ui
+python -m pytest tests/unit/clients
+python -m pytest tests/integration/api
+python -m pytest tests/integration/data
+python -m pytest tests/smoke
 ```
 
-Or use the Makefile from the repository root:
+## Data/config validation
 
 ```bash
-make llm-install-dev
-make llm-check
+country-compare validate-config
+country-compare validate-data
 ```
 
----
+## Data correctness layer
 
-## Recommended full local verification before pushing
+The data correctness tests validate values and provenance, not just schema shape. Keep fixtures current when data sources, units, or expected values change.
+
+| Test area | Purpose | Typical fixture |
+| --- | --- | --- |
+| Golden values | Compare critical rows to trusted references. | `tests/fixtures/data/golden_values.yaml` |
+| Source alignment | Ensure metrics point to expected source families. | `tests/fixtures/data/expected_metric_sources.yaml` |
+| Unit/scale correctness | Catch percent/fraction/index/currency scale mistakes. | `tests/fixtures/data/metric_unit_rules.yaml` |
+| Plausibility ranges | Catch impossible or suspicious values. | `tests/fixtures/data/metric_plausibility_rules.yaml` |
+| Missingness/staleness | Catch unexpectedly sparse or stale metrics. | Data fixture rules under `tests/fixtures/data/` |
+
+Run:
 
 ```bash
-python -m pytest
-python -m ruff check src/country_compare tests scripts
-python -m black --check src/country_compare tests scripts
-python -m mypy src/country_compare
-
-cd services/llm_forecast_service
-python -m pytest
-python -m ruff check src tests
-python -m black --check src tests
-python -m mypy src
-cd ../..
-
-docker compose build
-docker compose --profile llm build llm-forecast
+python -m pytest tests/integration/data
 ```
 
-If using Make:
+## API checks
 
 ```bash
-make check
-make llm-check
-make check-all
-make container-build
+python -m pytest tests/integration/api
+python -m pytest tests/unit/clients
 ```
 
----
+Manual smoke with a running backend:
 
-## Focused test commands
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/ready
+curl http://localhost:8000/api/v1/metadata/dataset
+curl http://localhost:8000/api/v1/metadata/prediction-methods
+```
 
-### UI helper tests
+## UI checks
 
 ```bash
 python -m pytest tests/unit/ui
 ```
 
-Use these for:
+Manual UI checks should cover both local and HTTP-backed modes.
 
-- dataframe shaping
-- result panel summaries
-- prediction quality helpers
-- chart-data helpers
-- Streamlit-independent logic
-
-### Client tests
-
-```bash
-python -m pytest tests/unit/clients
-```
-
-Use these when changing:
-
-- local client behavior
-- HTTP client behavior
-- HTTP result reconstruction
-- API envelope handling
-- export adapter behavior
-
-### API tests
-
-```bash
-python -m pytest tests/integration/api
-```
-
-Use these when changing:
-
-- FastAPI routes
-- request schemas
-- response schemas
-- serialization
-- error mapping
-- readiness behavior
-
-### Prediction tests
-
-```bash
-python -m pytest tests/unit/prediction
-```
-
-Use these when changing:
-
-- forecasting methods
-- fallback behavior
-- LLM forecast backend integration
-- diagnostics
-- backtesting
-- prediction comparison bridges
-
-### LLM forecast service tests
+## LLM service checks
 
 ```bash
 cd services/llm_forecast_service
 python -m pytest
+python -m ruff check src tests
+python -m black --check src tests
+python -m mypy src
+cd ../..
 ```
 
-Use these when changing:
+Also run main-app tests that cover `llm_forecast` availability gating.
 
-- LLM service settings
-- auth behavior
-- request limits
-- provider adapters
-- Mistral integration
-- privacy/redaction behavior
-- public deployment ZDR gate
-- service readiness/capabilities
-
----
-
-## What to test
-
-### UI changes
-
-Prefer tests for pure helpers that do not require launching Streamlit.
-
-Examples:
-
-- comparison chart dataframe shaping
-- predicted comparison summary extraction
-- backtest actual-vs-predicted chart shaping
-- quality/limitations text behavior
-- empty dataframe handling
-- missing column handling
-- result table selection logic
-
-### HTTP client changes
-
-Test that JSON-safe API envelopes reconstruct into the expected local-style result objects.
-
-Important cases:
-
-- main table present
-- extra tables present
-- warnings/messages preserved
-- diagnostics preserved
-- export adapter behavior preserved
-- no duplicate main table behavior
-
-### API changes
-
-Test:
-
-- route status codes
-- request DTO validation
-- error response shape
-- JSON-safe serialization
-- no raw pandas objects
-- readiness behavior
-- API key behavior, when configured
-
-### Prediction changes
-
-Test:
-
-- sparse data behavior
-- fallback diagnostics
-- failed series handling
-- backtest error metrics
-- chart-ready table construction
-- warning propagation
-- predicted comparison ranking behavior
-
-### LLM backend integration changes
-
-Test:
-
-- `llm_forecast` unavailable when disabled
-- unavailable when service URL/token is missing
-- unavailable when `/v1/capabilities` fails
-- available when capability check succeeds
-- remote forecast payload mapping
-- remote HTTP errors are safe
-- no secret leaks in exception messages
-- deterministic fallback behavior on remote failure
-
-### LLM service changes
-
-Test:
-
-- `/health` stays lightweight
-- `/ready` validates provider config
-- `/ready` enforces public ZDR gate
-- `/v1/capabilities` requires bearer auth
-- `/v1/capabilities` returns 503 when not ready
-- forecast route requires bearer auth
-- forecast route enforces max horizon/history/input limits
-- provider output is schema-validated
-- provider output is bounded against baseline
-- Mistral errors map to safe service errors
-- metadata is redacted/allow-listed
-
-### Comparison/scoring changes
-
-Test:
-
-- single-metric comparison
-- multi-metric comparison
-- profile scoring
-- rank/score behavior
-- missing data behavior
-- chart helper behavior
-
----
-
-## Docker validation
-
-Default stack:
+## Container checks
 
 ```bash
 docker compose build
-docker compose up --build
-```
-
-Manual URLs:
-
-```text
-http://localhost:8000/health
-http://localhost:8000/ready
-http://localhost:8501
-```
-
-LLM service image build:
-
-```bash
 docker compose --profile llm build llm-forecast
 ```
 
-LLM local stack with host-side service port:
+With a running backend:
 
 ```bash
-docker compose --profile llm -f docker-compose.yml -f docker-compose.llm-local.yml up --build
+python scripts/smoke_api_container.py --base-url http://localhost:8000
 ```
 
-Manual URLs:
+## Release candidate checklist
 
-```text
-http://localhost:8000/health
-http://localhost:8000/ready
-http://localhost:8080/health
-http://localhost:8080/ready
-http://localhost:8501
-```
-
-Capabilities check:
-
-```bash
-curl -H "Authorization: Bearer dev-token" http://localhost:8080/v1/capabilities
-```
-
-PowerShell:
-
-```powershell
-curl.exe -H "Authorization: Bearer dev-token" http://localhost:8080/v1/capabilities
-```
-
----
-
-## Manual QA
-
-Use:
-
-```text
-docs/manual_qa.md
-docs/llm_forecast_service.md
-```
-
-before tagging or publishing the beta.
-
-At minimum, manually verify:
-
-- local Streamlit mode
-- HTTP-backed Streamlit mode
-- default Docker Compose mode
-- backend `/health`
-- backend `/ready`
-- comparison workflows
-- prediction workflows
-- export controls
-- LLM service disabled-by-default behavior
-- LLM profile startup
-- LLM service readiness
-- LLM service auth
-- public ZDR gate
-- secret redaction in logs and responses
+- [ ] `country-compare validate-config` passes.
+- [ ] `country-compare validate-data` passes.
+- [ ] `python -m pytest` passes.
+- [ ] lint, format, and type checks pass.
+- [ ] LLM service checks pass if affected.
+- [ ] Docker builds pass.
+- [ ] `/health`, `/ready`, and representative API calls pass.
+- [ ] UI local and HTTP modes render representative workflows.
+- [ ] Optional `/ready/llm` behavior matches intended deployment state.
+- [ ] Docs and README files reflect changed commands, env vars, endpoints, and limitations.

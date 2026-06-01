@@ -1,146 +1,95 @@
-# Development Guide
+# Development guide
 
-This guide describes how to work on Country Compare without breaking the beta architecture.
+## Environment
 
-## Repository layout
-
-```text
-src/country_compare/   Python package
-tests/                 Test suite
-scripts/               Utility scripts
-config/                Metrics and scoring config
-data/                  Data files and processed outputs
-docs/                  Documentation
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
 ```
 
 ## Import rule
 
-The package lives at:
-
-```text
-src/country_compare
-```
-
-Imports must use:
+Use package imports:
 
 ```python
 import country_compare
 ```
 
-Never use:
+Do not import from `src.country_compare`.
 
-```python
-import src.country_compare
-```
+## Layering rules
 
-## Where to make changes
+- Domain modules must not import FastAPI or Streamlit.
+- Services must be framework-neutral.
+- API routes should parse/validate/call/serialize only.
+- UI should call through `country_compare.clients`.
+- HTTP responses must be JSON-safe.
+- The current backend API must stay read-only.
 
-### UI changes
+## Adding a read-only API workflow
 
-Use:
+1. Implement domain logic in the relevant framework-neutral package.
+2. Add orchestration in `country_compare.services` and facade methods.
+3. Add or update result models and serialization helpers.
+4. Add API schemas under `country_compare.api.schemas`.
+5. Add a route under `country_compare.api.routes`.
+6. Enforce `ApiSettings` limits early.
+7. Wire local and HTTP clients.
+8. Update UI only through the client abstraction.
+9. Add service/domain, API, HTTP-client, and UI tests as applicable.
+10. Run full checks.
 
-```text
-src/country_compare/ui/
-```
+## Adding a UI feature
 
-Common areas:
+- Keep Streamlit code presentation-oriented.
+- Do not call domain modules directly from Streamlit views.
+- Depend on JSON-safe response fields in HTTP mode.
+- Add UI unit tests and at least one smoke/manual check.
 
-```text
-src/country_compare/ui/views/
-src/country_compare/ui/components/
-src/country_compare/ui/text.py
-src/country_compare/ui/navigation.py
-```
+## Adding a prediction method
 
-Prefer pure helper functions for dataframe shaping, summary extraction, and chart preparation so behavior can be unit-tested without launching Streamlit.
+1. Implement deterministic behavior in `country_compare.prediction`.
+2. Add validation, fallback, and diagnostics for sparse histories.
+3. Wire through services/facade and clients.
+4. Update prediction method metadata.
+5. Add API/client/UI tests if it is user-facing.
+6. Document limitations in `prediction_methods.md` and `prediction.md`.
 
-### API changes
-
-Use:
-
-```text
-src/country_compare/api/
-```
-
-Keep routes thin. Route handlers should parse DTOs, call services/facade methods, and serialize responses.
-
-Do not add write endpoints for `v0.1 beta`.
-
-### Service changes
-
-Use:
-
-```text
-src/country_compare/services/
-```
-
-Services should orchestrate application workflows. Avoid moving framework-specific code into services.
-
-### Domain changes
-
-Use:
-
-```text
-src/country_compare/comparison/
-src/country_compare/prediction/
-src/country_compare/scoring/
-src/country_compare/data/
-```
-
-Domain modules should remain framework-neutral. They should not import FastAPI or Streamlit.
-
-## Visualization guidance
-
-For HTTP/container compatibility, prefer rebuilding charts in the Streamlit layer from JSON-safe returned tables.
-
-Preferred UI components:
-
-```python
-st.bar_chart(...)
-st.line_chart(...)
-st.dataframe(...)
-st.metric(...)
-```
-
-Avoid passing live matplotlib figure objects over HTTP.
-
-## Adding dependencies
-
-Keep dependencies minimal.
-
-Before adding a new package, document:
-
-- why it is needed
-- whether it is runtime or dev-only
-- where it is added in `pyproject.toml`
-- Docker/CI implications
-
-For beta visualization work, prefer existing Streamlit-native charting unless a new dependency is strongly justified.
-
-## Quality commands
-
-Run before merging:
+## Main checks
 
 ```bash
 python -m pytest
 python -m ruff check src/country_compare tests scripts
 python -m black --check src/country_compare tests scripts
 python -m mypy src/country_compare
-docker compose build
 ```
 
-## Manual verification
-
-After meaningful UI/API/container changes, run:
+## LLM service checks
 
 ```bash
-docker compose up --build
+cd services/llm_forecast_service
+python -m pytest
+python -m ruff check src tests
+python -m black --check src tests
+python -m mypy src
+cd ../..
 ```
 
-Verify:
+## Container checks
 
-```text
-http://localhost:8000/health
-http://localhost:8000/ready
-http://localhost:8501
+```bash
+docker compose build
+docker compose --profile llm build llm-forecast
 ```
+
+## Before opening a PR or tagging a release
+
+- Config validation passes.
+- Data validation passes when data/config changed.
+- Main test/lint/format/type checks pass.
+- LLM service checks pass when LLM code changed.
+- Docker builds pass when container/runtime files changed.
+- `/health`, `/ready`, and representative API calls pass.
+- Manual QA relevant to the changed surface is complete.

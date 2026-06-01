@@ -1,195 +1,66 @@
-# API Reference
+# API reference
 
-The `v0.1 beta` FastAPI backend is read-only and exposes operational, metadata, comparison, scoring, and prediction endpoints.
-
-Business endpoints use the `/api/v1` prefix. Operational endpoints are unversioned. Every response includes `X-Request-ID`; callers may provide this header and the API will echo it.
+The Country Compare FastAPI backend is a read-only adapter over the service/domain core. Business endpoints are versioned under `/api/v1`; operational endpoints are unversioned.
 
 ## Operational endpoints
 
-### `GET /health`
-
-Liveness check.
-
-Expected success response:
-
-```json
-{
-  "status": "ok",
-  "service": "country-compare-api",
-  "version": "0.1.0"
-}
-```
-
-This endpoint should be lightweight and should not require loading or validating the dataset.
-
-### `GET /ready`
-
-Readiness check.
-
-Readiness validates that the backend can serve real application traffic, including dataset availability and dataset-aware config validity.
-
-Possible statuses:
-
-- `200 OK` when ready
-- `503 Service Unavailable` when dataset/config state is not ready
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Liveness. Returns process/API version information. |
+| `GET` | `/ready` | Strict readiness for serving comparison/prediction traffic. Validates dataset and config readiness. |
+| `GET` | `/ready/llm` | Backend-to-LLM-service readiness. Does not run a forecast. |
+| `GET` | `/metrics` | Prometheus-compatible metrics endpoint when enabled. Usually excluded from OpenAPI schema. |
 
 ## Metadata endpoints
 
-### `GET /api/v1/metadata/dataset`
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/metadata/dataset` | Dataset existence, backend, row/country/metric/year counts, checksum, schema status, categories. |
+| `GET` | `/api/v1/metadata/countries` | Available countries. |
+| `GET` | `/api/v1/metadata/metrics` | Available metrics, categories, and units. |
+| `GET` | `/api/v1/metadata/years` | Available years and min/max year. |
+| `GET` | `/api/v1/metadata/profiles` | Scoring profiles and metric membership. |
+| `GET` | `/api/v1/metadata/prediction-methods` | Runtime prediction method options, including gated methods such as `llm_forecast` when available. |
 
-Returns dataset summary and availability information.
+## Comparison and scoring endpoints
 
-### `GET /api/v1/metadata/countries`
-
-Returns country selector options.
-
-### `GET /api/v1/metadata/metrics`
-
-Returns metric selector options.
-
-### `GET /api/v1/metadata/years`
-
-Returns available years.
-
-### `GET /api/v1/metadata/profiles`
-
-Returns scoring profile summaries.
-
-## Comparison endpoints
-
-### `POST /api/v1/compare/single-metric`
-
-Compare countries for a single metric.
-
-Example request:
-
-```json
-{
-  "country_codes": ["ISR", "FRA", "USA"],
-  "metric_id": "gdp_per_capita",
-  "year_strategy": "latest_per_metric",
-  "target_year": null,
-  "top_n": null
-}
-```
-
-### `POST /api/v1/compare/multi-metric`
-
-Compare countries across multiple metrics.
-
-Example request:
-
-```json
-{
-  "country_codes": ["ISR", "FRA", "USA"],
-  "metric_ids": ["gdp_per_capita", "life_expectancy"],
-  "year_strategy": "latest_per_metric",
-  "target_year": null,
-  "top_n": null
-}
-```
-
-### `POST /api/v1/score/profile`
-
-Run weighted/profile scoring for selected countries.
-
-Example request:
-
-```json
-{
-  "country_codes": ["ISR", "FRA", "USA"],
-  "profile_name": "economic_outlook",
-  "year_strategy": "latest_per_metric",
-  "target_year": null,
-  "top_n": null
-}
-```
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/v1/compare/single-metric` | Compare countries on one metric. |
+| `POST` | `/api/v1/compare/multi-metric` | Compare countries across selected metrics. |
+| `POST` | `/api/v1/score/profile` | Score countries using a configured weighted profile. |
 
 ## Prediction endpoints
 
-### `POST /api/v1/prediction/single-metric`
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/v1/prediction/single-metric` | Forecast one metric for one or more countries. |
+| `POST` | `/api/v1/prediction/backtest` | Run holdout backtest for a country/metric series. |
+| `POST` | `/api/v1/prediction/compare/single-metric` | Compare countries using a future forecast for one metric. |
+| `POST` | `/api/v1/prediction/compare/profile` | Compare countries using future forecasts and a scoring profile. |
+| `POST` | `/api/v1/prediction/compare/multi-metric` | Compare countries using selected future forecasts for multiple metrics. |
 
-Forecast one metric for one or more countries.
+## Authentication
 
-Example request:
+Set `COUNTRY_COMPARE_API_KEY` to require bearer-token access for protected endpoints.
 
-```json
-{
-  "country_codes": ["ISR", "FRA"],
-  "metric_id": "gdp_per_capita",
-  "horizon_years": 3,
-  "method": "linear_trend",
-  "fallback_method": "last_observed",
-  "history_start_year": null,
-  "history_end_year": null,
-  "scenario_id": "baseline"
-}
+```bash
+curl -H "Authorization: Bearer $COUNTRY_COMPARE_API_KEY" http://localhost:8000/api/v1/metadata/dataset
 ```
 
-### `POST /api/v1/prediction/backtest`
+When the UI talks to a protected backend, set the same key in the UI environment.
 
-Evaluate prediction behavior using holdout periods.
+## Request IDs
 
-Example request:
+The backend accepts `X-Request-ID` and returns `X-Request-ID` on responses. Supply one from callers that already have correlation IDs:
 
-```json
-{
-  "country_codes": ["ISR", "FRA"],
-  "metric_id": "gdp_per_capita",
-  "method": "linear_trend",
-  "fallback_method": "last_observed",
-  "holdout_years": 2,
-  "scenario_id": "baseline"
-}
+```bash
+curl -H "X-Request-ID: demo-123" http://localhost:8000/health
 ```
 
-### `POST /api/v1/prediction/compare/single-metric`
+## Result envelope
 
-Compare countries by forecasted single-metric values.
-
-Example request:
-
-```json
-{
-  "country_codes": ["ISR", "FRA", "USA"],
-  "metric_id": "gdp_per_capita",
-  "forecast_year": 2027,
-  "forecast_horizon": null,
-  "horizon_years": 3,
-  "method": "linear_trend",
-  "fallback_method": "last_observed",
-  "scenario_id": "baseline",
-  "comparison_options": {
-    "top_n": null
-  }
-}
-```
-
-### `POST /api/v1/prediction/compare/profile`
-
-Compare countries by forecasted profile scores.
-
-Example request:
-
-```json
-{
-  "country_codes": ["ISR", "FRA", "USA"],
-  "profile_name": "economic_outlook",
-  "forecast_year": 2027,
-  "forecast_horizon": null,
-  "horizon_years": 3,
-  "method": "linear_trend",
-  "fallback_method": "last_observed",
-  "scenario_id": "baseline",
-  "comparison_options": {
-    "top_n": null
-  }
-}
-```
-
-## Common result envelope
-
-Computation endpoints return a flexible JSON-safe envelope:
+Computation endpoints return a common JSON-safe envelope:
 
 ```json
 {
@@ -207,9 +78,7 @@ Computation endpoints return a flexible JSON-safe envelope:
 }
 ```
 
-## Table payload format
-
-Pandas DataFrames are serialized as JSON-safe table payloads:
+Table payloads have stable shape:
 
 ```json
 {
@@ -221,17 +90,17 @@ Pandas DataFrames are serialized as JSON-safe table payloads:
 }
 ```
 
-Serialization expectations:
+Serialization rules:
 
-- `pd.NA`, `NaN`, and `NaT` become `null`
-- numpy scalar values become Python scalar values
-- dates/times become strings
-- column order is preserved
-- record truncation is supported
+- `pd.NA`, `NaN`, and `NaT` become JSON `null`.
+- numpy scalars become Python scalars.
+- dates and datetimes become strings.
+- column order is preserved.
+- large table records may be truncated according to `COUNTRY_COMPARE_API_MAX_RECORDS`.
 
-## Error response shape
+## Error shape
 
-Errors use a consistent shape:
+Expected errors use a stable error object inside the envelope or response body:
 
 ```json
 {
@@ -245,11 +114,113 @@ Errors use a consistent shape:
 }
 ```
 
-## Read-only v0.1 beta boundary
+Typical status mapping:
 
-The API does not expose write endpoints. It does not support config editing, scoring profile editing, dataset refresh, ingestion execution, or scheduled processing.
+- `400` for invalid request parameters or violated limits.
+- `404` for missing countries, metrics, or profiles.
+- `409` for invalid config/dataset/state.
+- `500` for unexpected server errors with sanitized client messages.
+- `503` for readiness failures.
 
+## Examples
 
-## Request IDs and errors
+### Compare a single metric
 
-The API accepts inbound `X-Request-ID` values, generates one when missing, and returns the final value on every response. Access logs are structured JSON and include the request id, method, path, status code, and request duration. Unexpected exceptions are logged with stack traces server-side while client-facing error responses remain sanitized.
+```bash
+curl -s http://localhost:8000/api/v1/compare/single-metric \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "country_codes": ["ISR", "FRA", "USA"],
+    "metric_id": "gdp_per_capita",
+    "year_strategy": "latest_per_metric",
+    "target_year": null,
+    "top_n": null
+  }'
+```
+
+### Compare multiple metrics
+
+```bash
+curl -s http://localhost:8000/api/v1/compare/multi-metric \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "country_codes": ["ISR", "FRA", "USA"],
+    "metric_ids": ["gdp_per_capita", "life_expectancy"],
+    "year_strategy": "latest_per_metric",
+    "target_year": null,
+    "top_n": null
+  }'
+```
+
+### Score by profile
+
+```bash
+curl -s http://localhost:8000/api/v1/score/profile \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "country_codes": ["ISR", "FRA", "USA"],
+    "profile_name": "economic_outlook",
+    "year_strategy": "latest_per_metric",
+    "target_year": null,
+    "top_n": null
+  }'
+```
+
+### Forecast one metric
+
+```bash
+curl -s http://localhost:8000/api/v1/prediction/single-metric \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "country_codes": ["ISR", "FRA"],
+    "metric_id": "gdp_per_capita",
+    "horizon_years": 3,
+    "method": "linear_trend",
+    "fallback_method": "last_observed",
+    "include_actuals": true,
+    "history_start_year": null,
+    "history_end_year": null,
+    "fail_fast": false,
+    "scenario_id": "baseline"
+  }'
+```
+
+### Backtest
+
+```bash
+curl -s http://localhost:8000/api/v1/prediction/backtest \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "country_code": "ISR",
+    "country_codes": ["ISR"],
+    "metric_id": "gdp_per_capita",
+    "method": "linear_trend",
+    "fallback_method": "last_observed",
+    "holdout_years": 2,
+    "history_start_year": null,
+    "history_end_year": null,
+    "scenario_id": "baseline"
+  }'
+```
+
+### Predicted multi-metric comparison
+
+```bash
+curl -s http://localhost:8000/api/v1/prediction/compare/multi-metric \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "country_codes": ["ISR", "FRA", "USA"],
+    "metric_ids": ["gdp_per_capita", "life_expectancy"],
+    "forecast_year": 2027,
+    "forecast_horizon": null,
+    "horizon_years": 3,
+    "method": "linear_trend",
+    "fallback_method": "last_observed",
+    "scenario_id": "baseline",
+    "comparison_options": {"top_n": null}
+  }'
+```
+
+## OpenAPI docs
+
+Docs are available at `/docs`, `/redoc`, and `/openapi.json` when `COUNTRY_COMPARE_API_ENABLE_DOCS=true`. Disable them in production if the API is exposed beyond a trusted network.
