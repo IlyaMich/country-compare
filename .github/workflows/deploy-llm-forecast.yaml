@@ -30,7 +30,6 @@ on:
 
 permissions:
   contents: read
-  deployments: write
 
 jobs:
   deploy:
@@ -129,7 +128,7 @@ jobs:
           exit 1
 
       - name: Run post-deploy LLM forecast service smoke checks
-        if: inputs.run_smoke_test == 'true'
+        if: ${{ inputs.run_smoke_test == 'true' }}
         env:
           LLM_BASE_URL: ${{ secrets.COUNTRY_COMPARE_LLM_SERVICE_BASE_URL }}
           LLM_SERVICE_TOKEN: ${{ secrets.COUNTRY_COMPARE_LLM_SERVICE_TOKEN }}
@@ -141,8 +140,8 @@ jobs:
             cat >&2 <<'EOF'
           COUNTRY_COMPARE_LLM_SERVICE_BASE_URL is not configured for this environment.
 
-          Set it to the public LLM service URL, for example:
-          https://country-compare-llm-forecast.onrender.com
+          Set it to the LLM service URL reachable by this workflow. Prefer a private/internal
+          service URL or protected ingress when your deployment platform supports it.
           EOF
             exit 1
           fi
@@ -151,7 +150,7 @@ jobs:
             cat >&2 <<'EOF'
           COUNTRY_COMPARE_LLM_SERVICE_TOKEN is not configured for this environment.
 
-          Set it to the same value as the Render LLM_SERVICE_TOKEN environment variable.
+          Set it to the same value as the deployed LLM_SERVICE_TOKEN environment variable.
           EOF
             exit 1
           fi
@@ -175,7 +174,7 @@ jobs:
             sleep 6
           done
 
-          echo "Waiting for LLM forecast service readiness at ${base_url}/ready"
+          echo "Waiting for unauthenticated LLM forecast service readiness at ${base_url}/ready"
 
           for attempt in $(seq 1 70); do
             ready_status="$(
@@ -201,16 +200,106 @@ jobs:
 
             if [ "${attempt}" -eq 70 ]; then
               echo "LLM forecast service did not become ready in time." >&2
+
+              echo "Authenticated readiness details for debugging:"
+              curl --silent --show-error --max-time 15 \
+                --header "Authorization: Bearer ${LLM_SERVICE_TOKEN}" \
+                "${base_url}/ready" || true
+              echo
+
               exit 1
             fi
 
             sleep 6
           done
 
+          echo "Verifying unauthenticated /ready hides protected details."
+          ready_payload="$(cat /tmp/llm-ready-response.json)"
+          if echo "${ready_payload}" | grep -q '"provider"'; then
+            echo "Expected unauthenticated /ready to hide provider details." >&2
+            exit 1
+          fi
+          if echo "${ready_payload}" | grep -q '"issues"'; then
+            echo "Expected unauthenticated /ready to hide readiness issue details." >&2
+            exit 1
+          fi
+
+          echo "Checking authenticated readiness details."
+          authenticated_ready_status="$(
+            curl \
+              --silent \
+              --show-error \
+              --max-time 15 \
+              --header "Authorization: Bearer ${LLM_SERVICE_TOKEN}" \
+              --output /tmp/llm-ready-authenticated-response.json \
+              --write-out "%{http_code}" \
+              "${base_url}/ready"
+          )"
+
+          if [ "${authenticated_ready_status}" != "200" ]; then
+            echo "Authenticated /ready returned HTTP ${authenticated_ready_status}." >&2
+            cat /tmp/llm-ready-authenticated-response.json >&2 || true
+            exit 1
+          fi
+
+          cat /tmp/llm-ready-authenticated-response.json
+          echo
+
+          if ! grep -q '"provider"' /tmp/llm-ready-authenticated-response.json; then
+            echo "Expected authenticated /ready to include provider details." >&2
+            exit 1
+          fi
+
           echo "Checking authenticated capabilities endpoint."
           curl --fail --silent --show-error --max-time 15 \
             --header "Authorization: Bearer ${LLM_SERVICE_TOKEN}" \
             "${base_url}/v1/capabilities"
           echo
+
+          echo "Checking unauthenticated /metrics is protected."
+          metrics_status="$(
+            curl \
+              --silent \
+              --show-error \
+              --max-time 15 \
+              --output /tmp/llm-metrics-unauthenticated.txt \
+              --write-out "%{http_code}" \
+              "${base_url}/metrics" || true
+          )"
+
+          if [ "${metrics_status}" = "200" ]; then
+            echo "Expected unauthenticated /metrics to be rejected." >&2
+            cat /tmp/llm-metrics-unauthenticated.txt >&2 || true
+            exit 1
+          fi
+
+          echo "Checking authenticated /metrics endpoint."
+          curl --fail --silent --show-error --max-time 15 \
+            --header "Authorization: Bearer ${LLM_SERVICE_TOKEN}" \
+            "${base_url}/metrics" \
+            --output /tmp/llm-metrics-authenticated.txt
+
+          if ! grep -q "llm_http_requests_total" /tmp/llm-metrics-authenticated.txt; then
+            echo "Expected authenticated /metrics to expose HTTP metrics." >&2
+            cat /tmp/llm-metrics-authenticated.txt >&2 || true
+            exit 1
+          fi
+
+          echo "Checking OpenAPI/docs are disabled."
+          openapi_status="$(
+            curl \
+              --silent \
+              --show-error \
+              --max-time 15 \
+              --output /tmp/llm-openapi-response.txt \
+              --write-out "%{http_code}" \
+              "${base_url}/openapi.json" || true
+          )"
+
+          if [ "${openapi_status}" = "200" ]; then
+            echo "Expected /openapi.json to be disabled in deployment." >&2
+            cat /tmp/llm-openapi-response.txt >&2 || true
+            exit 1
+          fi
 
           echo "LLM forecast service post-deploy smoke checks passed."
