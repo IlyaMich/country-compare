@@ -17,7 +17,6 @@ from country_compare.prediction import (
     PredictedComparisonResult,
     PredictionResult,
 )
-from country_compare.prediction.summaries import list_available_prediction_methods
 from country_compare.services.errors import AppError
 from country_compare.services.models import (
     CategorySummary,
@@ -205,10 +204,25 @@ class HttpCountryCompareClient:
         return profiles
 
     def list_prediction_methods(self) -> list[dict[str, Any]]:
-        # No API metadata endpoint exists for prediction methods in Phase 6.
-        # Keep this local registry lookup so HTTP mode can populate the selector
-        # without adding a new backend route.
-        return list_available_prediction_methods()
+        payload = self._get_json("/api/v1/metadata/prediction-methods")
+        methods_payload = payload.get("methods", [])
+
+        if not isinstance(methods_payload, list):
+            raise ClientResponseError(
+                "Expected prediction methods payload to contain a methods list.",
+                status_code=200,
+            )
+
+        methods: list[dict[str, Any]] = []
+        for item in methods_payload:
+            if not isinstance(item, Mapping):
+                raise ClientResponseError(
+                    "Expected every prediction method entry to be a JSON object.",
+                    status_code=200,
+                )
+            methods.append(dict(item))
+
+        return methods
 
     def run_single_metric_comparison(
         self,
