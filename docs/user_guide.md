@@ -1,130 +1,85 @@
-# User Guide
+# User guide
 
-This guide explains how to use Country Compare from the Streamlit UI.
+Country Compare lets you explore country-level metrics, weighted profiles, and forecasts through a Streamlit UI.
 
 ## Start the UI
 
-Local mode:
+Local in-process mode:
 
 ```bash
 country-compare ui
 ```
 
-Docker Compose mode:
+HTTP-backed mode:
 
 ```bash
-docker compose up --build
+COUNTRY_COMPARE_API_URL=http://localhost:8000 python -m streamlit run src/country_compare/ui/app.py
 ```
 
-Then open:
+## Compare one metric
 
-```text
-http://localhost:8501
-```
+1. Select countries.
+2. Select a metric.
+3. Choose a year strategy or target year.
+4. Optionally set `top_n`.
+5. Run the comparison.
+6. Review ranking, source/unit metadata, warnings, and diagnostics.
 
-## Comparison workflows
+## Compare multiple metrics
 
-### Single-metric comparison
+1. Select countries.
+2. Select multiple metrics.
+3. Choose a year strategy or target year.
+4. Run the comparison.
+5. Review normalized/ranked outputs and metric diagnostics.
 
-Use this workflow to compare selected countries for one metric.
+## Use profile scoring
 
-Typical steps:
+1. Select countries.
+2. Select a scoring profile.
+3. Choose year options.
+4. Run scoring.
+5. Review profile metric membership, ranking, and diagnostics.
 
-1. Choose countries.
-2. Choose a metric.
-3. Choose year strategy or target year.
-4. Run comparison.
-5. Review summary metrics, chart, and detailed table.
-6. Export results where export controls are available.
+Profiles are defined in configuration and should not be edited from the current read-only API/UI runtime.
 
-The UI shows Streamlit-native visualizations when the returned table contains chartable country/value data.
+## Forecast one metric
 
-### Multi-metric comparison
+1. Select countries and a metric.
+2. Choose a method such as `linear_trend`.
+3. Choose fallback method, usually `last_observed`.
+4. Set forecast horizon.
+5. Run the forecast.
+6. Review actuals, predictions, warnings, and diagnostics.
 
-Use this workflow to compare selected countries across multiple metrics.
+Forecasts are baseline projections. They are sensitive to sparse histories, stale data, methodology changes, and external shocks.
 
-Typical steps:
+## Backtest
 
-1. Choose countries.
-2. Choose multiple metrics.
-3. Choose year strategy or target year.
-4. Run comparison.
-5. Review table and chart if the returned data shape supports visualization.
+Use backtesting to see how a method performs against recent known data. Select holdout years and review prediction errors and diagnostics.
 
-If the result shape is not chartable, the UI should preserve the detailed table and avoid failing.
+## Predicted comparisons
 
-### Weighted/profile scoring
+Predicted comparisons rank countries using forecast values. You can compare:
 
-Use this workflow to score countries using a configured scoring profile.
+- one future metric;
+- a profile based on future values;
+- multiple future metrics.
 
-Typical steps:
+## Optional LLM forecasts
 
-1. Choose countries.
-2. Choose a scoring profile.
-3. Run scoring.
-4. Review score/rank summary, chart, and detailed table.
-5. Export results where available.
-
-## Prediction workflows
-
-### Single forecast
-
-Forecast one metric for one or more countries.
-
-The UI may show:
-
-- quality/limitations panel
-- actual-vs-forecast chart
-- forecast table
-- diagnostics
-- export controls
-
-### Multi-country forecast
-
-Forecast one metric for multiple countries.
-
-The UI may show a combined chart and table where returned data supports it.
-
-### Predicted comparison
-
-Compare countries using forecasted values or forecasted profile scores.
-
-The UI may show:
-
-- prediction quality/limitations
-- ranked summary
-- bar chart
-- detailed table
-- diagnostics
-- export controls
-
-### Backtest
-
-Evaluate prediction behavior against held-out historical data.
-
-The UI may show:
-
-- quality/evaluation context
-- error metrics
-- actual-vs-predicted chart
-- detailed actual-vs-predicted table
-- diagnostics
-
-## Interpreting predictions
-
-Predictions are baseline statistical projections, not guarantees.
-
-Use the quality and limitation panels to understand:
-
-- sparse history
-- fallback method use
-- failed series
-- stale or limited data
-- warning diagnostics
-- backtest error metrics
+`llm_forecast` appears only when the optional private service is enabled and ready. It performs bounded adjustments over deterministic baseline forecasts and is experimental. Always review its warnings and diagnostics.
 
 ## Exports
 
-Where export controls are available, they should continue to work in both local and HTTP-backed modes.
+Result panels support export-first workflows:
 
-Exports should preserve existing result tables and should not depend on live matplotlib figure objects in HTTP/container mode.
+- result tables as CSV;
+- diagnostics as JSON;
+- summaries as Markdown.
+
+Exports are produced from the UI/service result payloads. The current read-only backend does not persist server-side export files.
+
+## Interpreting warnings
+
+Warnings indicate limitations such as missing data, sparse histories, fallback use, old observations, truncated records, or unavailable optional methods. Treat them as part of the result, not as noise.

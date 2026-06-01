@@ -1,105 +1,76 @@
 # Architecture
 
-Country Compare is structured around a service-oriented Python application with separate UI, API, domain, and data layers.
+Country Compare is organized as a layered application. The center of the project is framework-neutral domain and service code. Streamlit and FastAPI are adapters around that core.
 
 ## High-level flow
 
 ```text
-Streamlit UI
-  -> CountryCompareClient
-    -> LocalCountryCompareClient
-      -> AppFacade / services
-    -> HttpCountryCompareClient
-      -> FastAPI backend
-        -> AppFacade / services
-  -> comparison, scoring, prediction, data, config modules
-  -> processed canonical dataset
+raw source files / source manifests
+  -> acquisition and processing pipeline
+  -> canonical long-format metrics dataset
+  -> data access + configuration
+  -> comparison / scoring / prediction domain modules
+  -> services/facade
+  -> local client or HTTP client
+  -> Streamlit UI
 ```
 
-## Package layout
+## Layer responsibilities
 
-```text
-src/
-  country_compare/
-    api/
-    clients/
-    cli/
-    comparison/
-    config/
-    data/
-    exports/
-    metrics/
-    output/
-    pipelines/
-    prediction/
-    scoring/
-    services/
-    settings/
-    ui/
-    paths.py
+### `country_compare.ui`
 
-config/
-data/
-docs/
-scripts/
-tests/
-```
+Owns presentation only:
 
-The package is imported as `country_compare`, not `src.country_compare`.
+- selectors and user inputs;
+- result panels;
+- forecast quality and limitation panels;
+- export controls;
+- Streamlit-native charts;
+- local vs HTTP client selection.
 
-## Core boundaries
+The UI must not duplicate comparison, scoring, prediction, data loading, config parsing, or pipeline logic.
 
-### UI layer
+### `country_compare.clients`
 
-The Streamlit UI owns presentation behavior:
+Provides a stable UI-facing interface.
 
-- selectors
-- result panels
-- quality and limitation panels
-- export controls
-- Streamlit-native charts
-- local-vs-HTTP client selection
+- Local client calls services/facade in-process.
+- HTTP client calls the FastAPI backend and reconstructs service-style result objects from JSON-safe response envelopes.
 
-The UI should not duplicate domain logic.
+When a user-facing workflow is added, both clients should stay behaviorally equivalent.
 
-### Client layer
+### `country_compare.api`
 
-The client layer provides a stable UI-facing interface.
+The FastAPI backend is a read-only transport adapter. It should:
 
-- Local mode calls services in-process.
-- HTTP mode calls FastAPI and reconstructs service-style result objects from JSON-safe response envelopes.
+1. parse request DTOs;
+2. enforce configured limits;
+3. call services/facade methods;
+4. serialize results into JSON-safe envelopes;
+5. map expected domain/service errors to stable error payloads;
+6. log unexpected failures server-side without leaking internals to clients.
 
-### API layer
+Routes must not contain comparison, scoring, prediction, ingestion, data refresh, or config-editing logic.
 
-The FastAPI backend is a read-only transport adapter.
+`country_compare.api.main:create_app()` reads `ApiSettings`, configures logging, request IDs, optional API-key enforcement, OpenAPI security metadata, optional CORS, exception handlers, metrics, and route inclusion.
 
-Routes should:
+### `country_compare.services`
 
-1. parse request DTOs
-2. call services/facade methods
-3. serialize responses
-4. map errors consistently
+The service layer is the main integration boundary for UI and API callers. It orchestrates domain workflows and returns structured result objects with:
 
-Routes should not contain comparison, scoring, prediction, or data-processing logic.
+- request metadata;
+- summaries;
+- diagnostics;
+- warnings/messages;
+- tables;
+- chart-ready payloads;
+- export-friendly data.
 
-### Service layer
+Services must remain framework-neutral: no FastAPI request objects and no Streamlit calls.
 
-The service layer orchestrates application workflows and is the main integration boundary for API and UI callers.
+### Domain packages
 
-Relevant modules include:
-
-```text
-country_compare.services.comparison_service
-country_compare.services.prediction_service
-country_compare.services.presentation_service
-country_compare.services.facade
-country_compare.services.results
-country_compare.services.serialization
-```
-
-### Domain modules
-
-Domain modules remain framework-neutral:
+Framework-neutral packages include:
 
 ```text
 comparison/
@@ -111,31 +82,38 @@ metrics/
 pipelines/
 ```
 
-These modules should not import Streamlit or FastAPI.
+Keep deterministic computation, validation, config parsing, data loading, and transformations here.
 
-## Read-only backend boundary
+### Optional LLM service
 
-The `v0.1 beta` API exposes read-only computation and metadata endpoints. It does not expose:
+The LLM forecast service is a separate private service under `services/llm_forecast_service`. It is token-protected and only performs bounded forecast adjustments on top of deterministic baselines. It is disabled by default and should not be exposed publicly.
 
-- config writes
-- profile edits
-- dataset refresh
-- ingestion execution
-- scheduled jobs
-- authentication/authorization
-- persistent server-side export creation
+## Read-only API boundary
 
-## Visualization strategy
+Allowed backend API responsibilities:
 
-Local Streamlit mode may have access to in-process presentation objects.
+- metadata reads;
+- readiness validation;
+- comparison computation;
+- weighted scoring computation;
+- prediction computation;
+- backtesting computation;
+- JSON-safe result serialization.
 
-HTTP-backed/container mode receives JSON-safe result envelopes and table payloads. It does not receive live Python figure objects.
+Not allowed in the current backend API:
 
-Therefore, HTTP/container visualizations are rebuilt in the Streamlit UI from returned tables or chart-ready payloads using container-friendly Streamlit-native components such as:
+- ingestion runs;
+- dataset refresh;
+- config writes;
+- scoring profile writes;
+- server-side persistent export creation;
+- pipeline execution;
+- user authentication/authorization beyond optional API key.
 
-- `st.bar_chart`
-- `st.line_chart`
-- `st.dataframe`
-- `st.metric`
+## Serialization boundary
 
-This avoids transporting matplotlib objects over HTTP and keeps the backend API JSON-safe.
+HTTP mode cannot transmit live Python objects such as `pandas.DataFrame`, matplotlib figures, numpy scalars, `pd.NA`, or timestamps directly. API serialization converts them into JSON-safe values and table payloads. The UI rebuilds tables and charts from the JSON response.
+
+## Request and logging boundary
+
+Every API response should include `X-Request-ID`. An inbound `X-Request-ID` is accepted and propagated. Access logs should contain request id, method, path, status, and duration. Unexpected exceptions should include stack traces in server logs while returning sanitized client responses.

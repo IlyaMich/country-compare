@@ -1,102 +1,75 @@
-# Prediction Behavior and Limitations
+# Prediction workflows
 
-Country Compare prediction workflows provide baseline statistical projections and backtesting tools.
+Prediction features provide baseline statistical projections, backtesting, and predicted comparisons. Forecast outputs are not guarantees; they are scenario-oriented estimates based on available historical data.
 
-Predictions are designed to support exploration and comparison. They are not guarantees, recommendations, or authoritative forecasts.
+## Available workflow families
 
-## Prediction modes
+- Single-metric forecasts for one or more countries.
+- Holdout backtesting for a country/metric series.
+- Predicted single-metric comparisons.
+- Predicted profile comparisons.
+- Predicted multi-metric comparisons.
 
-### Single forecast
+## API endpoints
 
-Forecasts one metric for one or more countries over a selected horizon.
+```text
+POST /api/v1/prediction/single-metric
+POST /api/v1/prediction/backtest
+POST /api/v1/prediction/compare/single-metric
+POST /api/v1/prediction/compare/profile
+POST /api/v1/prediction/compare/multi-metric
+```
 
-Typical outputs:
+## Common method fields
 
-- forecast table
-- actual-and-forecast table
-- chart-ready line data
-- diagnostics
-- warnings and messages
+| Field | Meaning |
+| --- | --- |
+| `method` | Primary prediction method, such as `linear_trend` or `llm_forecast` when enabled. |
+| `fallback_method` | Method used when primary method cannot produce a safe result, commonly `last_observed`. |
+| `horizon_years` | Number of future periods to forecast. Limited by API settings. |
+| `history_start_year` / `history_end_year` | Optional historical window. |
+| `scenario_id` | Scenario label, commonly `baseline`. |
+| `include_actuals` | Include actual historical observations in forecast output. |
+| `fail_fast` | Stop on first per-country failure or collect diagnostics and continue. |
 
-### Multi-country forecast
+## Quality guidance
 
-Runs the same forecast workflow across multiple selected countries.
+Forecast quality depends on:
 
-Typical outputs:
+- history length;
+- missingness;
+- stale data;
+- metric methodology changes;
+- country structural breaks;
+- external shocks not present in history;
+- unit/scale correctness.
 
-- per-country forecast rows
-- combined chart-ready data where available
-- diagnostics for each series
-- aggregate quality/limitations context
+The UI and API should surface warnings and diagnostics instead of hiding uncertainty.
 
-### Predicted comparison
+## Backtesting
 
-Uses forecasted values to compare countries.
+Backtesting with holdout years estimates how a method would have performed on recent known data. Use it to compare methods or diagnose whether a series is too sparse or unstable.
 
-Supported comparison concepts may include:
+Example request:
 
-- single forecasted metric comparison
-- forecasted multi-metric comparison
-- forecasted profile scoring comparison
+```json
+{
+  "country_code": "ISR",
+  "country_codes": ["ISR"],
+  "metric_id": "gdp_per_capita",
+  "method": "linear_trend",
+  "fallback_method": "last_observed",
+  "holdout_years": 2,
+  "history_start_year": null,
+  "history_end_year": null,
+  "scenario_id": "baseline"
+}
+```
 
-The UI shows ranked summaries and bar charts when result tables contain usable ranking/value/score data.
+## Predicted comparisons
 
-### Backtest
+Predicted comparisons convert forecast outputs back into comparison/scoring workflows. The API supports choosing a specific `forecast_year` or `forecast_horizon`; comparison options such as `top_n` are applied after forecast values are selected.
 
-Backtesting evaluates forecast behavior by holding out recent historical observations and comparing predictions against actual values.
+## LLM forecasts
 
-Typical outputs:
-
-- actual-vs-predicted table
-- error metrics
-- diagnostics
-- quality/evaluation context
-
-## Methods and fallback behavior
-
-Prediction workflows can use a configured method and fallback method.
-
-A fallback method may be used when the preferred method cannot produce a reliable result for a series, for example due to sparse history.
-
-Common diagnostic concepts include:
-
-- selected method
-- fallback method
-- status
-- warning
-- failed series
-- insufficient observations
-
-## Quality and limitations panels
-
-The Streamlit UI surfaces quality and limitation information close to prediction outputs.
-
-The panel should help users understand:
-
-- whether the forecast is based on enough history
-- whether fallback methods were used
-- whether any series failed
-- whether diagnostics contain warnings
-- how much confidence to place in the output
-- how to interpret backtest error metrics
-
-## Important limitations
-
-- Forecasts are baseline statistical projections.
-- Forecasts do not include causal modeling.
-- Forecasts do not account for future shocks, policy changes, wars, pandemics, or other major structural breaks unless those effects are already reflected in the historical data.
-- Sparse or stale historical data can reduce reliability.
-- Backtest performance is historical and does not guarantee future performance.
-- A high-ranked forecasted country is not necessarily the best policy or investment choice.
-
-## Visualization behavior
-
-Local mode may have access to in-process objects. HTTP-backed/container mode receives JSON-safe table payloads.
-
-For container-friendly behavior, prediction charts are rebuilt in the Streamlit layer from returned data using Streamlit-native charts, such as:
-
-- actual-vs-forecast line charts
-- actual-vs-predicted backtest line charts
-- predicted comparison bar charts
-
-If returned data is not chartable, the UI should show tables and clear explanatory text rather than failing.
+`llm_forecast` is optional and experimental. It should only appear when backend gating succeeds. It performs bounded adjustments on top of deterministic forecasts and should always be presented with limitations and diagnostics.
