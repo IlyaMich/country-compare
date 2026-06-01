@@ -1,0 +1,1088 @@
+# Metric-aware release trend rules.
+#
+# The goal is to catch suspicious unreviewed changes without warning on every
+# low-base percentage metric or nonconsecutive observation gap.
+
+defaults:
+  enabled: true
+  require_consecutive_years: true
+  absolute_threshold: null
+  relative_threshold: null
+  relative_min_previous_abs: 1.0
+
+metrics:
+  # Health and bounded social indicators: use absolute point/year thresholds.
+  life_expectancy:
+    absolute_threshold: 10.0
+    relative_threshold: null
+
+  life_expectancy_female:
+    absolute_threshold: 10.0
+    relative_threshold: null
+
+  life_expectancy_male:
+    absolute_threshold: 10.0
+    relative_threshold: null
+
+  crude_death_rate:
+    absolute_threshold: 25.0
+    relative_threshold: null
+
+  youth_literacy_pct:
+    absolute_threshold: 25.0
+    relative_threshold: null
+
+  labor_participation_pct:
+    absolute_threshold: 25.0
+    relative_threshold: null
+
+  unemployment_pct:
+    absolute_threshold: 35.0
+    relative_threshold: null
+
+  internet_users_pct:
+    absolute_threshold: 40.0
+    relative_threshold: null
+
+  education_spending_pct_gdp:
+    absolute_threshold: 25.0
+    relative_threshold: null
+
+  rnd_expenditure_pct_gdp:
+    absolute_threshold: 10.0
+    relative_threshold: null
+
+  military_exp_pct_gdp:
+    absolute_threshold: 25.0
+    relative_threshold: null
+
+  market_cap_pct_gdp:
+    absolute_threshold: 500.0
+    relative_threshold: null
+
+  top10_income_share:
+    absolute_threshold: 25.0
+    relative_threshold: null
+
+  population_growth_pct:
+    absolute_threshold: 15.0
+    relative_threshold: null
+
+  # Index/count/money metrics: relative checks only when the previous value is
+  # large enough that percent-change math is meaningful.
+  consumer_price_index:
+    absolute_threshold: null
+    relative_threshold: 3.0
+    relative_min_previous_abs: 25.0
+
+  gdp_current_usd:
+    absolute_threshold: null
+    relative_threshold: 5.0
+    relative_min_previous_abs: 100000000.0
+
+  external_debt_total:
+    absolute_threshold: null
+    relative_threshold: 5.0
+    relative_min_previous_abs: 100000000.0
+
+  compensation_employees_lcu:
+    enabled: false
+
+  taxes_goods_services_lcu:
+    enabled: false
+
+  journal_articles:
+    absolute_threshold: null
+    relative_threshold: 10.0
+    relative_min_previous_abs: 100.0
+
+  # Growth-rate metrics are allowed to be volatile. Hard plausibility/unit tests
+  # still catch impossible scale mistakes.
+  imports_growth_pct:
+    enabled: false
+
+  exports_growth_pct:
+    enabled: false
+
+reviewed_anomalies:
+- country_code: ARM
+  metric_id: life_expectancy_female
+  previous_year: 1987
+  current_year: 1988
+  previous_value: 70.737
+  current_value: 53.561
+  reason: Reviewed against source data; accepted as source-aligned Armenia 1988 earthquake mortality shock.
+- country_code: ARM
+  metric_id: life_expectancy_female
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 53.561
+  current_value: 71.233
+  reason: Reviewed against source data; accepted as source-aligned Armenia 1988 earthquake mortality shock.
+- country_code: ARM
+  metric_id: life_expectancy_male
+  previous_year: 1987
+  current_year: 1988
+  previous_value: 64.142
+  current_value: 51.685
+  reason: Reviewed against source data; accepted as source-aligned Armenia 1988 earthquake mortality shock.
+- country_code: ARM
+  metric_id: life_expectancy_male
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 51.685
+  current_value: 63.981
+  reason: Reviewed against source data; accepted as source-aligned Armenia 1988 earthquake mortality shock.
+- country_code: BDI
+  metric_id: life_expectancy_female
+  previous_year: 1971
+  current_year: 1972
+  previous_value: 44.471
+  current_value: 28.179
+  reason: Reviewed against source data; accepted as source-aligned Burundi 1972 conflict/genocide-period mortality shock.
+- country_code: BDI
+  metric_id: life_expectancy_female
+  previous_year: 1972
+  current_year: 1973
+  previous_value: 28.179
+  current_value: 39.216
+  reason: Reviewed against source data; accepted as source-aligned Burundi 1972 conflict/genocide-period mortality shock.
+- country_code: BDI
+  metric_id: life_expectancy_male
+  previous_year: 1971
+  current_year: 1972
+  previous_value: 41.812
+  current_value: 23.632
+  reason: Reviewed against source data; accepted as source-aligned Burundi 1972 conflict/genocide-period mortality shock.
+- country_code: BDI
+  metric_id: life_expectancy_male
+  previous_year: 1972
+  current_year: 1973
+  previous_value: 23.632
+  current_value: 35.598
+  reason: Reviewed against source data; accepted as source-aligned Burundi 1972 conflict/genocide-period mortality shock.
+- country_code: BGD
+  metric_id: life_expectancy_female
+  previous_year: 1971
+  current_year: 1972
+  previous_value: 32.715
+  current_value: 48.58
+  reason: Reviewed against source data; accepted as source-aligned Bangladesh Liberation War / early-1970s crisis mortality
+    shock.
+- country_code: BGD
+  metric_id: life_expectancy_male
+  previous_year: 1970
+  current_year: 1971
+  previous_value: 44.6
+  current_value: 22.803
+  reason: Reviewed against source data; accepted as source-aligned Bangladesh Liberation War / early-1970s crisis mortality
+    shock.
+- country_code: BGD
+  metric_id: life_expectancy_male
+  previous_year: 1971
+  current_year: 1972
+  previous_value: 22.803
+  current_value: 50.656
+  reason: Reviewed against source data; accepted as source-aligned Bangladesh Liberation War / early-1970s crisis mortality
+    shock.
+- country_code: BGD
+  metric_id: youth_literacy_pct
+  previous_year: 2000
+  current_year: 2001
+  previous_value: 100.0
+  current_value: 63.6199989318848
+  reason: Reviewed against source data; accepted as source-aligned sparse survey/methodology artifact for youth literacy.
+- country_code: BIH
+  metric_id: life_expectancy_female
+  previous_year: 1991
+  current_year: 1992
+  previous_value: 75.927
+  current_value: 64.822
+  reason: Reviewed against source data; accepted as source-aligned Bosnian War-period mortality shock.
+- country_code: BIH
+  metric_id: life_expectancy_female
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 64.522
+  current_value: 75.864
+  reason: Reviewed against source data; accepted as source-aligned Bosnian War-period mortality shock.
+- country_code: BIH
+  metric_id: life_expectancy_male
+  previous_year: 1991
+  current_year: 1992
+  previous_value: 67.851
+  current_value: 43.329
+  reason: Reviewed against source data; accepted as source-aligned Bosnian War-period mortality shock.
+- country_code: BIH
+  metric_id: life_expectancy_male
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 41.878
+  current_value: 58.717
+  reason: Reviewed against source data; accepted as source-aligned Bosnian War-period mortality shock.
+- country_code: CAF
+  metric_id: crude_death_rate
+  previous_year: 2008
+  current_year: 2009
+  previous_value: 14.243
+  current_value: 72.483
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: crude_death_rate
+  previous_year: 2009
+  current_year: 2010
+  previous_value: 72.483
+  current_value: 15.907
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: crude_death_rate
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 20.89
+  current_value: 55.126
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: crude_death_rate
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 55.126
+  current_value: 9.419
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_female
+  previous_year: 2008
+  current_year: 2009
+  previous_value: 50.701
+  current_value: 20.006
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_female
+  previous_year: 2009
+  current_year: 2010
+  previous_value: 20.006
+  current_value: 49.364
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_female
+  previous_year: 2018
+  current_year: 2019
+  previous_value: 55.201
+  current_value: 38.771
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_female
+  previous_year: 2019
+  current_year: 2020
+  previous_value: 38.771
+  current_value: 54.011
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_female
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 46.032
+  current_value: 25.552
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_female
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 25.552
+  current_value: 59.29
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2008
+  current_year: 2009
+  previous_value: 49.102
+  current_value: 12.383
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2009
+  current_year: 2010
+  previous_value: 12.383
+  current_value: 44.487
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2013
+  current_year: 2014
+  previous_value: 46.878
+  current_value: 35.706
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2014
+  current_year: 2015
+  previous_value: 35.706
+  current_value: 49.682
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2018
+  current_year: 2019
+  previous_value: 49.403
+  current_value: 26.386
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2019
+  current_year: 2020
+  previous_value: 26.386
+  current_value: 47.219
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2020
+  current_year: 2021
+  previous_value: 47.219
+  current_value: 35.327
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2021
+  current_year: 2022
+  previous_value: 35.327
+  current_value: 15.387
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CAF
+  metric_id: life_expectancy_male
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 15.387
+  current_value: 55.26
+  reason: Reviewed against source data; accepted as source-aligned conflict/crisis-period mortality shock or source-estimate
+    artifact.
+- country_code: CHN
+  metric_id: life_expectancy_female
+  previous_year: 1961
+  current_year: 1962
+  previous_value: 41.897
+  current_value: 53.189
+  reason: Reviewed against source data; accepted as source-aligned post-famine mortality/recovery effect.
+- country_code: CHN
+  metric_id: life_expectancy_male
+  previous_year: 1961
+  current_year: 1962
+  previous_value: 38.621
+  current_value: 48.945
+  reason: Reviewed against source data; accepted as source-aligned post-famine mortality/recovery effect.
+- country_code: CMR
+  metric_id: life_expectancy_male
+  previous_year: 1961
+  current_year: 1962
+  previous_value: 29.831
+  current_value: 41.51
+  reason: Reviewed against source data; accepted as source-aligned mortality shock or source-estimate artifact.
+- country_code: COG
+  metric_id: life_expectancy_male
+  previous_year: 1996
+  current_year: 1997
+  previous_value: 54.566
+  current_value: 44.12
+  reason: Reviewed against source data; accepted as source-aligned Congo civil-war period mortality shock.
+- country_code: CYP
+  metric_id: life_expectancy_male
+  previous_year: 1973
+  current_year: 1974
+  previous_value: 65.962
+  current_value: 44.174
+  reason: Reviewed against source data; accepted as source-aligned Cyprus conflict-period mortality shock.
+- country_code: CYP
+  metric_id: life_expectancy_male
+  previous_year: 1974
+  current_year: 1975
+  previous_value: 44.174
+  current_value: 67.461
+  reason: Reviewed against source data; accepted as source-aligned Cyprus conflict-period mortality shock.
+- country_code: ERI
+  metric_id: life_expectancy_male
+  previous_year: 1997
+  current_year: 1998
+  previous_value: 54.619
+  current_value: 43.781
+  reason: Reviewed against source data; accepted as source-aligned Eritrea-Ethiopia war-period mortality shock.
+- country_code: ERI
+  metric_id: life_expectancy_male
+  previous_year: 1999
+  current_year: 2000
+  previous_value: 37.132
+  current_value: 54.053
+  reason: Reviewed against source data; accepted as source-aligned Eritrea-Ethiopia war-period mortality shock.
+- country_code: GHA
+  metric_id: internet_users_pct
+  previous_year: 2019
+  current_year: 2020
+  previous_value: 22.0732
+  current_value: 62.51760101
+  reason: Reviewed against source data; accepted as source-aligned internet adoption or survey/methodology jump.
+- country_code: GNQ
+  metric_id: life_expectancy_female
+  previous_year: 1968
+  current_year: 1969
+  previous_value: 47.816
+  current_value: 34.294
+  reason: Reviewed against source data; accepted as source-aligned political-violence or source-estimate mortality shock.
+- country_code: GNQ
+  metric_id: life_expectancy_female
+  previous_year: 1976
+  current_year: 1977
+  previous_value: 33.845
+  current_value: 45.214
+  reason: Reviewed against source data; accepted as source-aligned political-violence or source-estimate mortality shock.
+- country_code: GNQ
+  metric_id: life_expectancy_male
+  previous_year: 1968
+  current_year: 1969
+  previous_value: 42.046
+  current_value: 28.146
+  reason: Reviewed against source data; accepted as source-aligned political-violence or source-estimate mortality shock.
+- country_code: GNQ
+  metric_id: life_expectancy_male
+  previous_year: 1976
+  current_year: 1977
+  previous_value: 27.645
+  current_value: 38.969
+  reason: Reviewed against source data; accepted as source-aligned political-violence or source-estimate mortality shock.
+- country_code: GTM
+  metric_id: life_expectancy_male
+  previous_year: 1982
+  current_year: 1983
+  previous_value: 43.576
+  current_value: 55.342
+  reason: Reviewed against source data; accepted as source-aligned Guatemalan civil-war period mortality shock.
+- country_code: HKG
+  metric_id: market_cap_pct_gdp
+  previous_year: 2007
+  current_year: 2008
+  previous_value: 1254.46804830981
+  current_value: 605.972295634199
+  reason: Reviewed against source data; accepted as source-aligned 2008 financial-crisis market valuation shock.
+- country_code: HTI
+  metric_id: life_expectancy_female
+  previous_year: 2009
+  current_year: 2010
+  previous_value: 64.079
+  current_value: 45.679
+  reason: Reviewed against source data; accepted as source-aligned Haiti 2010 earthquake mortality shock.
+- country_code: HTI
+  metric_id: life_expectancy_female
+  previous_year: 2010
+  current_year: 2011
+  previous_value: 45.679
+  current_value: 64.015
+  reason: Reviewed against source data; accepted as source-aligned Haiti 2010 earthquake mortality shock.
+- country_code: HTI
+  metric_id: life_expectancy_male
+  previous_year: 2009
+  current_year: 2010
+  previous_value: 59.371
+  current_value: 45.441
+  reason: Reviewed against source data; accepted as source-aligned Haiti 2010 earthquake mortality shock.
+- country_code: HTI
+  metric_id: life_expectancy_male
+  previous_year: 2010
+  current_year: 2011
+  previous_value: 45.441
+  current_value: 59.219
+  reason: Reviewed against source data; accepted as source-aligned Haiti 2010 earthquake mortality shock.
+- country_code: KHM
+  metric_id: crude_death_rate
+  previous_year: 1974
+  current_year: 1975
+  previous_value: 21.727
+  current_value: 86.572
+  reason: Reviewed against source data; accepted as source-aligned Khmer Rouge / Cambodian conflict-period mortality shock.
+- country_code: KHM
+  metric_id: crude_death_rate
+  previous_year: 1978
+  current_year: 1979
+  previous_value: 93.923
+  current_value: 19.369
+  reason: Reviewed against source data; accepted as source-aligned Khmer Rouge / Cambodian conflict-period mortality shock.
+- country_code: KHM
+  metric_id: external_debt_total
+  previous_year: 1990
+  current_year: 1991
+  previous_value: 264873693.3
+  current_value: 1698280868.8
+  reason: Reviewed against source data; accepted as source-aligned external debt stock reporting or scale-change behavior.
+- country_code: KHM
+  metric_id: life_expectancy_female
+  previous_year: 1974
+  current_year: 1975
+  previous_value: 48.165
+  current_value: 15.221
+  reason: Reviewed against source data; accepted as source-aligned Khmer Rouge / Cambodian conflict-period mortality shock.
+- country_code: KHM
+  metric_id: life_expectancy_female
+  previous_year: 1978
+  current_year: 1979
+  previous_value: 13.374
+  current_value: 49.963
+  reason: Reviewed against source data; accepted as source-aligned Khmer Rouge / Cambodian conflict-period mortality shock.
+- country_code: KHM
+  metric_id: life_expectancy_male
+  previous_year: 1969
+  current_year: 1970
+  previous_value: 44.096
+  current_value: 32.631
+  reason: Reviewed against source data; accepted as source-aligned Khmer Rouge / Cambodian conflict-period mortality shock.
+- country_code: KHM
+  metric_id: life_expectancy_male
+  previous_year: 1974
+  current_year: 1975
+  previous_value: 32.809
+  current_value: 11.25
+  reason: Reviewed against source data; accepted as source-aligned Khmer Rouge / Cambodian conflict-period mortality shock.
+- country_code: KHM
+  metric_id: life_expectancy_male
+  previous_year: 1978
+  current_year: 1979
+  previous_value: 10.25
+  current_value: 33.338
+  reason: Reviewed against source data; accepted as source-aligned Khmer Rouge / Cambodian conflict-period mortality shock.
+- country_code: KWT
+  metric_id: military_exp_pct_gdp
+  previous_year: 1989
+  current_year: 1990
+  previous_value: 8.53982920341593
+  current_value: 48.5172672672673
+  reason: Reviewed against source data; accepted as source-aligned Gulf War / invasion-period military spending shock.
+- country_code: KWT
+  metric_id: military_exp_pct_gdp
+  previous_year: 1990
+  current_year: 1991
+  previous_value: 48.5172672672673
+  current_value: 117.34982320869
+  reason: Reviewed against source data; accepted as source-aligned Gulf War / invasion-period military spending shock.
+- country_code: KWT
+  metric_id: military_exp_pct_gdp
+  previous_year: 1991
+  current_year: 1992
+  previous_value: 117.34982320869
+  current_value: 31.7860244470914
+  reason: Reviewed against source data; accepted as source-aligned Gulf War / invasion-period military spending shock.
+- country_code: KWT
+  metric_id: population_growth_pct
+  previous_year: 1989
+  current_year: 1990
+  previous_value: 3.80366037034757
+  current_value: -27.4707864795381
+  reason: Reviewed against source data; accepted as source-aligned Gulf War / invasion-period population displacement shock.
+- country_code: KWT
+  metric_id: population_growth_pct
+  previous_year: 1991
+  current_year: 1992
+  previous_value: -22.0517787474627
+  current_value: 19.0478598691413
+  reason: Reviewed against source data; accepted as source-aligned Gulf War / invasion-period population displacement shock.
+- country_code: KWT
+  metric_id: population_growth_pct
+  previous_year: 1992
+  current_year: 1993
+  previous_value: 19.0478598691413
+  current_value: 2.24918707357862
+  reason: Reviewed against source data; accepted as source-aligned Gulf War / invasion-period population displacement shock.
+- country_code: LBN
+  metric_id: life_expectancy_female
+  previous_year: 1975
+  current_year: 1976
+  previous_value: 67.045
+  current_value: 45.497
+  reason: Reviewed against source data; accepted as source-aligned Lebanese Civil War-period mortality shock.
+- country_code: LBN
+  metric_id: life_expectancy_female
+  previous_year: 1976
+  current_year: 1977
+  previous_value: 45.497
+  current_value: 64.171
+  reason: Reviewed against source data; accepted as source-aligned Lebanese Civil War-period mortality shock.
+- country_code: LBN
+  metric_id: life_expectancy_female
+  previous_year: 1982
+  current_year: 1983
+  previous_value: 54.704
+  current_value: 67.21
+  reason: Reviewed against source data; accepted as source-aligned Lebanese Civil War-period mortality shock.
+- country_code: LBN
+  metric_id: life_expectancy_male
+  previous_year: 1974
+  current_year: 1975
+  previous_value: 64.745
+  current_value: 50.615
+  reason: Reviewed against source data; accepted as source-aligned Lebanese Civil War-period mortality shock.
+- country_code: LBN
+  metric_id: life_expectancy_male
+  previous_year: 1975
+  current_year: 1976
+  previous_value: 50.615
+  current_value: 30.567
+  reason: Reviewed against source data; accepted as source-aligned Lebanese Civil War-period mortality shock.
+- country_code: LBN
+  metric_id: life_expectancy_male
+  previous_year: 1976
+  current_year: 1977
+  previous_value: 30.567
+  current_value: 56.808
+  reason: Reviewed against source data; accepted as source-aligned Lebanese Civil War-period mortality shock.
+- country_code: LBN
+  metric_id: life_expectancy_male
+  previous_year: 1981
+  current_year: 1982
+  previous_value: 56.597
+  current_value: 41.325
+  reason: Reviewed against source data; accepted as source-aligned Lebanese Civil War-period mortality shock.
+- country_code: LBN
+  metric_id: life_expectancy_male
+  previous_year: 1982
+  current_year: 1983
+  previous_value: 41.325
+  current_value: 55.122
+  reason: Reviewed against source data; accepted as source-aligned Lebanese Civil War-period mortality shock.
+- country_code: LBR
+  metric_id: life_expectancy_male
+  previous_year: 1989
+  current_year: 1990
+  previous_value: 42.515
+  current_value: 32.383
+  reason: Reviewed against source data; accepted as source-aligned Liberian civil-war mortality shock.
+- country_code: LBR
+  metric_id: population_growth_pct
+  previous_year: 1989
+  current_year: 1990
+  previous_value: 2.85698670551551
+  current_value: -12.4250905106672
+  reason: Reviewed against source data; accepted as source-aligned Liberian civil-war population displacement shock.
+- country_code: LBR
+  metric_id: population_growth_pct
+  previous_year: 1991
+  current_year: 1992
+  previous_value: -12.7991272233588
+  current_value: 5.75704272691874
+  reason: Reviewed against source data; accepted as source-aligned Liberian civil-war population displacement shock.
+- country_code: MAC
+  metric_id: population_growth_pct
+  previous_year: 1963
+  current_year: 1964
+  previous_value: 2.40326058840166
+  current_value: 21.4259113885264
+  reason: Reviewed against source data; accepted as source-aligned migration or demographic-estimate shock.
+- country_code: MAC
+  metric_id: population_growth_pct
+  previous_year: 1965
+  current_year: 1966
+  previous_value: 16.3100843421728
+  current_value: -1.01746521213197
+  reason: Reviewed against source data; accepted as source-aligned migration or demographic-estimate shock.
+- country_code: NIC
+  metric_id: life_expectancy_male
+  previous_year: 1979
+  current_year: 1980
+  previous_value: 43.842
+  current_value: 54.065
+  reason: Reviewed against source data; accepted as source-aligned Nicaraguan Revolution-period mortality shock.
+- country_code: PRK
+  metric_id: life_expectancy_female
+  previous_year: 1994
+  current_year: 1995
+  previous_value: 73.69
+  current_value: 63.588
+  reason: Reviewed against source data; accepted as source-aligned North Korea famine-period mortality shock.
+- country_code: PSE
+  metric_id: life_expectancy_male
+  previous_year: 2022
+  current_year: 2023
+  previous_value: 74.247
+  current_value: 59.691
+  reason: Reviewed against source data; accepted as source-aligned 2023 conflict-period mortality shock.
+- country_code: QAT
+  metric_id: population_growth_pct
+  previous_year: 2020
+  current_year: 2021
+  previous_value: 5.72571544841687
+  current_value: -10.9274424335586
+  reason: Reviewed against source data; accepted as source-aligned pandemic-era migration or demographic-estimate shock.
+- country_code: QAT
+  metric_id: population_growth_pct
+  previous_year: 2021
+  current_year: 2022
+  previous_value: -10.9274424335586
+  current_value: 5.90701824957099
+  reason: Reviewed against source data; accepted as source-aligned pandemic-era migration or demographic-estimate shock.
+- country_code: RWA
+  metric_id: crude_death_rate
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 18.497
+  current_value: 153.963
+  reason: Reviewed against source data; accepted as source-aligned Rwanda genocide-period mortality shock.
+- country_code: RWA
+  metric_id: crude_death_rate
+  previous_year: 1994
+  current_year: 1995
+  previous_value: 153.963
+  current_value: 18.168
+  reason: Reviewed against source data; accepted as source-aligned Rwanda genocide-period mortality shock.
+- country_code: RWA
+  metric_id: life_expectancy_female
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 45.528
+  current_value: 13.325
+  reason: Reviewed against source data; accepted as source-aligned Rwanda genocide-period mortality shock.
+- country_code: RWA
+  metric_id: life_expectancy_female
+  previous_year: 1994
+  current_year: 1995
+  previous_value: 13.325
+  current_value: 43.728
+  reason: Reviewed against source data; accepted as source-aligned Rwanda genocide-period mortality shock.
+- country_code: RWA
+  metric_id: life_expectancy_male
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 40.598
+  current_value: 11.406
+  reason: Reviewed against source data; accepted as source-aligned Rwanda genocide-period mortality shock.
+- country_code: RWA
+  metric_id: life_expectancy_male
+  previous_year: 1994
+  current_year: 1995
+  previous_value: 11.406
+  current_value: 39.203
+  reason: Reviewed against source data; accepted as source-aligned Rwanda genocide-period mortality shock.
+- country_code: RWA
+  metric_id: population_growth_pct
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 3.80355388592275
+  current_value: -16.1282982694482
+  reason: Reviewed against source data; accepted as source-aligned Rwanda genocide-period population displacement shock.
+- country_code: RWA
+  metric_id: population_growth_pct
+  previous_year: 1995
+  current_year: 1996
+  previous_value: -17.9882140556853
+  current_value: 16.7499598547072
+  reason: Reviewed against source data; accepted as source-aligned Rwanda genocide-period population displacement shock.
+- country_code: SDN
+  metric_id: consumer_price_index
+  previous_year: 2020
+  current_year: 2021
+  previous_value: 3538.6920569685
+  current_value: 16245.8889681416
+  reason: Reviewed against source data; accepted as source-aligned hyperinflation CPI behavior.
+- country_code: SMR
+  metric_id: internet_users_pct
+  previous_year: 1998
+  current_year: 1999
+  previous_value: 1.41
+  current_value: 42.8
+  reason: Reviewed against source data; accepted as source-aligned internet adoption or survey/methodology jump.
+- country_code: SOM
+  metric_id: crude_death_rate
+  previous_year: 1990
+  current_year: 1991
+  previous_value: 18.465
+  current_value: 44.114
+  reason: Reviewed against source data; accepted as source-aligned Somali civil-war / famine-period mortality shock.
+- country_code: SOM
+  metric_id: crude_death_rate
+  previous_year: 1992
+  current_year: 1993
+  previous_value: 42.637
+  current_value: 15.254
+  reason: Reviewed against source data; accepted as source-aligned Somali civil-war / famine-period mortality shock.
+- country_code: SOM
+  metric_id: life_expectancy_female
+  previous_year: 1990
+  current_year: 1991
+  previous_value: 51.185
+  current_value: 27.335
+  reason: Reviewed against source data; accepted as source-aligned Somali civil-war / famine-period mortality shock.
+- country_code: SOM
+  metric_id: life_expectancy_female
+  previous_year: 1992
+  current_year: 1993
+  previous_value: 26.254
+  current_value: 52.063
+  reason: Reviewed against source data; accepted as source-aligned Somali civil-war / famine-period mortality shock.
+- country_code: SOM
+  metric_id: life_expectancy_female
+  previous_year: 2010
+  current_year: 2011
+  previous_value: 50.797
+  current_value: 33.651
+  reason: Reviewed against source data; accepted as source-aligned Somali civil-war / famine-period mortality shock.
+- country_code: SOM
+  metric_id: life_expectancy_female
+  previous_year: 2011
+  current_year: 2012
+  previous_value: 33.651
+  current_value: 51.019
+  reason: Reviewed against source data; accepted as source-aligned Somali civil-war / famine-period mortality shock.
+- country_code: SOM
+  metric_id: life_expectancy_male
+  previous_year: 1990
+  current_year: 1991
+  previous_value: 43.126
+  current_value: 23.715
+  reason: Reviewed against source data; accepted as source-aligned Somali civil-war / famine-period mortality shock.
+- country_code: SOM
+  metric_id: life_expectancy_male
+  previous_year: 1992
+  current_year: 1993
+  previous_value: 23.875
+  current_value: 49.052
+  reason: Reviewed against source data; accepted as source-aligned Somali civil-war / famine-period mortality shock.
+- country_code: SOM
+  metric_id: life_expectancy_male
+  previous_year: 2010
+  current_year: 2011
+  previous_value: 47.07
+  current_value: 31.294
+  reason: Reviewed against source data; accepted as source-aligned Somali civil-war / famine-period mortality shock.
+- country_code: SOM
+  metric_id: life_expectancy_male
+  previous_year: 2011
+  current_year: 2012
+  previous_value: 31.294
+  current_value: 47.319
+  reason: Reviewed against source data; accepted as source-aligned Somali civil-war / famine-period mortality shock.
+- country_code: SOM
+  metric_id: military_exp_pct_gdp
+  previous_year: 1985
+  current_year: 1986
+  previous_value: 0.050709706959707
+  current_value: 28.9482415394824
+  reason: Reviewed against source data; accepted as source-aligned conflict/security spending shock.
+- country_code: SSD
+  metric_id: consumer_price_index
+  previous_year: 2015
+  current_year: 2016
+  previous_value: 331.74710919474
+  current_value: 1592.38474945444
+  reason: Reviewed against source data; accepted as source-aligned hyperinflation CPI behavior.
+- country_code: SSD
+  metric_id: crude_death_rate
+  previous_year: 1987
+  current_year: 1988
+  previous_value: 49.397
+  current_value: 77.739
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: crude_death_rate
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 77.739
+  current_value: 35.345
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: crude_death_rate
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 46.058
+  current_value: 20.088
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: crude_death_rate
+  previous_year: 1998
+  current_year: 1999
+  previous_value: 53.367
+  current_value: 19.361
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1986
+  current_year: 1987
+  previous_value: 34.504
+  current_value: 22.857
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1987
+  current_year: 1988
+  previous_value: 22.857
+  current_value: 11.274
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 11.274
+  current_value: 30.479
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 24.759
+  current_value: 46.521
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1994
+  current_year: 1995
+  previous_value: 46.521
+  current_value: 33.952
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1997
+  current_year: 1998
+  previous_value: 35.318
+  current_value: 20.677
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 1998
+  current_year: 1999
+  previous_value: 20.677
+  current_value: 45.775
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 2013
+  current_year: 2014
+  previous_value: 59.711
+  current_value: 48.807
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_female
+  previous_year: 2017
+  current_year: 2018
+  previous_value: 38.675
+  current_value: 54.673
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 1986
+  current_year: 1987
+  previous_value: 31.161
+  current_value: 18.895
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 10.649
+  current_value: 26.129
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 1993
+  current_year: 1994
+  previous_value: 20.126
+  current_value: 43.086
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 1994
+  current_year: 1995
+  previous_value: 43.086
+  current_value: 29.203
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 1997
+  current_year: 1998
+  previous_value: 30.899
+  current_value: 17.582
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 1998
+  current_year: 1999
+  previous_value: 17.582
+  current_value: 43.211
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 2013
+  current_year: 2014
+  previous_value: 56.831
+  current_value: 42.69
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: SSD
+  metric_id: life_expectancy_male
+  previous_year: 2017
+  current_year: 2018
+  previous_value: 32.406
+  current_value: 49.151
+  reason: Reviewed against source data; accepted as source-aligned Sudan / South Sudan conflict-period mortality shock.
+- country_code: TLS
+  metric_id: life_expectancy_female
+  previous_year: 1999
+  current_year: 2000
+  previous_value: 48.717
+  current_value: 59.645
+  reason: Reviewed against source data; accepted as source-aligned East Timor conflict/crisis-period mortality shock.
+- country_code: TLS
+  metric_id: life_expectancy_male
+  previous_year: 1974
+  current_year: 1975
+  previous_value: 35.115
+  current_value: 20.464
+  reason: Reviewed against source data; accepted as source-aligned East Timor conflict/crisis-period mortality shock.
+- country_code: TLS
+  metric_id: life_expectancy_male
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 30.186
+  current_value: 43.365
+  reason: Reviewed against source data; accepted as source-aligned East Timor conflict/crisis-period mortality shock.
+- country_code: TLS
+  metric_id: life_expectancy_male
+  previous_year: 1999
+  current_year: 2000
+  previous_value: 42.408
+  current_value: 56.671
+  reason: Reviewed against source data; accepted as source-aligned East Timor conflict/crisis-period mortality shock.
+- country_code: TLS
+  metric_id: population_growth_pct
+  previous_year: 2000
+  current_year: 2001
+  previous_value: -11.356645253535
+  current_value: 8.63046111911907
+  reason: Reviewed against source data; accepted as source-aligned East Timor post-crisis population displacement shock.
+- country_code: UKR
+  metric_id: external_debt_total
+  previous_year: 1992
+  current_year: 1993
+  previous_value: 550691959.6
+  current_value: 3855492092.6
+  reason: Reviewed against source data; accepted as source-aligned post-Soviet external debt reporting transition.
+- country_code: VNM
+  metric_id: external_debt_total
+  previous_year: 1988
+  current_year: 1989
+  previous_value: 617484768.8
+  current_value: 20705352668.4
+  reason: Reviewed against source data; accepted as source-aligned external debt stock reporting or scale-change behavior.
+- country_code: ZWE
+  metric_id: consumer_price_index
+  previous_year: 2019
+  current_year: 2020
+  previous_value: 414.684308931397
+  current_value: 2725.3128146124
+  reason: Reviewed against source data; accepted as source-aligned hyperinflation CPI behavior.

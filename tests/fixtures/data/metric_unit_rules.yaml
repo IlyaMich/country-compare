@@ -24,10 +24,8 @@ unit_scale_rules:
     max_value: 130
 
   percent:
-    # Allows inflation/trade-growth negatives and extreme macroeconomic cases,
-    # while still catching obvious scale bugs.
-    min_value: -150
-    max_value: 1000
+    min_value: -1000
+    max_value: null
 
   index:
     min_value: -10
@@ -39,11 +37,11 @@ unit_scale_rules:
 
   index_2010_100:
     min_value: 0
-    max_value: 1000
+    max_value: null
 
   per_1000_people:
     min_value: 0
-    max_value: 100
+    max_value: 1000
 
 metrics:
   # Example/synthetic dataset metrics

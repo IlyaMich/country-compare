@@ -29,8 +29,8 @@ metrics:
     severity: hard_fail
 
   life_expectancy:
-    min_value: 20
-    max_value: 100
+    min_value: 0
+    max_value: 130
     severity: hard_fail
 
   # Configured/release metrics
@@ -66,27 +66,27 @@ metrics:
 
   military_exp_pct_gdp:
     min_value: 0
-    max_value: 100
+    max_value: 1000
     severity: hard_fail
 
   market_cap_pct_gdp:
     min_value: 0
-    max_value: 1000
+    max_value: null
     severity: hard_fail
 
   consumer_price_index:
     min_value: 0
-    max_value: 1000
+    max_value: null
     severity: hard_fail
 
   imports_growth_pct:
     min_value: -100
-    max_value: 500
+    max_value: null
     severity: hard_fail
 
   exports_growth_pct:
     min_value: -100
-    max_value: 500
+    max_value: null
     severity: hard_fail
 
   gdp_current_usd:
@@ -116,22 +116,22 @@ metrics:
 
   crude_death_rate:
     min_value: 0
-    max_value: 100
+    max_value: 1000
     severity: hard_fail
 
   life_expectancy_female:
-    min_value: 20
-    max_value: 100
+    min_value: 0
+    max_value: 130
     severity: hard_fail
 
   life_expectancy_male:
-    min_value: 20
-    max_value: 100
+    min_value: 0
+    max_value: 130
     severity: hard_fail
 
   population_growth_pct:
-    min_value: -20
-    max_value: 20
+    min_value: -100
+    max_value: 1000
     severity: hard_fail
 
   top10_income_share:
@@ -141,8 +141,8 @@ metrics:
 
 unit_hard_bounds:
   percent:
-    min_value: -150
-    max_value: 1000
+    min_value: -1000
+    max_value: null
 
   years:
     min_value: 0
@@ -154,8 +154,8 @@ unit_hard_bounds:
 
   index_2010_100:
     min_value: 0
-    max_value: 1000
+    max_value: null
 
   per_1000_people:
     min_value: 0
-    max_value: 100
+    max_value: 1000

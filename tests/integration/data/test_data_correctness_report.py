@@ -126,8 +126,28 @@ def test_generate_data_correctness_report_can_fail_on_warning(tmp_path) -> None:
     data_path = tmp_path / "warning_metrics.parquet"
     markdown_path = tmp_path / "warning_report.md"
     json_path = tmp_path / "warning_report.json"
+    trend_rules_path = tmp_path / "trend_rules.yaml"
 
     dataframe.to_parquet(data_path, index=False)
+
+    trend_rules_path.write_text(
+        """
+defaults:
+  enabled: true
+  require_consecutive_years: true
+  absolute_threshold: null
+  relative_threshold: null
+  relative_min_previous_abs: 1.0
+
+metrics:
+  synthetic_metric:
+    relative_threshold: 0.5
+    relative_min_previous_abs: 0.1
+
+reviewed_anomalies: []
+""".strip(),
+        encoding="utf-8",
+    )
 
     result = subprocess.run(
         [
@@ -139,8 +159,8 @@ def test_generate_data_correctness_report_can_fail_on_warning(tmp_path) -> None:
             str(markdown_path),
             "--json-output",
             str(json_path),
-            "--pct-change-warning-threshold",
-            "0.5",
+            "--trend-rules-path",
+            str(trend_rules_path),
             "--fail-on-warning",
         ],
         cwd=_repo_root(),
@@ -150,7 +170,6 @@ def test_generate_data_correctness_report_can_fail_on_warning(tmp_path) -> None:
     )
 
     assert result.returncode == 1
-
-    payload = json.loads(json_path.read_text(encoding="utf-8"))
-
-    assert payload["status"] == "WARN"
+    assert markdown_path.exists()
+    assert json_path.exists()
+    assert "status WARN" in result.stdout
