@@ -51,12 +51,12 @@ def test_openapi_documents_api_key_security_for_protected_routes() -> None:
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Shared beta API key passed in the X-API-Key header.",
+        "description": "Shared API key passed in the X-API-Key header.",
     }
     assert security_schemes["BearerAuth"] == {
         "type": "http",
         "scheme": "bearer",
-        "description": "Shared beta API key passed as an Authorization: Bearer token.",
+        "description": "Shared API key passed as an Authorization: Bearer token.",
     }
     assert schema["paths"]["/api/v1/metadata/countries"]["get"]["security"] == [
         {"ApiKeyAuth": []},

@@ -139,7 +139,7 @@ def _build_openapi_schema(app: FastAPI) -> dict[str, Any]:
 
     schema = get_openapi(
         title="LLM Forecast Service",
-        version="0.1.0",
+        version="1.0.0",
         description=(
             "Private, token-protected LLM forecast adjustment service. "
             "This service should remain internal/private."
