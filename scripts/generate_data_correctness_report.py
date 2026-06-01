@@ -14,7 +14,6 @@ from country_compare.data.access import load_metric_dataframe
 from country_compare.data.contract import PRIMARY_KEY_COLUMNS, REQUIRED_COLUMNS
 from country_compare.data.validation import validate_dataframe
 
-
 PASS = "PASS"
 WARN = "WARN"
 FAIL = "FAIL"
@@ -109,7 +108,9 @@ def _check_canonical_validation(df: pd.DataFrame) -> CorrectnessCheck:
 
 
 def _check_primary_key_uniqueness(df: pd.DataFrame) -> CorrectnessCheck:
-    missing_pk_columns = [column for column in PRIMARY_KEY_COLUMNS if column not in df.columns]
+    missing_pk_columns = [
+        column for column in PRIMARY_KEY_COLUMNS if column not in df.columns
+    ]
     if missing_pk_columns:
         return CorrectnessCheck(
             name="primary_key_uniqueness",
@@ -122,7 +123,11 @@ def _check_primary_key_uniqueness(df: pd.DataFrame) -> CorrectnessCheck:
     duplicate_count = int(duplicate_mask.sum())
 
     if duplicate_count:
-        sample = df.loc[duplicate_mask, list(PRIMARY_KEY_COLUMNS)].head(25).to_dict("records")
+        sample = (
+            df.loc[duplicate_mask, list(PRIMARY_KEY_COLUMNS)]
+            .head(25)
+            .to_dict("records")
+        )
         return CorrectnessCheck(
             name="primary_key_uniqueness",
             status=FAIL,
@@ -138,7 +143,10 @@ def _check_primary_key_uniqueness(df: pd.DataFrame) -> CorrectnessCheck:
         name="primary_key_uniqueness",
         status=PASS,
         message="No duplicate country_code + metric_id + year rows found.",
-        details={"primary_key_columns": list(PRIMARY_KEY_COLUMNS), "duplicate_count": 0},
+        details={
+            "primary_key_columns": list(PRIMARY_KEY_COLUMNS),
+            "duplicate_count": 0,
+        },
     )
 
 
@@ -152,7 +160,9 @@ def _check_required_value_completeness(df: pd.DataFrame) -> CorrectnessCheck:
 
         missing_by_column[column] = int(df[column].isna().sum())
 
-    failing = {column: count for column, count in missing_by_column.items() if count > 0}
+    failing = {
+        column: count for column, count in missing_by_column.items() if count > 0
+    }
 
     if failing:
         return CorrectnessCheck(
@@ -180,7 +190,9 @@ def _check_value_numeric_quality(df: pd.DataFrame) -> CorrectnessCheck:
         )
 
     numeric_values = pd.to_numeric(df["value"], errors="coerce")
-    invalid_mask = numeric_values.isna() | numeric_values.isin([float("inf"), float("-inf")])
+    invalid_mask = numeric_values.isna() | numeric_values.isin(
+        [float("inf"), float("-inf")]
+    )
     invalid_count = int(invalid_mask.sum())
 
     if invalid_count:
@@ -193,7 +205,10 @@ def _check_value_numeric_quality(df: pd.DataFrame) -> CorrectnessCheck:
             name="value_numeric_quality",
             status=FAIL,
             message=f"Found {invalid_count} non-numeric, missing, or infinite value(s).",
-            details={"invalid_value_count": invalid_count, "sample_invalid_rows": sample},
+            details={
+                "invalid_value_count": invalid_count,
+                "sample_invalid_rows": sample,
+            },
         )
 
     return CorrectnessCheck(
@@ -205,7 +220,13 @@ def _check_value_numeric_quality(df: pd.DataFrame) -> CorrectnessCheck:
 
 
 def _check_metric_metadata_consistency(df: pd.DataFrame) -> CorrectnessCheck:
-    required_columns = {"metric_id", "metric_name", "unit", "higher_is_better", "category"}
+    required_columns = {
+        "metric_id",
+        "metric_name",
+        "unit",
+        "higher_is_better",
+        "category",
+    }
     missing_columns = sorted(required_columns - set(df.columns))
 
     if missing_columns:
@@ -220,7 +241,9 @@ def _check_metric_metadata_consistency(df: pd.DataFrame) -> CorrectnessCheck:
 
     for metric_id, group in df.groupby("metric_id", dropna=False):
         for column in ("metric_name", "unit", "higher_is_better", "category"):
-            distinct_values = sorted(str(value) for value in group[column].dropna().unique())
+            distinct_values = sorted(
+                str(value) for value in group[column].dropna().unique()
+            )
             if len(distinct_values) > 1:
                 inconsistent.append(
                     {
@@ -315,7 +338,9 @@ def _check_trend_anomalies(
 
     anomalies: list[dict[str, Any]] = []
 
-    for (country_code, metric_id), group in working.groupby(["country_code", "metric_id"]):
+    for (country_code, metric_id), group in working.groupby(
+        ["country_code", "metric_id"]
+    ):
         group = group.sort_values("year")
 
         previous_year: int | None = None
@@ -325,7 +350,11 @@ def _check_trend_anomalies(
             current_year = int(row.year)
             current_value = float(row.value)
 
-            if previous_year is not None and previous_value is not None and previous_value != 0:
+            if (
+                previous_year is not None
+                and previous_value is not None
+                and previous_value != 0
+            ):
                 pct_change = (current_value - previous_value) / abs(previous_value)
 
                 if abs(pct_change) > pct_change_warning_threshold:
@@ -420,7 +449,9 @@ def _render_markdown_report(
             + " |"
         )
 
-    coverage = next((check for check in checks if check.name == "coverage_summary"), None)
+    coverage = next(
+        (check for check in checks if check.name == "coverage_summary"), None
+    )
     if coverage is not None:
         lines.extend(
             [
