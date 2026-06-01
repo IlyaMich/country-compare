@@ -48,7 +48,9 @@ def test_parquet_metric_store_supports_canonical_column_projection(tmp_path) -> 
     assert len(projected) == len(source_dataframe)
 
 
-def test_parquet_metric_store_rejects_non_canonical_partial_projection(tmp_path) -> None:
+def test_parquet_metric_store_rejects_non_canonical_partial_projection(
+    tmp_path,
+) -> None:
     source_dataframe = build_example_metric_dataframe()
     store = ParquetMetricStore(tmp_path / "metrics.parquet")
 

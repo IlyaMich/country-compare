@@ -5,7 +5,11 @@ from typing import Any
 import pytest
 
 from country_compare.data.contract import PRIMARY_KEY_COLUMNS, REQUIRED_COLUMNS
-from country_compare.data.examples import COUNTRIES, METRICS, build_example_metric_dataframe
+from country_compare.data.examples import (
+    COUNTRIES,
+    METRICS,
+    build_example_metric_dataframe,
+)
 from country_compare.data.validation import validate_dataframe
 
 pytestmark = pytest.mark.integration
@@ -23,7 +27,9 @@ def test_example_metric_dataframe_matches_source_definitions() -> None:
         yearly_values = metric_metadata["yearly_values"]
         assert isinstance(yearly_values, dict)
 
-        expected_row_count = sum(len(values_by_country) for values_by_country in yearly_values.values())
+        expected_row_count = sum(
+            len(values_by_country) for values_by_country in yearly_values.values()
+        )
         metric_rows = dataframe[dataframe["metric_id"] == metric_id]
 
         assert len(metric_rows) == expected_row_count
@@ -50,7 +56,14 @@ def test_example_metric_dataframe_has_unique_primary_keys() -> None:
 def test_example_metric_metadata_is_consistent_per_metric_id() -> None:
     dataframe = build_example_metric_dataframe()
 
-    metadata_columns = ["metric_name", "unit", "higher_is_better", "category", "source_name", "source_url"]
+    metadata_columns = [
+        "metric_name",
+        "unit",
+        "higher_is_better",
+        "category",
+        "source_name",
+        "source_url",
+    ]
 
     inconsistent: list[dict[str, Any]] = []
 
