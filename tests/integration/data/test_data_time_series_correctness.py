@@ -1,11 +1,20 @@
 from __future__ import annotations
 
-import warnings
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
+from country_compare.data.trend_quality import load_trend_rules, scan_trend_anomalies
+
 pytestmark = pytest.mark.integration
+
+TREND_RULES_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "fixtures"
+    / "data"
+    / "trend_review_rules.yaml"
+)
 
 MAX_ABSOLUTE_STEP_BY_METRIC = {
     "life_expectancy": 5.0,
@@ -65,134 +74,25 @@ def test_no_duplicate_time_series_years_per_country_metric(
     )
 
 
-def test_extreme_year_over_year_absolute_jumps_are_reviewed(
+def test_no_unreviewed_metric_aware_time_series_anomalies(
+    data_correctness_context,
+) -> None:
+    rules = load_trend_rules(TREND_RULES_PATH)
+    result = scan_trend_anomalies(data_correctness_context.dataframe, rules)
+
+    assert result["missing_columns"] == []
+    assert result["unreviewed_anomaly_count"] == 0, result[
+        "sample_unreviewed_anomalies"
+    ]
+
+
+def test_time_series_year_and_value_columns_are_numeric(
     data_correctness_context,
 ) -> None:
     dataframe = data_correctness_context.dataframe.copy()
-    dataframe["year"] = pd.to_numeric(dataframe["year"], errors="coerce")
-    dataframe["value"] = pd.to_numeric(dataframe["value"], errors="coerce")
-    dataframe = dataframe.dropna(subset=["country_code", "metric_id", "year", "value"])
 
-    violations: list[dict[str, object]] = []
+    years = pd.to_numeric(dataframe["year"], errors="coerce")
+    values = pd.to_numeric(dataframe["value"], errors="coerce")
 
-    for (country_code, metric_id), group in dataframe.groupby(
-        ["country_code", "metric_id"]
-    ):
-        threshold = MAX_ABSOLUTE_STEP_BY_METRIC.get(str(metric_id))
-        if threshold is None:
-            continue
-
-        group = group.sort_values("year")
-        previous = None
-
-        for row in group.itertuples(index=False):
-            if previous is None:
-                previous = row
-                continue
-
-            previous_year = int(previous.year)
-            current_year = int(row.year)
-
-            # Only compare consecutive observations. Gaps are coverage issues,
-            # not necessarily value-correctness issues.
-            if current_year - previous_year != 1:
-                previous = row
-                continue
-
-            change = abs(float(row.value) - float(previous.value))
-            if change > threshold:
-                violations.append(
-                    {
-                        "country_code": country_code,
-                        "metric_id": metric_id,
-                        "previous_year": previous_year,
-                        "current_year": current_year,
-                        "previous_value": float(previous.value),
-                        "current_value": float(row.value),
-                        "absolute_change": change,
-                        "threshold": threshold,
-                    }
-                )
-
-            previous = row
-
-    if violations:
-        warnings.warn(
-            "Found year-over-year absolute jumps that should be reviewed "
-            f"manually before release. Count={len(violations)}. "
-            f"Sample={_sample(violations)}",
-            UserWarning,
-            stacklevel=2,
-        )
-
-
-def test_extreme_year_over_year_relative_scale_shifts_are_reviewed(
-    data_correctness_context,
-) -> None:
-    dataframe = data_correctness_context.dataframe.copy()
-    dataframe["year"] = pd.to_numeric(dataframe["year"], errors="coerce")
-    dataframe["value"] = pd.to_numeric(dataframe["value"], errors="coerce")
-    dataframe = dataframe.dropna(subset=["country_code", "metric_id", "year", "value"])
-
-    violations: list[dict[str, object]] = []
-
-    for (country_code, metric_id), group in dataframe.groupby(
-        ["country_code", "metric_id"]
-    ):
-        group = group.sort_values("year")
-        unit_values = group["unit"].dropna().astype(str).unique().tolist()
-        if not unit_values:
-            continue
-
-        unit = unit_values[0]
-        threshold = MAX_RELATIVE_STEP_BY_UNIT.get(unit)
-        if threshold is None:
-            continue
-
-        previous = None
-
-        for row in group.itertuples(index=False):
-            if previous is None:
-                previous = row
-                continue
-
-            previous_year = int(previous.year)
-            current_year = int(row.year)
-
-            if current_year - previous_year != 1:
-                previous = row
-                continue
-
-            previous_value = float(previous.value)
-            current_value = float(row.value)
-
-            if abs(previous_value) < 1.0:
-                previous = row
-                continue
-
-            relative_change = abs(current_value - previous_value) / abs(previous_value)
-            if relative_change > threshold:
-                violations.append(
-                    {
-                        "country_code": country_code,
-                        "metric_id": metric_id,
-                        "unit": unit,
-                        "previous_year": previous_year,
-                        "current_year": current_year,
-                        "previous_value": previous_value,
-                        "current_value": current_value,
-                        "relative_change": relative_change,
-                        "threshold": threshold,
-                    }
-                )
-
-            previous = row
-
-    if violations:
-        warnings.warn(
-            "Found year-over-year relative shifts that should be reviewed "
-            f"manually before release. Count={len(violations)}. "
-            f"Sample={_sample(violations)}",
-            UserWarning,
-            stacklevel=2,
-        )
+    assert years.notna().all()
+    assert values.notna().all()
