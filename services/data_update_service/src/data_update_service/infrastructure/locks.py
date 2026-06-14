@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from threading import RLock
-from typing import Protocol
+from typing import Iterator, Protocol
 
 
 class SourceLockUnavailableError(RuntimeError):
@@ -22,11 +21,9 @@ class SourceLock:
 
 class SourceLockManager(Protocol):
     def acquire(
-        self,
-        source_family: str,
-        job_id: str,
+        self, source_family: str, job_id: str
     ) -> AbstractContextManager[SourceLock]:
-        """Acquire a lock for the given source family and job ID, blocking if necessary."""
+        """Acquire a source-family lock for the duration of a refresh job."""
 
 
 class NoopSourceLockManager:

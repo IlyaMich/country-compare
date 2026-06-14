@@ -64,22 +64,14 @@ class DatasetDiffReport:
 
 
 def summarize_dataframe(dataframe: pd.DataFrame) -> DatasetSummary:
-    years = (
-        pd.to_numeric(dataframe.get("year"), errors="coerce")
-        if "year" in dataframe
-        else None
-    )
+    years = pd.to_numeric(dataframe.get("year"), errors="coerce") if "year" in dataframe else None
     valid_years = years.dropna() if years is not None else pd.Series(dtype="float64")
     return DatasetSummary(
         row_count=int(len(dataframe.index)),
         country_count=(
-            int(dataframe["country_code"].nunique())
-            if "country_code" in dataframe
-            else 0
+            int(dataframe["country_code"].nunique()) if "country_code" in dataframe else 0
         ),
-        metric_count=(
-            int(dataframe["metric_id"].nunique()) if "metric_id" in dataframe else 0
-        ),
+        metric_count=(int(dataframe["metric_id"].nunique()) if "metric_id" in dataframe else 0),
         year_min=(int(valid_years.min()) if not valid_years.empty else None),
         year_max=(int(valid_years.max()) if not valid_years.empty else None),
     )

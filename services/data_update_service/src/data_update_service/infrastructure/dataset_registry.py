@@ -81,9 +81,7 @@ class InMemoryDatasetRegistry:
         artifact: ArtifactPackage,
         result: RefreshResult,
     ) -> DatasetVersionRecord:
-        record = build_dataset_version_record(
-            command=command, artifact=artifact, result=result
-        )
+        record = build_dataset_version_record(command=command, artifact=artifact, result=result)
         with self._guard:
             existing = self._records.get(record.dataset_version)
             if existing is not None:
@@ -101,9 +99,7 @@ class InMemoryDatasetRegistry:
         with self._guard:
             records = list(self._records.values())
         if source_family is not None:
-            records = [
-                record for record in records if record.source_family == source_family
-            ]
+            records = [record for record in records if record.source_family == source_family]
         return sorted(records, key=lambda item: item.created_at)
 
 
@@ -121,9 +117,7 @@ class FilesystemDatasetRegistry:
         artifact: ArtifactPackage,
         result: RefreshResult,
     ) -> DatasetVersionRecord:
-        record = build_dataset_version_record(
-            command=command, artifact=artifact, result=result
-        )
+        record = build_dataset_version_record(command=command, artifact=artifact, result=result)
         with self._guard:
             records = self._read_records(command.source_family)
             if record.dataset_version not in records:
@@ -169,18 +163,14 @@ class FilesystemDatasetRegistry:
             for item in records
         }
 
-    def _write_records(
-        self, source_family: str, records: dict[str, DatasetVersionRecord]
-    ) -> None:
+    def _write_records(self, source_family: str, records: dict[str, DatasetVersionRecord]) -> None:
         path = self._registry_path(source_family)
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "source_family": source_family,
             "dataset_versions": [record.as_dict() for record in records.values()],
         }
-        path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def build_dataset_version_record(
@@ -218,12 +208,8 @@ def dataset_version_record_from_dict(payload: dict[str, Any]) -> DatasetVersionR
         row_count=int(payload["row_count"]),
         country_count=int(payload["country_count"]),
         metric_count=int(payload["metric_count"]),
-        year_min=(
-            int(payload["year_min"]) if payload.get("year_min") is not None else None
-        ),
-        year_max=(
-            int(payload["year_max"]) if payload.get("year_max") is not None else None
-        ),
+        year_min=(int(payload["year_min"]) if payload.get("year_min") is not None else None),
+        year_max=(int(payload["year_max"]) if payload.get("year_max") is not None else None),
         validation_status=str(payload["validation_status"]),
         created_by_job_id=str(payload["created_by_job_id"]),
         created_at=datetime.fromisoformat(str(payload["created_at"])),

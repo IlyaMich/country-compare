@@ -205,9 +205,7 @@ class InMemoryJobStore:
         existing_job_id = next(iter(existing_ids))
         return self._jobs_by_id[existing_job_id]
 
-    def _validate_existing_job(
-        self, command: RefreshCommand, existing: JobRecord
-    ) -> None:
+    def _validate_existing_job(self, command: RefreshCommand, existing: JobRecord) -> None:
         mismatches = []
         for field_name in (
             "job_id",
@@ -236,9 +234,7 @@ class InMemoryJobStore:
         return record
 
 
-def _append_status(
-    history: tuple[JobStatus, ...], status: JobStatus
-) -> tuple[JobStatus, ...]:
+def _append_status(history: tuple[JobStatus, ...], status: JobStatus) -> tuple[JobStatus, ...]:
     if history and history[-1] == status:
         return history
     return (*history, status)

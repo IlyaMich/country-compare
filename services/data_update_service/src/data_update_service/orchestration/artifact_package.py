@@ -39,9 +39,7 @@ def sha256_file(path: Path) -> str:
 def build_dataset_version(
     source_family: str, parquet_sha256: str, *, now: datetime | None = None
 ) -> str:
-    timestamp = (
-        (now or datetime.now(tz=UTC)).astimezone(UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
-    )
+    timestamp = (now or datetime.now(tz=UTC)).astimezone(UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
     safe_source = source_family.strip().lower().replace("-", "_")
     return f"{safe_source}_{timestamp}_{parquet_sha256[:7]}"
 
@@ -98,9 +96,7 @@ class FilesystemArtifactStore:
         dataframe.to_parquet(metrics_path, index=False)
         parquet_sha256 = sha256_file(metrics_path)
 
-        dataset_version = build_dataset_version(
-            command.source_family, parquet_sha256, now=now
-        )
+        dataset_version = build_dataset_version(command.source_family, parquet_sha256, now=now)
         version_dir = self.root / command.source_family / "versions" / dataset_version
         if version_dir.exists():
             raise FileExistsError(f"artifact package already exists: {version_dir}")
@@ -117,9 +113,7 @@ class FilesystemArtifactStore:
 
         write_json(validation_report_path, validation_report)
         write_json(diff_report_json_path, diff_report)
-        diff_report_markdown_path.write_text(
-            diff_report.as_markdown(), encoding="utf-8"
-        )
+        diff_report_markdown_path.write_text(diff_report.as_markdown(), encoding="utf-8")
         write_json(command_path, command)
         write_json(result_path, result_payload)
 
