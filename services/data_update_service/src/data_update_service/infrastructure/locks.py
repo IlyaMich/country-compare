@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from threading import RLock
-from typing import Iterator, Protocol
+from typing import Protocol
 
 
 class SourceLockUnavailableError(RuntimeError):
