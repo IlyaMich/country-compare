@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "country-compare-data-update-service"
+version = "0.1.0"
+description = "Private data refresh orchestration service for Country Compare."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.13.2",
+    "pandas>=3.0.2",
+    "pyarrow>=23.0.1",
+]
+
+[project.scripts]
+country-compare-data-update = "data_update_service.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.3.0",
+    "black>=24.0.0",
+    "mypy>=1.8.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["data_update_service*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "unit: fast isolated tests",
+    "integration: multi-module or filesystem tests",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+strict = false
