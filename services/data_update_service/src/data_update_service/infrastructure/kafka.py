@@ -4,7 +4,7 @@ from collections import deque
 from collections.abc import Iterable, Mapping, MutableSequence
 from dataclasses import dataclass, field
 from threading import RLock
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 
 class KafkaProducer(Protocol):
@@ -116,6 +116,28 @@ class KafkaConsumerError(RuntimeError):
     """Raised when the broker consumer reports an error."""
 
 
+def _decode_header_value(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    return value
+
+
+def _normalize_headers(raw_headers: object) -> dict[str, str]:
+    if raw_headers is None:
+        return {}
+
+    items: Iterable[tuple[str, str | bytes | None]]
+
+    if isinstance(raw_headers, Mapping):
+        items = cast(Iterable[tuple[str, str | bytes | None]], raw_headers.items())
+    else:
+        items = cast(Iterable[tuple[str, str | bytes | None]], raw_headers)
+
+    return {str(key): _decode_header_value(value) for key, value in items}
+
+
 class ConfluentKafkaProducer:
     """Small adapter around confluent-kafka for production Kafka publishing.
 
@@ -197,9 +219,9 @@ class ConfluentKafkaConsumer:
             topic=str(message.topic()),
             key=key,
             value=bytes(message.value() or b""),
-            headers=dict(message.headers() or []),
-            partition=int(message.partition()),
-            offset=int(message.offset()),
+            headers=_normalize_headers(message.headers()),
+            partition=message.partition(),
+            offset=message.offset(),
             native_message=message,
         )
 
