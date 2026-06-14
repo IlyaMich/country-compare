@@ -6,6 +6,9 @@ from typing import Any
 
 import pandas as pd
 
+from data_update_service.infrastructure.dataset_registry import InMemoryDatasetRegistry
+from data_update_service.infrastructure.job_store import InMemoryJobStore
+from data_update_service.infrastructure.locks import InMemorySourceLockManager
 from data_update_service.orchestration.commands import RefreshCommand
 from data_update_service.orchestration.runner import RunnerDependencies, run_refresh_job
 
@@ -39,6 +42,7 @@ class FakePipelineRunner:
 class FakeArtifact:
     dataset_version: str = "world_bank_2026-06-13T00-08-30Z_abcdef1"
     artifact_uri: str = "file:///tmp/artifact"
+    parquet_sha256: str = "abcdef1234567890"
     validation_report_path: Path = Path("/tmp/artifact/validation_report.json")
     diff_report_json_path: Path = Path("/tmp/artifact/diff_report.json")
 
@@ -138,3 +142,85 @@ def test_run_refresh_job_fails_when_manifest_is_missing(tmp_path) -> None:
 
     assert result.status == "failed_non_retryable"
     assert result.error_code == "manifest_not_found"
+
+
+class CountingPipelineRunner(FakePipelineRunner):
+    def __init__(self, result: FakePipelineResult) -> None:
+        super().__init__(result)
+        self.call_count = 0
+
+    def run(self, command: RefreshCommand, *, audit_dir: Path) -> FakePipelineResult:
+        self.call_count += 1
+        return super().run(command, audit_dir=audit_dir)
+
+
+def test_run_refresh_job_returns_stored_terminal_result_for_duplicate_command(
+    tmp_path,
+) -> None:
+    runner = CountingPipelineRunner(FakePipelineResult(ok=True, dataframe=_dataframe()))
+    job_store = InMemoryJobStore()
+    deps = RunnerDependencies(
+        pipeline_runner=runner,
+        diff_generator=FakeDiffGenerator(),
+        artifact_store=FakeArtifactStore(),
+        audit_root=tmp_path / "audit",
+        job_store=job_store,
+        source_locks=InMemorySourceLockManager(),
+    )
+    command = _command(tmp_path, dry_run=True, publish=False)
+
+    first = run_refresh_job(command, deps)
+    second = run_refresh_job(command, deps)
+
+    assert first == second
+    assert runner.call_count == 1
+    stored_job = job_store.get_job(command.job_id)
+    assert stored_job is not None
+    assert stored_job.status == "dry_run_completed"
+
+
+def test_run_refresh_job_returns_retryable_failure_when_source_is_locked(
+    tmp_path,
+) -> None:
+    runner = CountingPipelineRunner(FakePipelineResult(ok=True, dataframe=_dataframe()))
+    source_locks = InMemorySourceLockManager()
+    deps = RunnerDependencies(
+        pipeline_runner=runner,
+        diff_generator=FakeDiffGenerator(),
+        artifact_store=FakeArtifactStore(),
+        audit_root=tmp_path / "audit",
+        job_store=InMemoryJobStore(),
+        source_locks=source_locks,
+    )
+    command = _command(tmp_path, dry_run=True, publish=False)
+
+    with source_locks.acquire(command.source_family, "other-job"):
+        result = run_refresh_job(command, deps)
+
+    assert result.status == "failed_retryable"
+    assert result.error_code == "source_lock_unavailable"
+    assert runner.call_count == 0
+
+
+def test_run_refresh_job_registers_dataset_metadata_after_publish(tmp_path) -> None:
+    runner = CountingPipelineRunner(FakePipelineResult(ok=True, dataframe=_dataframe()))
+    registry = InMemoryDatasetRegistry()
+    deps = RunnerDependencies(
+        pipeline_runner=runner,
+        diff_generator=FakeDiffGenerator(),
+        artifact_store=FakeArtifactStore(),
+        audit_root=tmp_path / "audit",
+        job_store=InMemoryJobStore(),
+        source_locks=InMemorySourceLockManager(),
+        dataset_registry=registry,
+    )
+    command = _command(tmp_path, dry_run=False, publish=True)
+
+    result = run_refresh_job(command, deps)
+
+    records = registry.list_dataset_versions(source_family="world_bank")
+    assert result.status == "completed"
+    assert len(records) == 1
+    assert records[0].dataset_version == result.dataset_version
+    assert records[0].created_by_job_id == command.job_id
+    assert records[0].row_count == 2
