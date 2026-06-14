@@ -15,3 +15,4 @@ class DataUpdateSettings:
     artifact_root: Path = Path("data/artifacts/data_update")
     audit_root: Path = Path("data/audit/data_update")
     max_attempts: int = 3
+    source_lock_ttl_seconds: int = 7200
