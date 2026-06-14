@@ -23,12 +23,18 @@ def _parse_bool(value: str | bool) -> bool:
 
 def build_parser() -> argparse.ArgumentParser:
     settings = DataUpdateSettings()
-    parser = argparse.ArgumentParser(description="Country Compare data update service CLI")
+    parser = argparse.ArgumentParser(
+        description="Country Compare data update service CLI"
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    refresh = subparsers.add_parser("refresh", help="Run a data refresh through the shared runner")
+    refresh = subparsers.add_parser(
+        "refresh", help="Run a data refresh through the shared runner"
+    )
     refresh.add_argument("--source-family", default=settings.default_source_family)
-    refresh.add_argument("--manifest-path", type=Path, default=settings.default_manifest_path)
+    refresh.add_argument(
+        "--manifest-path", type=Path, default=settings.default_manifest_path
+    )
     refresh.add_argument(
         "--mode",
         choices=("full_refresh", "source_only", "validate_only"),
@@ -37,7 +43,9 @@ def build_parser() -> argparse.ArgumentParser:
     refresh.add_argument("--dry-run", type=_parse_bool, default=True)
     refresh.add_argument("--publish", type=_parse_bool, default=False)
     refresh.add_argument("--promote", type=_parse_bool, default=False)
-    refresh.add_argument("--promotion-channel", choices=("staging", "prod"), default="staging")
+    refresh.add_argument(
+        "--promotion-channel", choices=("staging", "prod"), default="staging"
+    )
     refresh.add_argument("--requested-by", default="cli")
     refresh.add_argument("--artifact-root", type=Path, default=settings.artifact_root)
     refresh.add_argument("--audit-root", type=Path, default=settings.audit_root)

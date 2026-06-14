@@ -12,8 +12,8 @@ from data_update_service.infrastructure.dataset_registry import (
 )
 from data_update_service.infrastructure.job_store import (
     InMemoryJobStore,
-    JobStore,
     JobStatus,
+    JobStore,
 )
 from data_update_service.infrastructure.locks import (
     InMemorySourceLockManager,
@@ -25,7 +25,10 @@ from data_update_service.orchestration.artifact_package import (
     FilesystemArtifactStore,
 )
 from data_update_service.orchestration.commands import RefreshCommand
-from data_update_service.orchestration.diff import DatasetDiffReport, generate_diff_report
+from data_update_service.orchestration.diff import (
+    DatasetDiffReport,
+    generate_diff_report,
+)
 from data_update_service.orchestration.results import RefreshResult
 from data_update_service.settings import DataUpdateSettings
 
@@ -96,7 +99,9 @@ class RunnerDependencies:
     dataset_registry: DatasetRegistry | None = None
 
     @classmethod
-    def local_defaults(cls, settings: DataUpdateSettings | None = None) -> RunnerDependencies:
+    def local_defaults(
+        cls, settings: DataUpdateSettings | None = None
+    ) -> RunnerDependencies:
         resolved = settings or DataUpdateSettings()
         return cls(
             pipeline_runner=CountryComparePipelineRunner(),
@@ -104,7 +109,9 @@ class RunnerDependencies:
             artifact_store=FilesystemArtifactStore(resolved.artifact_root),
             audit_root=resolved.audit_root,
             job_store=InMemoryJobStore(),
-            source_locks=InMemorySourceLockManager(ttl_seconds=resolved.source_lock_ttl_seconds),
+            source_locks=InMemorySourceLockManager(
+                ttl_seconds=resolved.source_lock_ttl_seconds
+            ),
             dataset_registry=FilesystemDatasetRegistry(resolved.artifact_root),
         )
 
@@ -290,7 +297,9 @@ def _execute_refresh(
     return result
 
 
-def _processing_failure(command: RefreshCommand, processing_result: Any) -> RefreshResult:
+def _processing_failure(
+    command: RefreshCommand, processing_result: Any
+) -> RefreshResult:
     validation_report = getattr(processing_result, "validation_report", None)
     errors = list(getattr(validation_report, "error_messages", []) or [])
     error_message = (
@@ -339,7 +348,9 @@ def _complete_job(deps: RunnerDependencies, result: RefreshResult) -> None:
 
 
 def _collect_warnings(processing_result: Any) -> list[str]:
-    warnings = [str(item) for item in (getattr(processing_result, "warnings", []) or [])]
+    warnings = [
+        str(item) for item in (getattr(processing_result, "warnings", []) or [])
+    ]
     validation_report = getattr(processing_result, "validation_report", None)
     warnings.extend(
         str(item) for item in (getattr(validation_report, "warning_messages", []) or [])

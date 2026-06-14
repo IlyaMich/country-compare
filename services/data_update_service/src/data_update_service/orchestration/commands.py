@@ -105,7 +105,9 @@ class RefreshCommand(BaseModel):
         command_suffix = uuid4().hex[:12]
         safe_ts = now.strftime("%Y%m%dT%H%M%SZ")
         resolved_command_id = command_id or f"cmd_{safe_ts}_{command_suffix}"
-        resolved_job_id = job_id or f"job_{safe_ts}_{normalized_source}_{command_suffix}"
+        resolved_job_id = (
+            job_id or f"job_{safe_ts}_{normalized_source}_{command_suffix}"
+        )
         return cls(
             command_id=resolved_command_id,
             job_id=resolved_job_id,
