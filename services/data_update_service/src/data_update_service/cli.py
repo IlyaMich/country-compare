@@ -5,9 +5,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+from data_update_service.infrastructure.kafka import (
+    ConfluentKafkaProducer,
+    KafkaProducer,
+)
 from data_update_service.orchestration.commands import RefreshCommand
 from data_update_service.orchestration.runner import RunnerDependencies, run_refresh_job
 from data_update_service.settings import DataUpdateSettings
+from data_update_service.worker.publisher import publish_refresh_command
 
 
 def _parse_bool(value: str | bool) -> bool:
@@ -51,11 +56,38 @@ def build_parser() -> argparse.ArgumentParser:
     refresh.add_argument("--audit-root", type=Path, default=settings.audit_root)
     refresh.add_argument("--max-attempts", type=int, default=settings.max_attempts)
     refresh.add_argument("--output-json", type=Path, default=None)
+
+    publish = subparsers.add_parser(
+        "publish-command",
+        help="Publish a RefreshCommand to the Kafka command topic",
+    )
+    publish.add_argument("--source-family", default=settings.default_source_family)
+    publish.add_argument(
+        "--manifest-path", type=Path, default=settings.default_manifest_path
+    )
+    publish.add_argument(
+        "--mode",
+        choices=("full_refresh", "source_only", "validate_only"),
+        default="full_refresh",
+    )
+    publish.add_argument("--dry-run", type=_parse_bool, default=True)
+    publish.add_argument("--publish", type=_parse_bool, default=False)
+    publish.add_argument("--promote", type=_parse_bool, default=False)
+    publish.add_argument(
+        "--promotion-channel", choices=("staging", "prod"), default="staging"
+    )
+    publish.add_argument("--requested-by", default="cli")
+    publish.add_argument("--max-attempts", type=int, default=settings.max_attempts)
+    publish.add_argument(
+        "--kafka-bootstrap-servers", default=settings.kafka_bootstrap_servers
+    )
+    publish.add_argument("--kafka-command-topic", default=settings.kafka_command_topic)
+    publish.add_argument("--output-json", type=Path, default=None)
     return parser
 
 
-def run_refresh_from_args(args: argparse.Namespace) -> int:
-    command = RefreshCommand.create(
+def _command_from_args(args: argparse.Namespace) -> RefreshCommand:
+    return RefreshCommand.create(
         source_family=args.source_family,
         manifest_path=args.manifest_path,
         mode=args.mode,
@@ -66,6 +98,10 @@ def run_refresh_from_args(args: argparse.Namespace) -> int:
         requested_by=args.requested_by,
         max_attempts=args.max_attempts,
     )
+
+
+def run_refresh_from_args(args: argparse.Namespace) -> int:
+    command = _command_from_args(args)
     settings = DataUpdateSettings(
         artifact_root=args.artifact_root,
         audit_root=args.audit_root,
@@ -81,11 +117,43 @@ def run_refresh_from_args(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
+def publish_command_from_args(
+    args: argparse.Namespace,
+    *,
+    producer: KafkaProducer | None = None,
+) -> int:
+    command = _command_from_args(args)
+    resolved_producer = producer or ConfluentKafkaProducer(
+        bootstrap_servers=args.kafka_bootstrap_servers,
+    )
+    metadata = publish_refresh_command(
+        command=command,
+        producer=resolved_producer,
+        topic=args.kafka_command_topic,
+    )
+    payload: dict[str, Any] = {
+        "published": True,
+        "topic": metadata.topic,
+        "key": metadata.key,
+        "command_id": metadata.command_id,
+        "job_id": metadata.job_id,
+        "source_family": metadata.source_family,
+    }
+    output = json.dumps(payload, indent=2, sort_keys=True)
+    print(output)
+    if args.output_json is not None:
+        args.output_json.parent.mkdir(parents=True, exist_ok=True)
+        args.output_json.write_text(output + "\n", encoding="utf-8")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "refresh":
         return run_refresh_from_args(args)
+    if args.command == "publish-command":
+        return publish_command_from_args(args)
     parser.error(f"unsupported command: {args.command}")
     return 2
 
