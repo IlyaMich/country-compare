@@ -19,7 +19,7 @@ DEFAULT_KAFKA_CONSUMER_GROUP = "data-update-workers"
 
 @dataclass(frozen=True, slots=True)
 class DataUpdateSettings:
-    """Runtime settings used by the Milestone 1 CLI runner."""
+    """Runtime settings used by the data update service."""
 
     default_source_family: str = DEFAULT_SOURCE_FAMILY
     default_manifest_path: Path = DEFAULT_MANIFEST_PATH
