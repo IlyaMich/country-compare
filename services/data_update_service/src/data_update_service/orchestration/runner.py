@@ -6,7 +6,24 @@ from typing import Any, Protocol
 
 import pandas as pd
 
-from data_update_service.orchestration.artifact_package import FilesystemArtifactStore
+from data_update_service.infrastructure.dataset_registry import (
+    DatasetRegistry,
+    FilesystemDatasetRegistry,
+)
+from data_update_service.infrastructure.job_store import (
+    InMemoryJobStore,
+    JobStatus,
+    JobStore,
+)
+from data_update_service.infrastructure.locks import (
+    InMemorySourceLockManager,
+    SourceLockManager,
+    SourceLockUnavailableError,
+)
+from data_update_service.orchestration.artifact_package import (
+    ArtifactPackage,
+    FilesystemArtifactStore,
+)
 from data_update_service.orchestration.commands import RefreshCommand
 from data_update_service.orchestration.diff import (
     DatasetDiffReport,
@@ -35,8 +52,8 @@ class ArtifactStore(Protocol):
         validation_report: Any,
         diff_report: DatasetDiffReport,
         result_payload: Any,
-    ) -> Any:
-        """Publish an immutable artifact package and return an ArtifactPackage-like object."""
+    ) -> ArtifactPackage:
+        """Publish an immutable artifact package and return an ArtifactPackage."""
 
 
 class CountryComparePipelineRunner:
@@ -77,6 +94,9 @@ class RunnerDependencies:
     diff_generator: DiffGenerator
     artifact_store: ArtifactStore | None = None
     audit_root: Path = Path("data/audit/data_update")
+    job_store: JobStore | None = None
+    source_locks: SourceLockManager | None = None
+    dataset_registry: DatasetRegistry | None = None
 
     @classmethod
     def local_defaults(
@@ -88,6 +108,11 @@ class RunnerDependencies:
             diff_generator=DefaultDiffGenerator(),
             artifact_store=FilesystemArtifactStore(resolved.artifact_root),
             audit_root=resolved.audit_root,
+            job_store=InMemoryJobStore(),
+            source_locks=InMemorySourceLockManager(
+                ttl_seconds=resolved.source_lock_ttl_seconds
+            ),
+            dataset_registry=FilesystemDatasetRegistry(resolved.artifact_root),
         )
 
 
@@ -97,120 +122,179 @@ def run_refresh_job(
 ) -> RefreshResult:
     """Run a refresh job through the shared orchestration path.
 
-    Milestone 1 keeps this deliberately small: it validates and runs the existing
-    manifest pipeline, produces a diff skeleton, and optionally writes a local
-    immutable artifact package. Kafka, job store, retries, and promotion will wrap
-    this function later instead of changing the refresh behavior.
+    Milestone 2 adds the operational shell that the future Kafka worker needs:
+    idempotent job creation, source-family locking, job status transitions, and
+    dataset-version metadata registration. Kafka, Postgres, retries, and the
+    private admin API still wrap this shared function later instead of changing
+    the refresh behavior.
     """
 
     deps = dependencies or RunnerDependencies.local_defaults()
+    job_record = None
+    if deps.job_store is not None:
+        job_record = deps.job_store.create_or_get_job(command)
+        if job_record.is_terminal:
+            stored_result = deps.job_store.result_for_job(job_record.job_id)
+            if stored_result is not None:
+                return stored_result
+
     audit_dir = deps.audit_root / command.source_family / command.job_id
 
     try:
-        if not command.manifest.exists():
-            return _failure(
+        try:
+            if deps.source_locks is None:
+                return _execute_refresh(command, deps, audit_dir)
+            with deps.source_locks.acquire(command.source_family, command.job_id):
+                return _execute_refresh(command, deps, audit_dir)
+        except SourceLockUnavailableError as exc:
+            result = _failure(
                 command,
-                error_code="manifest_not_found",
-                error_message=f"Manifest file not found: {command.manifest_path}",
+                status="failed_retryable",
+                error_code="source_lock_unavailable",
+                error_message=str(exc),
             )
-
-        processing_result = deps.pipeline_runner.run(command, audit_dir=audit_dir)
-        if not bool(getattr(processing_result, "ok", False)):
-            return _processing_failure(command, processing_result)
-
-        dataframe = getattr(processing_result, "canonical_dataframe", None)
-        if not isinstance(dataframe, pd.DataFrame):
-            return _failure(
-                command,
-                error_code="missing_canonical_dataframe",
-                error_message="Processing completed without a canonical dataframe.",
-            )
-
-        diff_report = deps.diff_generator.generate(dataframe)
-        summary = diff_report.summary
-        warnings = _collect_warnings(processing_result)
-
-        if diff_report.no_changes:
-            return RefreshResult(
-                job_id=command.job_id,
-                command_id=command.command_id,
-                source_family=command.source_family,
-                status="completed_no_changes",
-                row_count=summary.row_count,
-                country_count=summary.country_count,
-                metric_count=summary.metric_count,
-                year_min=summary.year_min,
-                year_max=summary.year_max,
-                warnings=warnings,
-            )
-
-        if command.dry_run or not command.publish:
-            return RefreshResult(
-                job_id=command.job_id,
-                command_id=command.command_id,
-                source_family=command.source_family,
-                status="dry_run_completed",
-                row_count=summary.row_count,
-                country_count=summary.country_count,
-                metric_count=summary.metric_count,
-                year_min=summary.year_min,
-                year_max=summary.year_max,
-                warnings=warnings,
-            )
-
-        if deps.artifact_store is None:
-            return _failure(
-                command,
-                error_code="artifact_store_not_configured",
-                error_message="publish=true requires an artifact store.",
-            )
-
-        pre_publish_result = RefreshResult(
-            job_id=command.job_id,
-            command_id=command.command_id,
-            source_family=command.source_family,
-            status="completed",
-            row_count=summary.row_count,
-            country_count=summary.country_count,
-            metric_count=summary.metric_count,
-            year_min=summary.year_min,
-            year_max=summary.year_max,
-            warnings=warnings,
-        )
-        artifact = deps.artifact_store.publish_package(
-            command=command,
-            dataframe=dataframe,
-            validation_report=getattr(processing_result, "validation_report", None),
-            diff_report=diff_report,
-            result_payload=pre_publish_result,
-        )
-
-        return RefreshResult(
-            job_id=command.job_id,
-            command_id=command.command_id,
-            source_family=command.source_family,
-            status="completed",
-            dataset_version=str(getattr(artifact, "dataset_version", "")) or None,
-            artifact_uri=str(getattr(artifact, "artifact_uri", "")) or None,
-            validation_report_uri=_path_to_uri(
-                getattr(artifact, "validation_report_path", None)
-            ),
-            diff_report_uri=_path_to_uri(
-                getattr(artifact, "diff_report_json_path", None)
-            ),
-            row_count=summary.row_count,
-            country_count=summary.country_count,
-            metric_count=summary.metric_count,
-            year_min=summary.year_min,
-            year_max=summary.year_max,
-            warnings=warnings,
-        )
+            _complete_job(deps, result)
+            return result
     except Exception as exc:  # pragma: no cover - defensive wrapper for CLI ergonomics
-        return _failure(
+        result = _failure(
             command,
+            status="failed_non_retryable",
             error_code=exc.__class__.__name__,
             error_message=str(exc),
         )
+        _complete_job(deps, result)
+        return result
+
+
+def _execute_refresh(
+    command: RefreshCommand,
+    deps: RunnerDependencies,
+    audit_dir: Path,
+) -> RefreshResult:
+    _mark_running(deps, command.job_id)
+
+    if not command.manifest.exists():
+        result = _failure(
+            command,
+            status="failed_non_retryable",
+            error_code="manifest_not_found",
+            error_message=f"Manifest file not found: {command.manifest_path}",
+        )
+        _complete_job(deps, result)
+        return result
+
+    processing_result = deps.pipeline_runner.run(command, audit_dir=audit_dir)
+    if not bool(getattr(processing_result, "ok", False)):
+        result = _processing_failure(command, processing_result)
+        _complete_job(deps, result)
+        return result
+
+    _update_status(deps, command.job_id, "pipeline_completed")
+    dataframe = getattr(processing_result, "canonical_dataframe", None)
+    if not isinstance(dataframe, pd.DataFrame):
+        result = _failure(
+            command,
+            status="failed_non_retryable",
+            error_code="missing_canonical_dataframe",
+            error_message="Processing completed without a canonical dataframe.",
+        )
+        _complete_job(deps, result)
+        return result
+
+    diff_report = deps.diff_generator.generate(dataframe)
+    summary = diff_report.summary
+    warnings = _collect_warnings(processing_result)
+    _update_status(deps, command.job_id, "validation_passed")
+
+    if diff_report.no_changes:
+        result = RefreshResult(
+            job_id=command.job_id,
+            command_id=command.command_id,
+            source_family=command.source_family,
+            status="completed_no_changes",
+            row_count=summary.row_count,
+            country_count=summary.country_count,
+            metric_count=summary.metric_count,
+            year_min=summary.year_min,
+            year_max=summary.year_max,
+            warnings=warnings,
+        )
+        _complete_job(deps, result)
+        return result
+
+    if command.dry_run or not command.publish:
+        result = RefreshResult(
+            job_id=command.job_id,
+            command_id=command.command_id,
+            source_family=command.source_family,
+            status="dry_run_completed",
+            row_count=summary.row_count,
+            country_count=summary.country_count,
+            metric_count=summary.metric_count,
+            year_min=summary.year_min,
+            year_max=summary.year_max,
+            warnings=warnings,
+        )
+        _complete_job(deps, result)
+        return result
+
+    if deps.artifact_store is None:
+        result = _failure(
+            command,
+            status="failed_non_retryable",
+            error_code="artifact_store_not_configured",
+            error_message="publish=true requires an artifact store.",
+        )
+        _complete_job(deps, result)
+        return result
+
+    pre_publish_result = RefreshResult(
+        job_id=command.job_id,
+        command_id=command.command_id,
+        source_family=command.source_family,
+        status="completed",
+        row_count=summary.row_count,
+        country_count=summary.country_count,
+        metric_count=summary.metric_count,
+        year_min=summary.year_min,
+        year_max=summary.year_max,
+        warnings=warnings,
+    )
+    artifact = deps.artifact_store.publish_package(
+        command=command,
+        dataframe=dataframe,
+        validation_report=getattr(processing_result, "validation_report", None),
+        diff_report=diff_report,
+        result_payload=pre_publish_result,
+    )
+    _update_status(deps, command.job_id, "artifact_published")
+
+    result = RefreshResult(
+        job_id=command.job_id,
+        command_id=command.command_id,
+        source_family=command.source_family,
+        status="completed",
+        dataset_version=str(artifact.dataset_version) or None,
+        artifact_uri=str(artifact.artifact_uri) or None,
+        validation_report_uri=_path_to_uri(artifact.validation_report_path),
+        diff_report_uri=_path_to_uri(artifact.diff_report_json_path),
+        row_count=summary.row_count,
+        country_count=summary.country_count,
+        metric_count=summary.metric_count,
+        year_min=summary.year_min,
+        year_max=summary.year_max,
+        warnings=warnings,
+    )
+
+    if deps.dataset_registry is not None:
+        deps.dataset_registry.register_dataset_version(
+            command=command,
+            artifact=artifact,
+            result=result,
+        )
+
+    _complete_job(deps, result)
+    return result
 
 
 def _processing_failure(
@@ -224,21 +308,43 @@ def _processing_failure(
         or "processing failed"
     )
     return _failure(
-        command, error_code="processing_failed", error_message=error_message
+        command,
+        status="failed_non_retryable",
+        error_code="processing_failed",
+        error_message=error_message,
     )
 
 
 def _failure(
-    command: RefreshCommand, *, error_code: str, error_message: str
+    command: RefreshCommand,
+    *,
+    status: str,
+    error_code: str,
+    error_message: str,
 ) -> RefreshResult:
     return RefreshResult(
         job_id=command.job_id,
         command_id=command.command_id,
         source_family=command.source_family,
-        status="failed_non_retryable",
+        status=status,  # type: ignore[arg-type]
         error_code=error_code,
         error_message=error_message,
     )
+
+
+def _mark_running(deps: RunnerDependencies, job_id: str) -> None:
+    if deps.job_store is not None:
+        deps.job_store.mark_running(job_id)
+
+
+def _update_status(deps: RunnerDependencies, job_id: str, status: JobStatus) -> None:
+    if deps.job_store is not None:
+        deps.job_store.update_status(job_id, status)
+
+
+def _complete_job(deps: RunnerDependencies, result: RefreshResult) -> None:
+    if deps.job_store is not None:
+        deps.job_store.complete_job(result)
 
 
 def _collect_warnings(processing_result: Any) -> list[str]:
