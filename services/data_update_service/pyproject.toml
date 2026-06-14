@@ -17,6 +17,10 @@ dependencies = [
 country-compare-data-update = "data_update_service.cli:main"
 
 [project.optional-dependencies]
+kafka = [
+    "confluent-kafka>=2.6.0",
+]
+
 dev = [
     "pytest>=8.0.0",
     "ruff>=0.3.0",
