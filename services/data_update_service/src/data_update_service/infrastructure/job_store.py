@@ -12,6 +12,7 @@ from data_update_service.orchestration.results import RefreshResult
 JobStatus = Literal[
     "accepted",
     "running",
+    "source_acquired",
     "pipeline_completed",
     "validation_passed",
     "artifact_published",
@@ -45,6 +46,7 @@ class JobRecord:
     source_family: str
     manifest_path: str
     mode: str
+    acquisition_mode: str
     status: JobStatus
     dry_run: bool
     publish: bool
@@ -113,6 +115,7 @@ class InMemoryJobStore:
                 source_family=command.source_family,
                 manifest_path=command.manifest_path,
                 mode=command.mode,
+                acquisition_mode=command.acquisition_mode,
                 status="accepted",
                 dry_run=command.dry_run,
                 publish=command.publish,
@@ -216,6 +219,7 @@ class InMemoryJobStore:
             "source_family",
             "manifest_path",
             "mode",
+            "acquisition_mode",
             "dry_run",
             "publish",
             "promote",

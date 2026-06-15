@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self, cast, get_args
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 RefreshMode = Literal["full_refresh", "source_only", "validate_only"]
+AcquisitionMode = Literal["local", "remote", "auto"]
 CommandType = Literal["refresh_source"]
 PromotionChannel = Literal["staging", "prod"]
 
@@ -20,11 +21,18 @@ def _normalize_portable_path(value: Any) -> str:
     backslashes, and the Linux worker will treat them as literal filename
     characters.
     """
-
     normalized = str(value).strip().replace("\\", "/")
     if not normalized:
         raise ValueError("must not be empty")
     return normalized
+
+
+def _coerce_acquisition_mode(value: Any) -> AcquisitionMode:
+    normalized = str(value).strip().lower()
+    if normalized not in get_args(AcquisitionMode):
+        allowed = ", ".join(get_args(AcquisitionMode))
+        raise ValueError(f"acquisition_mode must be one of: {allowed}")
+    return cast(AcquisitionMode, normalized)
 
 
 class RefreshCommand(BaseModel):
@@ -45,6 +53,7 @@ class RefreshCommand(BaseModel):
     source_family: str = Field(min_length=1)
     manifest_path: str = Field(min_length=1)
     mode: RefreshMode = "full_refresh"
+    acquisition_mode: AcquisitionMode = "local"
     dry_run: bool = False
     publish: bool = True
     promote: bool = False
@@ -59,6 +68,11 @@ class RefreshCommand(BaseModel):
     @classmethod
     def _normalize_manifest_path(cls, value: Any) -> str:
         return _normalize_portable_path(value)
+
+    @field_validator("acquisition_mode", mode="before")
+    @classmethod
+    def _normalize_acquisition_mode(cls, value: Any) -> AcquisitionMode:
+        return _coerce_acquisition_mode(value)
 
     @field_validator(
         "command_id",
@@ -88,7 +102,7 @@ class RefreshCommand(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def _validate_attempt_and_promotion(self) -> RefreshCommand:
+    def _validate_attempt_and_promotion(self) -> Self:
         if self.attempt > self.max_attempts:
             raise ValueError("attempt must be less than or equal to max_attempts")
         if self.promote and self.promotion_channel is None:
@@ -106,6 +120,7 @@ class RefreshCommand(BaseModel):
         source_family: str,
         manifest_path: str | Path,
         mode: RefreshMode = "full_refresh",
+        acquisition_mode: AcquisitionMode = "local",
         dry_run: bool = False,
         publish: bool = True,
         promote: bool = False,
@@ -119,24 +134,31 @@ class RefreshCommand(BaseModel):
         idempotency_key: str | None = None,
         correlation_id: str | None = None,
     ) -> RefreshCommand:
-        now = requested_at or datetime.now(tz=UTC)
         normalized_source = source_family.strip().lower()
+        normalized_manifest_path = _normalize_portable_path(manifest_path)
+        normalized_acquisition_mode = _coerce_acquisition_mode(acquisition_mode)
+        now = requested_at or datetime.now(UTC)
+        timestamp = now.strftime("%Y%m%dT%H%M%SZ")
         command_suffix = uuid4().hex[:12]
-        safe_ts = now.strftime("%Y%m%dT%H%M%SZ")
-        resolved_command_id = command_id or f"cmd_{safe_ts}_{command_suffix}"
-        resolved_job_id = (
-            job_id or f"job_{safe_ts}_{normalized_source}_{command_suffix}"
-        )
+
+        if normalized_acquisition_mode == "local":
+            default_idempotency_key = (
+                f"{normalized_source}:{mode}:{now.date().isoformat()}:{command_suffix}"
+            )
+        else:
+            default_idempotency_key = (
+                f"{normalized_source}:{mode}:{normalized_acquisition_mode}:"
+                f"{now.date().isoformat()}:{command_suffix}"
+            )
+
         return cls(
-            command_id=resolved_command_id,
-            job_id=resolved_job_id,
-            idempotency_key=(
-                idempotency_key
-                or f"{normalized_source}:{mode}:{now.date().isoformat()}:{command_suffix}"
-            ),
+            command_id=command_id or f"cmd_{timestamp}_{command_suffix}",
+            job_id=job_id or f"job_{timestamp}_{normalized_source}_{command_suffix}",
+            idempotency_key=idempotency_key or default_idempotency_key,
             source_family=normalized_source,
-            manifest_path=_normalize_portable_path(manifest_path),
+            manifest_path=normalized_manifest_path,
             mode=mode,
+            acquisition_mode=normalized_acquisition_mode,
             dry_run=dry_run,
             publish=publish,
             promote=promote,
