@@ -224,3 +224,56 @@ def test_run_refresh_job_registers_dataset_metadata_after_publish(tmp_path) -> N
     assert records[0].dataset_version == result.dataset_version
     assert records[0].created_by_job_id == command.job_id
     assert records[0].row_count == 2
+
+
+def test_run_refresh_job_treats_dry_run_without_outputs_as_success(tmp_path) -> None:
+    runner = FakePipelineRunner(
+        FakePipelineResult(
+            ok=False,
+            error="no valid canonical outputs were produced by the pipeline",
+        )
+    )
+    artifact_store = FakeArtifactStore()
+    deps = RunnerDependencies(
+        pipeline_runner=runner,
+        diff_generator=FakeDiffGenerator(),
+        artifact_store=artifact_store,
+        audit_root=tmp_path / "audit",
+    )
+
+    result = run_refresh_job(_command(tmp_path, dry_run=True, publish=False), deps)
+
+    assert result.status == "dry_run_completed"
+    assert result.error_code is None
+    assert result.error_message is None
+    assert artifact_store.called is False
+    assert result.warnings == [
+        "Dry run completed without canonical outputs. "
+        "No artifacts were published or promoted."
+    ]
+
+
+def test_run_refresh_job_fails_non_dry_run_without_outputs(tmp_path) -> None:
+    runner = FakePipelineRunner(
+        FakePipelineResult(
+            ok=False,
+            error="no valid canonical outputs were produced by the pipeline",
+        )
+    )
+    artifact_store = FakeArtifactStore()
+    deps = RunnerDependencies(
+        pipeline_runner=runner,
+        diff_generator=FakeDiffGenerator(),
+        artifact_store=artifact_store,
+        audit_root=tmp_path / "audit",
+    )
+
+    result = run_refresh_job(_command(tmp_path, dry_run=False, publish=True), deps)
+
+    assert result.status == "failed_non_retryable"
+    assert result.error_code == "processing_failed"
+    assert (
+        result.error_message
+        == "no valid canonical outputs were produced by the pipeline"
+    )
+    assert artifact_store.called is False

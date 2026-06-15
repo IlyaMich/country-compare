@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -43,3 +44,14 @@ def test_refresh_command_rejects_attempt_above_max_attempts() -> None:
             attempt=4,
             max_attempts=3,
         )
+
+
+def test_refresh_command_normalizes_windows_manifest_path_for_transport() -> None:
+    command = RefreshCommand.create(
+        source_family="world_bank",
+        manifest_path=r"config\source_manifests\world_bank_real_data.yaml",
+        requested_at=datetime(2026, 6, 13, tzinfo=UTC),
+    )
+
+    assert command.manifest_path == "config/source_manifests/world_bank_real_data.yaml"
+    assert command.manifest == Path("config/source_manifests/world_bank_real_data.yaml")
