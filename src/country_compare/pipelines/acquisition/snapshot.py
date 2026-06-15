@@ -4,7 +4,7 @@ import hashlib
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,6 +16,14 @@ AcquisitionMode = Literal["local", "remote", "auto"]
 
 class SourceSnapshotAcquisitionError(RuntimeError):
     """Raised when a source snapshot cannot be created."""
+
+
+class RetryableSourceSnapshotAcquisitionError(SourceSnapshotAcquisitionError):
+    """Raised when source snapshot acquisition may succeed on retry."""
+
+
+class NonRetryableSourceSnapshotAcquisitionError(SourceSnapshotAcquisitionError):
+    """Raised when source snapshot acquisition should not be retried automatically."""
 
 
 class AcquiredSourceAsset(BaseModel):
@@ -54,14 +62,14 @@ class AcquisitionResult(BaseModel):
 class SourceSnapshotAcquirer:
     """Create a per-job source snapshot for a processing manifest.
 
-    The current implementation supports local snapshots and a remote skeleton.
     Local mode copies the manifest's resolved raw files into:
 
         {workspace_root}/jobs/{job_id}/source_snapshot/raw
 
-    The copied layout preserves the relative paths used by the existing manifest,
-    which lets the normal manifest pipeline run with raw_root pointed at the
-    snapshot raw directory.
+    Remote mode currently supports World Bank indicator ZIP downloads. The
+    downloaded data CSV is normalized into the same relative path used by the
+    existing manifest, so the normal manifest pipeline can run with `raw_root`
+    pointed at the snapshot raw directory.
     """
 
     def __init__(self, *, workspace_root: str | Path) -> None:
@@ -99,8 +107,10 @@ class SourceSnapshotAcquirer:
             return self._acquire_remote(
                 job_id=job_id,
                 source_family=source_family,
+                manifest=manifest,
                 snapshot_dir=snapshot_dir,
                 raw_dir=raw_dir,
+                metadata_dir=metadata_dir,
                 audit_path=audit_path,
             )
 
@@ -123,8 +133,10 @@ class SourceSnapshotAcquirer:
             return self._acquire_remote(
                 job_id=job_id,
                 source_family=source_family,
+                manifest=manifest,
                 snapshot_dir=snapshot_dir,
                 raw_dir=raw_dir,
+                metadata_dir=metadata_dir,
                 audit_path=audit_path,
                 warnings=warnings,
             )
@@ -157,7 +169,7 @@ class SourceSnapshotAcquirer:
             assets.extend(source_assets)
 
         if not assets:
-            raise SourceSnapshotAcquisitionError(
+            raise NonRetryableSourceSnapshotAcquisitionError(
                 f"manifest produced no local source snapshot assets: {manifest_path}"
             )
 
@@ -189,7 +201,7 @@ class SourceSnapshotAcquirer:
                 source_path if source_path.is_absolute() else raw_root / source_path
             )
             if not resolved_source.exists() or not resolved_source.is_file():
-                raise SourceSnapshotAcquisitionError(
+                raise NonRetryableSourceSnapshotAcquisitionError(
                     f"source path does not exist for '{source.source_id}': {resolved_source}"
                 )
             return [
@@ -204,13 +216,13 @@ class SourceSnapshotAcquirer:
             ]
 
         if source.glob is None:
-            raise SourceSnapshotAcquisitionError(
+            raise NonRetryableSourceSnapshotAcquisitionError(
                 f"source '{source.source_id}' does not define a local path or glob"
             )
 
         matches = sorted(path for path in raw_root.glob(source.glob) if path.is_file())
         if not matches:
-            raise SourceSnapshotAcquisitionError(
+            raise NonRetryableSourceSnapshotAcquisitionError(
                 f"source glob matched no files for '{source.source_id}': "
                 f"root={raw_root} pattern={source.glob}"
             )
@@ -266,24 +278,62 @@ class SourceSnapshotAcquirer:
         *,
         job_id: str,
         source_family: str,
+        manifest: SourceManifest,
         snapshot_dir: Path,
         raw_dir: Path,
+        metadata_dir: Path,
         audit_path: Path,
         warnings: list[str] | None = None,
     ) -> AcquisitionResult:
-        _ = (job_id, snapshot_dir, raw_dir, audit_path)
-        joined_warnings = "; ".join(warnings or [])
-        suffix = f" Prior warnings: {joined_warnings}" if joined_warnings else ""
-        raise SourceSnapshotAcquisitionError(
-            "remote source snapshot acquisition is not implemented yet "
-            f"for source_family={source_family}.{suffix}"
+        if source_family.strip().lower() != "world_bank":
+            raise NonRetryableSourceSnapshotAcquisitionError(
+                "remote source snapshot acquisition is only implemented for "
+                f"source_family=world_bank; got {source_family!r}"
+            )
+
+        from country_compare.pipelines.acquisition.world_bank import (
+            NonRetryableWorldBankAcquisitionError,
+            RetryableWorldBankAcquisitionError,
+            WorldBankAcquisitionError,
+            WorldBankIndicatorSnapshotAcquirer,
         )
+
+        try:
+            world_bank_assets = (
+                WorldBankIndicatorSnapshotAcquirer().acquire_manifest_sources(
+                    manifest=manifest,
+                    source_family=source_family,
+                    snapshot_dir=snapshot_dir,
+                    raw_dir=raw_dir,
+                    metadata_dir=metadata_dir,
+                )
+            )
+        except RetryableWorldBankAcquisitionError as exc:
+            raise RetryableSourceSnapshotAcquisitionError(str(exc)) from exc
+        except NonRetryableWorldBankAcquisitionError as exc:
+            raise NonRetryableSourceSnapshotAcquisitionError(str(exc)) from exc
+        except WorldBankAcquisitionError as exc:
+            raise SourceSnapshotAcquisitionError(str(exc)) from exc
+
+        result_warnings = list(warnings or [])
+        result_warnings.extend(world_bank_assets.warnings)
+        result = AcquisitionResult(
+            job_id=job_id,
+            source_family=source_family,
+            snapshot_dir=str(snapshot_dir),
+            raw_dir=str(raw_dir),
+            audit_path=str(audit_path),
+            assets=world_bank_assets.assets,
+            warnings=result_warnings,
+        )
+        _write_audit(result, audit_path)
+        return result
 
 
 def _normalize_acquisition_mode(value: str) -> AcquisitionMode:
     normalized = value.strip().lower()
     if normalized in {"local", "remote", "auto"}:
-        return normalized  # type: ignore[return-value]
+        return cast(AcquisitionMode, normalized)
     raise SourceSnapshotAcquisitionError(
         f"unsupported acquisition_mode={value!r}; expected local, remote, or auto"
     )
@@ -299,7 +349,7 @@ def _safe_relative_manifest_path(path: str | Path) -> Path:
         return Path(candidate.name)
     safe_parts = [part for part in candidate.parts if part not in {"", "."}]
     if not safe_parts or any(part == ".." for part in safe_parts):
-        raise SourceSnapshotAcquisitionError(
+        raise NonRetryableSourceSnapshotAcquisitionError(
             f"unsafe source path cannot be copied into source snapshot: {path}"
         )
     return Path(*safe_parts)
