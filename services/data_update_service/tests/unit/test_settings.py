@@ -73,3 +73,22 @@ def test_settings_reads_retry_topics(monkeypatch) -> None:
 
     assert settings.kafka_retry_5m_topic == "retry.5m"
     assert settings.kafka_retry_1h_topic == "retry.1h"
+
+
+def test_settings_reads_retry_relay_settings(monkeypatch) -> None:
+    monkeypatch.setenv("DATA_UPDATE_KAFKA_RETRY_CONSUMER_GROUP", "retry-workers")
+    monkeypatch.setenv("DATA_UPDATE_RETRY_5M_DELAY_SECONDS", "0")
+    monkeypatch.setenv("DATA_UPDATE_RETRY_1H_DELAY_SECONDS", "10")
+
+    settings = DataUpdateSettings.from_env()
+
+    assert settings.kafka_retry_consumer_group == "retry-workers"
+    assert settings.retry_5m_delay_seconds == 0
+    assert settings.retry_1h_delay_seconds == 10
+
+
+def test_settings_rejects_negative_retry_delay(monkeypatch) -> None:
+    monkeypatch.setenv("DATA_UPDATE_RETRY_5M_DELAY_SECONDS", "-1")
+
+    with pytest.raises(ValueError, match="DATA_UPDATE_RETRY_5M_DELAY_SECONDS"):
+        DataUpdateSettings.from_env()

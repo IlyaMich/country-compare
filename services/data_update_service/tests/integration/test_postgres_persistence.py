@@ -186,3 +186,26 @@ def test_postgres_attempt_store_records_attempt_lifecycle(database_url: str) -> 
 
     assert [attempt.attempt_id for attempt in attempts] == [started.attempt_id]
     assert attempts[0].status == "failed_retryable"
+
+
+def test_postgres_job_store_advances_attempt_for_non_terminal_retry_command(
+    database_url: str,
+) -> None:
+    command = _command("retry_attempt")
+
+    store = PostgresJobStore(database_url, initialize_schema=True)
+
+    created = store.create_or_get_job(command)
+    assert created.attempt == 1
+
+    store.update_status(command.job_id, "retry_scheduled")
+
+    retry_command = command.model_copy(update={"attempt": 2})
+    loaded = store.create_or_get_job(retry_command)
+
+    assert loaded.job_id == command.job_id
+    assert loaded.command_id == command.command_id
+    assert loaded.idempotency_key == command.idempotency_key
+    assert loaded.status == "retry_scheduled"
+    assert loaded.attempt == 2
+    assert loaded.max_attempts == command.max_attempts

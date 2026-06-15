@@ -80,3 +80,26 @@ def test_in_memory_job_store_records_status_history_and_result() -> None:
         "dry_run_completed",
     )
     assert store.result_for_job(command.job_id) == result
+
+
+def test_in_memory_job_store_advances_attempt_for_non_terminal_retry_command() -> None:
+    store = InMemoryJobStore()
+    command = _command()
+
+    assert command.attempt == 1
+    assert command.max_attempts == 3
+
+    created = store.create_or_get_job(command)
+    assert created.attempt == 1
+
+    store.update_status(command.job_id, "retry_scheduled")
+
+    retry_command = command.model_copy(update={"attempt": 2})
+    loaded = store.create_or_get_job(retry_command)
+
+    assert loaded.job_id == command.job_id
+    assert loaded.command_id == command.command_id
+    assert loaded.idempotency_key == command.idempotency_key
+    assert loaded.status == "retry_scheduled"
+    assert loaded.attempt == 2
+    assert loaded.max_attempts == command.max_attempts
