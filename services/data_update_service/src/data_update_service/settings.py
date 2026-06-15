@@ -8,6 +8,7 @@ DEFAULT_SOURCE_FAMILY = "world_bank"
 DEFAULT_MANIFEST_PATH = Path("config/source_manifests/world_bank_real_data.yaml")
 DEFAULT_ARTIFACT_ROOT = Path("data/artifacts/data_update")
 DEFAULT_AUDIT_ROOT = Path("data/audit/data_update")
+DEFAULT_WORKSPACE_ROOT = Path("data/work/data-update")
 DEFAULT_MAX_ATTEMPTS = 3
 DEFAULT_SOURCE_LOCK_TTL_SECONDS = 7200
 DEFAULT_KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
@@ -25,6 +26,7 @@ class DataUpdateSettings:
     default_manifest_path: Path = DEFAULT_MANIFEST_PATH
     artifact_root: Path = DEFAULT_ARTIFACT_ROOT
     audit_root: Path = DEFAULT_AUDIT_ROOT
+    workspace_root: Path = DEFAULT_WORKSPACE_ROOT
     max_attempts: int = DEFAULT_MAX_ATTEMPTS
     source_lock_ttl_seconds: int = DEFAULT_SOURCE_LOCK_TTL_SECONDS
     kafka_bootstrap_servers: str = DEFAULT_KAFKA_BOOTSTRAP_SERVERS
@@ -51,6 +53,9 @@ class DataUpdateSettings:
             ),
             audit_root=Path(
                 os.getenv("DATA_UPDATE_AUDIT_ROOT", str(DEFAULT_AUDIT_ROOT))
+            ),
+            workspace_root=Path(
+                os.getenv("DATA_UPDATE_WORKSPACE_ROOT", str(DEFAULT_WORKSPACE_ROOT))
             ),
             max_attempts=_env_int("DATA_UPDATE_MAX_ATTEMPTS", DEFAULT_MAX_ATTEMPTS),
             source_lock_ttl_seconds=_env_int(
