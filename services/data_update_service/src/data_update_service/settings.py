@@ -22,6 +22,8 @@ DEFAULT_KAFKA_CONSUMER_GROUP = "data-update-workers"
 DEFAULT_DATABASE_URL: str | None = None
 DEFAULT_JOB_STORE: JobStoreBackend = "memory"
 DEFAULT_POSTGRES_INITIALIZE_SCHEMA = False
+DEFAULT_KAFKA_RETRY_5M_TOPIC = "country-compare.data-refresh.retry.5m.v1"
+DEFAULT_KAFKA_RETRY_1H_TOPIC = "country-compare.data-refresh.retry.1h.v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +43,8 @@ class DataUpdateSettings:
     kafka_status_topic: str = DEFAULT_KAFKA_STATUS_TOPIC
     kafka_dlq_topic: str = DEFAULT_KAFKA_DLQ_TOPIC
     kafka_consumer_group: str = DEFAULT_KAFKA_CONSUMER_GROUP
+    kafka_retry_5m_topic: str = DEFAULT_KAFKA_RETRY_5M_TOPIC
+    kafka_retry_1h_topic: str = DEFAULT_KAFKA_RETRY_1H_TOPIC
 
     database_url: str | None = DEFAULT_DATABASE_URL
     job_store: JobStoreBackend = DEFAULT_JOB_STORE
@@ -92,6 +96,14 @@ class DataUpdateSettings:
             kafka_consumer_group=os.getenv(
                 "DATA_UPDATE_KAFKA_CONSUMER_GROUP",
                 DEFAULT_KAFKA_CONSUMER_GROUP,
+            ),
+            kafka_retry_5m_topic=os.getenv(
+                "DATA_UPDATE_KAFKA_RETRY_5M_TOPIC",
+                DEFAULT_KAFKA_RETRY_5M_TOPIC,
+            ),
+            kafka_retry_1h_topic=os.getenv(
+                "DATA_UPDATE_KAFKA_RETRY_1H_TOPIC",
+                DEFAULT_KAFKA_RETRY_1H_TOPIC,
             ),
             database_url=_env_optional("DATA_UPDATE_DATABASE_URL"),
             job_store=_env_job_store("DATA_UPDATE_JOB_STORE", DEFAULT_JOB_STORE),

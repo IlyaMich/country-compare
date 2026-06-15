@@ -104,6 +104,8 @@ def build_kafka_worker(settings: DataUpdateSettings | None = None) -> RefreshWor
         producer=producer,
         status_topic=resolved.kafka_status_topic,
         dlq_topic=resolved.kafka_dlq_topic,
+        retry_5m_topic=resolved.kafka_retry_5m_topic,
+        retry_1h_topic=resolved.kafka_retry_1h_topic,
     )
     handler = RefreshCommandWorkerHandler(
         event_publisher=event_publisher,
