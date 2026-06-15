@@ -20,6 +20,10 @@ from data_update_service.infrastructure.locks import (
     SourceLockManager,
     SourceLockUnavailableError,
 )
+from data_update_service.infrastructure.postgres import (
+    PostgresJobStore,
+    PostgresSourceLockManager,
+)
 from data_update_service.orchestration.artifact_package import (
     ArtifactPackage,
     FilesystemArtifactStore,
@@ -139,7 +143,8 @@ class RunnerDependencies:
 
     @classmethod
     def local_defaults(
-        cls, settings: DataUpdateSettings | None = None
+        cls,
+        settings: DataUpdateSettings | None = None,
     ) -> RunnerDependencies:
         resolved = settings or DataUpdateSettings.from_env()
         return cls(
@@ -153,6 +158,39 @@ class RunnerDependencies:
             job_store=InMemoryJobStore(),
             source_locks=InMemorySourceLockManager(
                 ttl_seconds=resolved.source_lock_ttl_seconds
+            ),
+            dataset_registry=FilesystemDatasetRegistry(resolved.artifact_root),
+        )
+
+    @classmethod
+    def postgres_defaults(
+        cls,
+        settings: DataUpdateSettings | None = None,
+        *,
+        initialize_schema: bool = False,
+    ) -> RunnerDependencies:
+        resolved = settings or DataUpdateSettings.from_env()
+        if resolved.database_url is None:
+            raise ValueError(
+                "DATA_UPDATE_DATABASE_URL is required for Postgres defaults"
+            )
+
+        return cls(
+            pipeline_runner=CountryComparePipelineRunner(),
+            diff_generator=DefaultDiffGenerator(),
+            source_acquirer=CountryCompareSourceAcquirer(
+                workspace_root=resolved.workspace_root
+            ),
+            artifact_store=FilesystemArtifactStore(resolved.artifact_root),
+            audit_root=resolved.audit_root,
+            job_store=PostgresJobStore(
+                resolved.database_url,
+                initialize_schema=initialize_schema,
+            ),
+            source_locks=PostgresSourceLockManager(
+                resolved.database_url,
+                ttl_seconds=resolved.source_lock_ttl_seconds,
+                initialize_schema=initialize_schema,
             ),
             dataset_registry=FilesystemDatasetRegistry(resolved.artifact_root),
         )
