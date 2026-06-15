@@ -6,6 +6,11 @@ from typing import Any, Protocol
 
 import pandas as pd
 
+from data_update_service.infrastructure.attempt_store import (
+    AttemptRecord,
+    AttemptStore,
+    InMemoryAttemptStore,
+)
 from data_update_service.infrastructure.dataset_registry import (
     DatasetRegistry,
     FilesystemDatasetRegistry,
@@ -21,6 +26,7 @@ from data_update_service.infrastructure.locks import (
     SourceLockUnavailableError,
 )
 from data_update_service.infrastructure.postgres import (
+    PostgresAttemptStore,
     PostgresJobStore,
     PostgresSourceLockManager,
 )
@@ -138,6 +144,7 @@ class RunnerDependencies:
     artifact_store: ArtifactStore | None = None
     audit_root: Path = Path("data/audit/data_update")
     job_store: JobStore | None = None
+    attempt_store: AttemptStore | None = None
     source_locks: SourceLockManager | None = None
     dataset_registry: DatasetRegistry | None = None
 
@@ -160,6 +167,7 @@ class RunnerDependencies:
                 ttl_seconds=resolved.source_lock_ttl_seconds
             ),
             dataset_registry=FilesystemDatasetRegistry(resolved.artifact_root),
+            attempt_store=InMemoryAttemptStore(),
         )
 
     @classmethod
@@ -193,6 +201,10 @@ class RunnerDependencies:
                 initialize_schema=initialize_schema,
             ),
             dataset_registry=FilesystemDatasetRegistry(resolved.artifact_root),
+            attempt_store=PostgresAttemptStore(
+                resolved.database_url,
+                initialize_schema=initialize_schema,
+            ),
         )
 
 
@@ -206,20 +218,27 @@ def run_refresh_job(
     refresh behavior stays consistent across entrypoints.
     """
     deps = dependencies or RunnerDependencies.local_defaults()
+
     if deps.job_store is not None:
         job_record = deps.job_store.create_or_get_job(command)
+
         if job_record.is_terminal:
             stored_result = deps.job_store.result_for_job(job_record.job_id)
             if stored_result is not None:
                 return stored_result
 
     audit_dir = deps.audit_root / command.source_family / command.job_id
+    attempt = _start_attempt(deps, command)
+    result: RefreshResult | None = None
+
     try:
         try:
             if deps.source_locks is None:
-                return _execute_refresh(command, deps, audit_dir)
-            with deps.source_locks.acquire(command.source_family, command.job_id):
-                return _execute_refresh(command, deps, audit_dir)
+                result = _execute_refresh(command, deps, audit_dir)
+            else:
+                with deps.source_locks.acquire(command.source_family, command.job_id):
+                    result = _execute_refresh(command, deps, audit_dir)
+
         except SourceLockUnavailableError as exc:
             result = _failure(
                 command,
@@ -228,16 +247,23 @@ def run_refresh_job(
                 error_message=str(exc),
             )
             _complete_job(deps, result)
-            return result
-    except Exception as exc:  # pragma: no cover - defensive wrapper for CLI ergonomics
-        result = _failure(
-            command,
-            status="failed_non_retryable",
-            error_code=exc.__class__.__name__,
-            error_message=str(exc),
-        )
-        _complete_job(deps, result)
+
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - defensive wrapper for CLI ergonomics
+            result = _failure(
+                command,
+                status="failed_non_retryable",
+                error_code=exc.__class__.__name__,
+                error_message=str(exc),
+            )
+            _complete_job(deps, result)
+
         return result
+
+    finally:
+        if result is not None:
+            _finish_attempt(deps, attempt, result)
 
 
 def _execute_refresh(
@@ -485,6 +511,32 @@ def _update_status(deps: RunnerDependencies, job_id: str, status: JobStatus) -> 
 def _complete_job(deps: RunnerDependencies, result: RefreshResult) -> None:
     if deps.job_store is not None:
         deps.job_store.complete_job(result)
+
+
+def _start_attempt(
+    deps: RunnerDependencies,
+    command: RefreshCommand,
+) -> AttemptRecord | None:
+    if deps.attempt_store is None:
+        return None
+
+    return deps.attempt_store.start_attempt(command)
+
+
+def _finish_attempt(
+    deps: RunnerDependencies,
+    attempt: AttemptRecord | None,
+    result: RefreshResult,
+) -> None:
+    if deps.attempt_store is None or attempt is None:
+        return
+
+    deps.attempt_store.finish_attempt(
+        attempt.attempt_id,
+        status=result.status,
+        error_code=result.error_code,
+        error_message=result.error_message,
+    )
 
 
 def _collect_warnings(
