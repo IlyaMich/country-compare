@@ -14,6 +14,8 @@ from data_update_service.orchestration.runner import RunnerDependencies, run_ref
 from data_update_service.settings import DataUpdateSettings
 from data_update_service.worker.publisher import publish_refresh_command
 
+ACQUISITION_MODE_CHOICES = ("local", "remote", "auto")
+
 
 def _parse_bool(value: str | bool) -> bool:
     if isinstance(value, bool):
@@ -27,7 +29,7 @@ def _parse_bool(value: str | bool) -> bool:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    settings = DataUpdateSettings()
+    settings = DataUpdateSettings.from_env()
     parser = argparse.ArgumentParser(
         description="Country Compare data update service CLI"
     )
@@ -45,6 +47,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("full_refresh", "source_only", "validate_only"),
         default="full_refresh",
     )
+    refresh.add_argument(
+        "--acquisition-mode",
+        choices=ACQUISITION_MODE_CHOICES,
+        default="local",
+        help="How source files are acquired before the manifest pipeline runs.",
+    )
     refresh.add_argument("--dry-run", type=_parse_bool, default=True)
     refresh.add_argument("--publish", type=_parse_bool, default=False)
     refresh.add_argument("--promote", type=_parse_bool, default=False)
@@ -54,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     refresh.add_argument("--requested-by", default="cli")
     refresh.add_argument("--artifact-root", type=Path, default=settings.artifact_root)
     refresh.add_argument("--audit-root", type=Path, default=settings.audit_root)
+    refresh.add_argument("--workspace-root", type=Path, default=settings.workspace_root)
     refresh.add_argument("--max-attempts", type=int, default=settings.max_attempts)
     refresh.add_argument("--output-json", type=Path, default=None)
 
@@ -69,6 +78,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--mode",
         choices=("full_refresh", "source_only", "validate_only"),
         default="full_refresh",
+    )
+    publish.add_argument(
+        "--acquisition-mode",
+        choices=ACQUISITION_MODE_CHOICES,
+        default="local",
+        help="How the worker should acquire sources before running the pipeline.",
     )
     publish.add_argument("--dry-run", type=_parse_bool, default=True)
     publish.add_argument("--publish", type=_parse_bool, default=False)
@@ -91,6 +106,7 @@ def _command_from_args(args: argparse.Namespace) -> RefreshCommand:
         source_family=args.source_family,
         manifest_path=args.manifest_path,
         mode=args.mode,
+        acquisition_mode=getattr(args, "acquisition_mode", "local"),
         dry_run=args.dry_run,
         publish=args.publish,
         promote=args.promote,
@@ -105,6 +121,7 @@ def run_refresh_from_args(args: argparse.Namespace) -> int:
     settings = DataUpdateSettings(
         artifact_root=args.artifact_root,
         audit_root=args.audit_root,
+        workspace_root=args.workspace_root,
         max_attempts=args.max_attempts,
     )
     result = run_refresh_job(command, RunnerDependencies.local_defaults(settings))
@@ -138,6 +155,7 @@ def publish_command_from_args(
         "command_id": metadata.command_id,
         "job_id": metadata.job_id,
         "source_family": metadata.source_family,
+        "acquisition_mode": command.acquisition_mode,
     }
     output = json.dumps(payload, indent=2, sort_keys=True)
     print(output)
