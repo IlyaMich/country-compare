@@ -106,7 +106,7 @@ class InMemoryJobStore:
             existing = self._find_existing(command)
             if existing is not None:
                 self._validate_existing_job(command, existing)
-                return deepcopy(existing)
+                return self._advance_existing_attempt_if_needed(command, existing)
 
             now = datetime.now(tz=UTC)
             record = JobRecord(
@@ -244,6 +244,24 @@ class InMemoryJobStore:
         if record is None:
             raise KeyError(f"unknown data refresh job: {job_id}")
         return record
+
+    def _advance_existing_attempt_if_needed(
+        self,
+        command: RefreshCommand,
+        existing: JobRecord,
+    ) -> JobRecord:
+        if existing.is_terminal or command.attempt <= existing.attempt:
+            return deepcopy(existing)
+
+        now = datetime.now(tz=UTC)
+        updated = replace(
+            existing,
+            attempt=command.attempt,
+            max_attempts=command.max_attempts,
+            updated_at=now,
+        )
+        self._jobs_by_id[existing.job_id] = updated
+        return deepcopy(updated)
 
 
 def _append_status(

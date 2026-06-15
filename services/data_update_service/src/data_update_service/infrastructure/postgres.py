@@ -50,7 +50,7 @@ class PostgresJobStore:
                 existing = _find_existing_job(cursor, command)
                 if existing is not None:
                     _validate_existing_job(command, existing)
-                    return existing
+                    return self._advance_existing_attempt_if_needed(command, existing)
 
                 now = datetime.now(tz=UTC)
                 cursor.execute(
@@ -250,6 +250,41 @@ class PostgresJobStore:
                 if isinstance(payload, str):
                     payload = json.loads(payload)
                 return RefreshResult.model_validate(payload)
+
+    def _advance_existing_attempt_if_needed(
+        self,
+        command: RefreshCommand,
+        existing: JobRecord,
+    ) -> JobRecord:
+        if existing.is_terminal or command.attempt <= existing.attempt:
+            return existing
+
+        updated_at = datetime.now(tz=UTC)
+
+        with _connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE data_refresh_jobs
+                    SET attempt = %(attempt)s,
+                        max_attempts = %(max_attempts)s,
+                        updated_at = %(updated_at)s
+                    WHERE job_id = %(job_id)s
+                    RETURNING *
+                    """,
+                    {
+                        "job_id": existing.job_id,
+                        "attempt": command.attempt,
+                        "max_attempts": command.max_attempts,
+                        "updated_at": updated_at,
+                    },
+                )
+                row = cursor.fetchone()
+
+        if row is None:
+            raise KeyError(f"unknown data refresh job: {existing.job_id}")
+
+        return _row_to_job_record(row)
 
 
 class PostgresAttemptStore:
