@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from threading import RLock
 from typing import Any, Protocol, cast
 
+from confluent_kafka import KafkaError
+
 
 class KafkaProducer(Protocol):
     def send(
@@ -155,7 +157,12 @@ class ConfluentKafkaProducer:
                 "install services/data_update_service[kafka]."
             ) from exc
 
-        self._producer = Producer({"bootstrap.servers": bootstrap_servers})
+        self._producer = Producer(
+            {
+                "bootstrap.servers": bootstrap_servers,
+                "broker.address.family": "v4",
+            }
+        )
 
     def send(
         self,
@@ -202,6 +209,7 @@ class ConfluentKafkaConsumer:
                 "group.id": group_id,
                 "enable.auto.commit": False,
                 "auto.offset.reset": auto_offset_reset,
+                "broker.address.family": "v4",
             }
         )
         self._consumer.subscribe(topics)
@@ -210,11 +218,18 @@ class ConfluentKafkaConsumer:
         message = self._consumer.poll(timeout_seconds)
         if message is None:
             return None
+
         error = message.error()
         if error is not None:
+            if isinstance(error, KafkaError) and (
+                error.code() == KafkaError.UNKNOWN_TOPIC_OR_PART
+            ):
+                return None
             raise KafkaConsumerError(str(error))
+
         key_bytes = message.key()
         key = key_bytes.decode("utf-8") if isinstance(key_bytes, bytes) else key_bytes
+
         return KafkaMessage(
             topic=str(message.topic()),
             key=key,
