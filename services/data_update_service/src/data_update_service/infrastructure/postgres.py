@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
+from data_update_service.infrastructure.attempt_store import AttemptRecord
 from data_update_service.infrastructure.job_store import (
     DuplicateCommandConflictError,
     JobRecord,
@@ -41,6 +42,7 @@ class PostgresJobStore:
                     ALTER TABLE data_refresh_jobs
                     ADD COLUMN IF NOT EXISTS acquisition_mode TEXT NOT NULL DEFAULT 'local'
                     """)
+                cursor.execute(_CREATE_DATA_REFRESH_ATTEMPTS_SQL)
 
     def create_or_get_job(self, command: RefreshCommand) -> JobRecord:
         with _connect(self.database_url) as connection:
@@ -248,6 +250,140 @@ class PostgresJobStore:
                 if isinstance(payload, str):
                     payload = json.loads(payload)
                 return RefreshResult.model_validate(payload)
+
+
+class PostgresAttemptStore:
+    """Postgres-backed refresh attempt store."""
+
+    def __init__(self, database_url: str, *, initialize_schema: bool = False) -> None:
+        if not database_url.strip():
+            raise ValueError("database_url must not be empty")
+
+        self.database_url = database_url
+
+        if initialize_schema:
+            self.initialize_schema()
+
+    def initialize_schema(self) -> None:
+        with _connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(_CREATE_DATA_REFRESH_JOBS_SQL)
+                cursor.execute("""
+                    ALTER TABLE data_refresh_jobs
+                    ADD COLUMN IF NOT EXISTS acquisition_mode TEXT NOT NULL DEFAULT 'local'
+                    """)
+                cursor.execute(_CREATE_DATA_REFRESH_ATTEMPTS_SQL)
+
+    def start_attempt(
+        self,
+        command: RefreshCommand,
+        *,
+        worker_id: str | None = None,
+    ) -> AttemptRecord:
+        now = datetime.now(tz=UTC)
+        attempt_id = _attempt_id(command.job_id, command.attempt)
+
+        with _connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO data_refresh_attempts (
+                        attempt_id,
+                        job_id,
+                        command_id,
+                        attempt_number,
+                        started_at,
+                        status,
+                        worker_id
+                    )
+                    VALUES (
+                        %(attempt_id)s,
+                        %(job_id)s,
+                        %(command_id)s,
+                        %(attempt_number)s,
+                        %(started_at)s,
+                        'running',
+                        %(worker_id)s
+                    )
+                    ON CONFLICT (job_id, attempt_number)
+                    DO UPDATE SET
+                        status = 'running',
+                        worker_id = EXCLUDED.worker_id,
+                        finished_at = NULL,
+                        error_code = NULL,
+                        error_message = NULL
+                    RETURNING *
+                    """,
+                    {
+                        "attempt_id": attempt_id,
+                        "job_id": command.job_id,
+                        "command_id": command.command_id,
+                        "attempt_number": command.attempt,
+                        "started_at": now,
+                        "worker_id": worker_id,
+                    },
+                )
+                row = cursor.fetchone()
+
+        if row is None:
+            raise PostgresInfrastructureError(
+                f"failed to start refresh attempt: {attempt_id}"
+            )
+
+        return _row_to_attempt_record(row)
+
+    def finish_attempt(
+        self,
+        attempt_id: str,
+        *,
+        status: str,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> AttemptRecord:
+        now = datetime.now(tz=UTC)
+
+        with _connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE data_refresh_attempts
+                    SET status = %(status)s,
+                        finished_at = %(finished_at)s,
+                        error_code = %(error_code)s,
+                        error_message = %(error_message)s
+                    WHERE attempt_id = %(attempt_id)s
+                    RETURNING *
+                    """,
+                    {
+                        "attempt_id": attempt_id,
+                        "status": status,
+                        "finished_at": now,
+                        "error_code": error_code,
+                        "error_message": error_message,
+                    },
+                )
+                row = cursor.fetchone()
+
+        if row is None:
+            raise KeyError(f"unknown refresh attempt: {attempt_id}")
+
+        return _row_to_attempt_record(row)
+
+    def list_attempts(self, job_id: str) -> list[AttemptRecord]:
+        with _connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT *
+                    FROM data_refresh_attempts
+                    WHERE job_id = %s
+                    ORDER BY attempt_number ASC
+                    """,
+                    (job_id,),
+                )
+                rows = cursor.fetchall()
+
+        return [_row_to_attempt_record(row) for row in rows]
 
 
 class PostgresSourceLockManager:
@@ -570,6 +706,25 @@ def _result_status_to_job_status(status: str) -> JobStatus:
     return "failed_non_retryable"
 
 
+def _row_to_attempt_record(row: dict[str, Any]) -> AttemptRecord:
+    return AttemptRecord(
+        attempt_id=str(row["attempt_id"]),
+        job_id=str(row["job_id"]),
+        command_id=str(row["command_id"]),
+        attempt_number=int(row["attempt_number"]),
+        started_at=_ensure_aware_datetime(row["started_at"]),
+        finished_at=_optional_datetime(row.get("finished_at")),
+        status=str(row["status"]),
+        worker_id=str(row["worker_id"]) if row.get("worker_id") else None,
+        error_code=str(row["error_code"]) if row.get("error_code") else None,
+        error_message=str(row["error_message"]) if row.get("error_message") else None,
+    )
+
+
+def _attempt_id(job_id: str, attempt_number: int) -> str:
+    return f"{job_id}_attempt_{attempt_number}"
+
+
 _CREATE_DATA_REFRESH_JOBS_SQL = """
 CREATE TABLE IF NOT EXISTS data_refresh_jobs (
     job_id TEXT PRIMARY KEY,
@@ -606,5 +761,21 @@ CREATE TABLE IF NOT EXISTS source_locks (
     locked_by_job_id TEXT NOT NULL,
     locked_at TIMESTAMPTZ NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL
+)
+"""
+
+_CREATE_DATA_REFRESH_ATTEMPTS_SQL = """
+CREATE TABLE IF NOT EXISTS data_refresh_attempts (
+    attempt_id TEXT PRIMARY KEY,
+    job_id TEXT NOT NULL REFERENCES data_refresh_jobs(job_id) ON DELETE CASCADE,
+    command_id TEXT NOT NULL,
+    attempt_number INTEGER NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL,
+    finished_at TIMESTAMPTZ,
+    status TEXT NOT NULL,
+    worker_id TEXT,
+    error_code TEXT,
+    error_message TEXT,
+    UNIQUE (job_id, attempt_number)
 )
 """
