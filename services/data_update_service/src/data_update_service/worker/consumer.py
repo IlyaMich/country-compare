@@ -24,7 +24,10 @@ class WorkerRunStats:
 
 class RefreshWorker:
     def __init__(
-        self, *, consumer: KafkaConsumer, handler: RefreshCommandWorkerHandler
+        self,
+        *,
+        consumer: KafkaConsumer,
+        handler: RefreshCommandWorkerHandler,
     ) -> None:
         self._consumer = consumer
         self._handler = handler
@@ -33,9 +36,11 @@ class RefreshWorker:
         message = self._consumer.poll(timeout_seconds=timeout_seconds)
         if message is None:
             return False
+
         result = self._handler.process_message(message)
         if result.ack:
             self._consumer.commit(message)
+
         return True
 
     def run_until_idle(
@@ -47,15 +52,20 @@ class RefreshWorker:
         polled = 0
         committed = 0
         empty_polls = 0
+
         while empty_polls < max_empty_polls:
             processed = self.run_once(timeout_seconds=timeout_seconds)
             if not processed:
                 empty_polls += 1
                 continue
+
             polled += 1
             committed += 1
+
         return WorkerRunStats(
-            polled=polled, committed=committed, empty_polls=empty_polls
+            polled=polled,
+            committed=committed,
+            empty_polls=empty_polls,
         )
 
     def run_forever(self, *, timeout_seconds: float = 1.0) -> None:
@@ -66,8 +76,22 @@ class RefreshWorker:
             self._consumer.close()
 
 
+def build_worker_dependencies(settings: DataUpdateSettings) -> RunnerDependencies:
+    if settings.job_store == "memory":
+        return RunnerDependencies.local_defaults(settings)
+
+    if settings.job_store == "postgres":
+        return RunnerDependencies.postgres_defaults(
+            settings,
+            initialize_schema=settings.postgres_initialize_schema,
+        )
+
+    raise ValueError(f"Unsupported DATA_UPDATE_JOB_STORE value: {settings.job_store!r}")
+
+
 def build_kafka_worker(settings: DataUpdateSettings | None = None) -> RefreshWorker:
     resolved = settings or DataUpdateSettings.from_env()
+
     producer = ConfluentKafkaProducer(
         bootstrap_servers=resolved.kafka_bootstrap_servers,
     )
@@ -83,8 +107,9 @@ def build_kafka_worker(settings: DataUpdateSettings | None = None) -> RefreshWor
     )
     handler = RefreshCommandWorkerHandler(
         event_publisher=event_publisher,
-        dependencies=RunnerDependencies.local_defaults(resolved),
+        dependencies=build_worker_dependencies(resolved),
     )
+
     return RefreshWorker(consumer=consumer, handler=handler)
 
 

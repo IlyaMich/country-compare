@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal, cast
+
+JobStoreBackend = Literal["memory", "postgres"]
 
 DEFAULT_SOURCE_FAMILY = "world_bank"
 DEFAULT_MANIFEST_PATH = Path("config/source_manifests/world_bank_real_data.yaml")
@@ -17,6 +20,8 @@ DEFAULT_KAFKA_STATUS_TOPIC = "country-compare.data-refresh.status.v1"
 DEFAULT_KAFKA_DLQ_TOPIC = "country-compare.data-refresh.dlq.v1"
 DEFAULT_KAFKA_CONSUMER_GROUP = "data-update-workers"
 DEFAULT_DATABASE_URL: str | None = None
+DEFAULT_JOB_STORE: JobStoreBackend = "memory"
+DEFAULT_POSTGRES_INITIALIZE_SCHEMA = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,12 +35,16 @@ class DataUpdateSettings:
     workspace_root: Path = DEFAULT_WORKSPACE_ROOT
     max_attempts: int = DEFAULT_MAX_ATTEMPTS
     source_lock_ttl_seconds: int = DEFAULT_SOURCE_LOCK_TTL_SECONDS
+
     kafka_bootstrap_servers: str = DEFAULT_KAFKA_BOOTSTRAP_SERVERS
     kafka_command_topic: str = DEFAULT_KAFKA_COMMAND_TOPIC
     kafka_status_topic: str = DEFAULT_KAFKA_STATUS_TOPIC
     kafka_dlq_topic: str = DEFAULT_KAFKA_DLQ_TOPIC
     kafka_consumer_group: str = DEFAULT_KAFKA_CONSUMER_GROUP
+
     database_url: str | None = DEFAULT_DATABASE_URL
+    job_store: JobStoreBackend = DEFAULT_JOB_STORE
+    postgres_initialize_schema: bool = DEFAULT_POSTGRES_INITIALIZE_SCHEMA
 
     @classmethod
     def from_env(cls) -> DataUpdateSettings:
@@ -85,6 +94,11 @@ class DataUpdateSettings:
                 DEFAULT_KAFKA_CONSUMER_GROUP,
             ),
             database_url=_env_optional("DATA_UPDATE_DATABASE_URL"),
+            job_store=_env_job_store("DATA_UPDATE_JOB_STORE", DEFAULT_JOB_STORE),
+            postgres_initialize_schema=_env_bool(
+                "DATA_UPDATE_POSTGRES_INITIALIZE_SCHEMA",
+                DEFAULT_POSTGRES_INITIALIZE_SCHEMA,
+            ),
         )
 
 
@@ -92,15 +106,43 @@ def _env_int(name: str, default: int) -> int:
     raw = os.getenv(name)
     if raw is None or raw.strip() == "":
         return default
+
     value = int(raw)
     if value <= 0:
         raise ValueError(f"{name} must be greater than zero")
     return value
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off"}:
+        return False
+
+    raise ValueError(f"{name} must be a boolean value")
+
+
+def _env_job_store(name: str, default: JobStoreBackend) -> JobStoreBackend:
+    raw = _env_optional(name)
+    if raw is None:
+        return default
+
+    normalized = raw.strip().lower()
+    if normalized not in {"memory", "postgres"}:
+        raise ValueError(f"{name} must be one of: memory, postgres")
+
+    return cast(JobStoreBackend, normalized)
+
+
 def _env_optional(name: str) -> str | None:
     raw = os.getenv(name)
     if raw is None:
         return None
+
     stripped = raw.strip()
     return stripped or None
