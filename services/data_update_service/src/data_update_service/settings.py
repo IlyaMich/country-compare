@@ -16,6 +16,7 @@ DEFAULT_KAFKA_COMMAND_TOPIC = "country-compare.data-refresh.commands.v1"
 DEFAULT_KAFKA_STATUS_TOPIC = "country-compare.data-refresh.status.v1"
 DEFAULT_KAFKA_DLQ_TOPIC = "country-compare.data-refresh.dlq.v1"
 DEFAULT_KAFKA_CONSUMER_GROUP = "data-update-workers"
+DEFAULT_DATABASE_URL: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +35,7 @@ class DataUpdateSettings:
     kafka_status_topic: str = DEFAULT_KAFKA_STATUS_TOPIC
     kafka_dlq_topic: str = DEFAULT_KAFKA_DLQ_TOPIC
     kafka_consumer_group: str = DEFAULT_KAFKA_CONSUMER_GROUP
+    database_url: str | None = DEFAULT_DATABASE_URL
 
     @classmethod
     def from_env(cls) -> DataUpdateSettings:
@@ -82,6 +84,7 @@ class DataUpdateSettings:
                 "DATA_UPDATE_KAFKA_CONSUMER_GROUP",
                 DEFAULT_KAFKA_CONSUMER_GROUP,
             ),
+            database_url=_env_optional("DATA_UPDATE_DATABASE_URL"),
         )
 
 
@@ -93,3 +96,11 @@ def _env_int(name: str, default: int) -> int:
     if value <= 0:
         raise ValueError(f"{name} must be greater than zero")
     return value
+
+
+def _env_optional(name: str) -> str | None:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    stripped = raw.strip()
+    return stripped or None
