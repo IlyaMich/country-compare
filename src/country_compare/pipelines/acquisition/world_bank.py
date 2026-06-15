@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -42,6 +43,8 @@ class WorldBankAcquisitionPlan:
     language: str = _DEFAULT_LANGUAGE
     source_id: int = _DEFAULT_SOURCE_ID
     timeout_seconds: int = _DEFAULT_TIMEOUT_SECONDS
+    max_download_attempts: int = 3
+    retry_backoff_seconds: float = 1.0
 
 
 @dataclass(slots=True)
@@ -182,6 +185,31 @@ class WorldBankIndicatorSnapshotAcquirer:
         )
 
     def _download_zip(self, url: str, destination: Path, *, source_id: str) -> None:
+        attempt_count = max(1, int(self.plan.max_download_attempts))
+        backoff_seconds = max(0.0, float(self.plan.retry_backoff_seconds))
+
+        last_error: RetryableWorldBankAcquisitionError | None = None
+
+        for attempt_number in range(1, attempt_count + 1):
+            try:
+                self._download_zip_once(url, destination, source_id=source_id)
+                return
+            except RetryableWorldBankAcquisitionError as exc:
+                last_error = exc
+                if attempt_number >= attempt_count:
+                    raise RetryableWorldBankAcquisitionError(
+                        f"{exc} after {attempt_count} download attempts"
+                    ) from exc
+
+                if backoff_seconds > 0:
+                    time.sleep(backoff_seconds * attempt_number)
+
+        if last_error is not None:
+            raise last_error
+
+    def _download_zip_once(
+        self, url: str, destination: Path, *, source_id: str
+    ) -> None:
         destination.parent.mkdir(parents=True, exist_ok=True)
         request = Request(url, headers={"User-Agent": _USER_AGENT})
 

@@ -12,6 +12,9 @@ from country_compare.pipelines.acquisition.snapshot import (
     SourceSnapshotAcquirer,
 )
 from country_compare.pipelines.acquisition.world_bank import (
+    RetryableWorldBankAcquisitionError,
+    WorldBankAcquisitionPlan,
+    WorldBankIndicatorSnapshotAcquirer,
     build_world_bank_indicator_zip_url,
 )
 
@@ -144,6 +147,75 @@ def test_remote_world_bank_snapshot_classifies_http_500_as_retryable(
             manifest_path=manifest_path,
             acquisition_mode="remote",
         )
+
+
+def test_download_zip_retries_retryable_http_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"count": 0}
+    destination = tmp_path / "source.zip"
+
+    acquirer = WorldBankIndicatorSnapshotAcquirer(
+        plan=WorldBankAcquisitionPlan(
+            max_download_attempts=3,
+            retry_backoff_seconds=0,
+        )
+    )
+
+    def fake_download_once(url: str, destination: Path, *, source_id: str) -> None:
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise RetryableWorldBankAcquisitionError(
+                f"World Bank returned retryable HTTP 502 for source '{source_id}': {url}"
+            )
+        destination.write_bytes(b"fake zip bytes")
+
+    monkeypatch.setattr(acquirer, "_download_zip_once", fake_download_once)
+
+    acquirer._download_zip(
+        "https://api.worldbank.org/v2/en/country/all/indicator/X?source=2&downloadformat=csv",
+        destination,
+        source_id="wb_test",
+    )
+
+    assert calls["count"] == 3
+    assert destination.read_bytes() == b"fake zip bytes"
+
+
+def test_download_zip_raises_retryable_after_max_attempts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"count": 0}
+    destination = tmp_path / "source.zip"
+
+    acquirer = WorldBankIndicatorSnapshotAcquirer(
+        plan=WorldBankAcquisitionPlan(
+            max_download_attempts=2,
+            retry_backoff_seconds=0,
+        )
+    )
+
+    def fake_download_once(url: str, destination: Path, *, source_id: str) -> None:
+        calls["count"] += 1
+        raise RetryableWorldBankAcquisitionError(
+            f"World Bank returned retryable HTTP 502 for source '{source_id}': {url}"
+        )
+
+    monkeypatch.setattr(acquirer, "_download_zip_once", fake_download_once)
+
+    with pytest.raises(
+        RetryableWorldBankAcquisitionError,
+        match="after 2 download attempts",
+    ):
+        acquirer._download_zip(
+            "https://api.worldbank.org/v2/en/country/all/indicator/X?source=2&downloadformat=csv",
+            destination,
+            source_id="wb_test",
+        )
+
+    assert calls["count"] == 2
 
 
 def _write_manifest(tmp_path: Path) -> Path:
