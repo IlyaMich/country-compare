@@ -32,6 +32,10 @@ from data_update_service.orchestration.diff import (
 from data_update_service.orchestration.results import RefreshResult
 from data_update_service.settings import DataUpdateSettings
 
+NO_CANONICAL_OUTPUTS_MESSAGE = (
+    "no valid canonical outputs were produced by the pipeline"
+)
+
 
 class PipelineRunner(Protocol):
     def run(self, command: RefreshCommand, *, audit_dir: Path) -> Any:
@@ -122,15 +126,12 @@ def run_refresh_job(
 ) -> RefreshResult:
     """Run a refresh job through the shared orchestration path.
 
-    Milestone 2 adds the operational shell that the future Kafka worker needs:
-    idempotent job creation, source-family locking, job status transitions, and
-    dataset-version metadata registration. Kafka, Postgres, retries, and the
-    private admin API still wrap this shared function later instead of changing
-    the refresh behavior.
+    The Kafka worker, CLI, and future private API should all call this function
+    so refresh behavior stays consistent across entrypoints.
     """
 
     deps = dependencies or RunnerDependencies.local_defaults()
-    job_record = None
+
     if deps.job_store is not None:
         job_record = deps.job_store.create_or_get_job(command)
         if job_record.is_terminal:
@@ -144,8 +145,10 @@ def run_refresh_job(
         try:
             if deps.source_locks is None:
                 return _execute_refresh(command, deps, audit_dir)
+
             with deps.source_locks.acquire(command.source_family, command.job_id):
                 return _execute_refresh(command, deps, audit_dir)
+
         except SourceLockUnavailableError as exc:
             result = _failure(
                 command,
@@ -155,6 +158,7 @@ def run_refresh_job(
             )
             _complete_job(deps, result)
             return result
+
     except Exception as exc:  # pragma: no cover - defensive wrapper for CLI ergonomics
         result = _failure(
             command,
@@ -184,14 +188,27 @@ def _execute_refresh(
         return result
 
     processing_result = deps.pipeline_runner.run(command, audit_dir=audit_dir)
+
     if not bool(getattr(processing_result, "ok", False)):
+        if _is_expected_dry_run_without_outputs(command, processing_result):
+            result = _dry_run_no_outputs_result(command, processing_result)
+            _complete_job(deps, result)
+            return result
+
         result = _processing_failure(command, processing_result)
         _complete_job(deps, result)
         return result
 
     _update_status(deps, command.job_id, "pipeline_completed")
+
     dataframe = getattr(processing_result, "canonical_dataframe", None)
+
     if not isinstance(dataframe, pd.DataFrame):
+        if command.dry_run:
+            result = _dry_run_no_outputs_result(command, processing_result)
+            _complete_job(deps, result)
+            return result
+
         result = _failure(
             command,
             status="failed_non_retryable",
@@ -260,6 +277,7 @@ def _execute_refresh(
         year_max=summary.year_max,
         warnings=warnings,
     )
+
     artifact = deps.artifact_store.publish_package(
         command=command,
         dataframe=dataframe,
@@ -267,6 +285,7 @@ def _execute_refresh(
         diff_report=diff_report,
         result_payload=pre_publish_result,
     )
+
     _update_status(deps, command.job_id, "artifact_published")
 
     result = RefreshResult(
@@ -297,21 +316,57 @@ def _execute_refresh(
     return result
 
 
+def _is_expected_dry_run_without_outputs(
+    command: RefreshCommand,
+    processing_result: Any,
+) -> bool:
+    if not command.dry_run:
+        return False
+
+    error_message = _processing_error_message(processing_result)
+    return NO_CANONICAL_OUTPUTS_MESSAGE in error_message.lower()
+
+
+def _dry_run_no_outputs_result(
+    command: RefreshCommand,
+    processing_result: Any,
+) -> RefreshResult:
+    warnings = _collect_warnings(processing_result)
+    warning = (
+        "Dry run completed without canonical outputs. "
+        "No artifacts were published or promoted."
+    )
+    if warning not in warnings:
+        warnings.append(warning)
+
+    return RefreshResult(
+        job_id=command.job_id,
+        command_id=command.command_id,
+        source_family=command.source_family,
+        status="dry_run_completed",
+        warnings=warnings,
+    )
+
+
 def _processing_failure(
     command: RefreshCommand, processing_result: Any
 ) -> RefreshResult:
-    validation_report = getattr(processing_result, "validation_report", None)
-    errors = list(getattr(validation_report, "error_messages", []) or [])
-    error_message = (
-        getattr(processing_result, "error", None)
-        or "; ".join(errors)
-        or "processing failed"
-    )
     return _failure(
         command,
         status="failed_non_retryable",
         error_code="processing_failed",
-        error_message=error_message,
+        error_message=_processing_error_message(processing_result),
+    )
+
+
+def _processing_error_message(processing_result: Any) -> str:
+    validation_report = getattr(processing_result, "validation_report", None)
+    errors = list(getattr(validation_report, "error_messages", []) or [])
+
+    return (
+        str(getattr(processing_result, "error", "") or "")
+        or "; ".join(str(error) for error in errors)
+        or "processing failed"
     )
 
 
@@ -351,15 +406,18 @@ def _collect_warnings(processing_result: Any) -> list[str]:
     warnings = [
         str(item) for item in (getattr(processing_result, "warnings", []) or [])
     ]
+
     validation_report = getattr(processing_result, "validation_report", None)
     warnings.extend(
         str(item) for item in (getattr(validation_report, "warning_messages", []) or [])
     )
+
     return warnings
 
 
 def _path_to_uri(path: Any) -> str | None:
     if path is None:
         return None
+
     resolved = Path(path)
     return resolved.as_uri() if resolved.is_absolute() else resolved.resolve().as_uri()
