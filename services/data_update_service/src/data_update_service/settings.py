@@ -19,11 +19,14 @@ DEFAULT_KAFKA_COMMAND_TOPIC = "country-compare.data-refresh.commands.v1"
 DEFAULT_KAFKA_STATUS_TOPIC = "country-compare.data-refresh.status.v1"
 DEFAULT_KAFKA_DLQ_TOPIC = "country-compare.data-refresh.dlq.v1"
 DEFAULT_KAFKA_CONSUMER_GROUP = "data-update-workers"
+DEFAULT_KAFKA_RETRY_5M_TOPIC = "country-compare.data-refresh.retry.5m.v1"
+DEFAULT_KAFKA_RETRY_1H_TOPIC = "country-compare.data-refresh.retry.1h.v1"
+DEFAULT_KAFKA_RETRY_CONSUMER_GROUP = "data-update-retry-workers"
+DEFAULT_RETRY_5M_DELAY_SECONDS = 300
+DEFAULT_RETRY_1H_DELAY_SECONDS = 3600
 DEFAULT_DATABASE_URL: str | None = None
 DEFAULT_JOB_STORE: JobStoreBackend = "memory"
 DEFAULT_POSTGRES_INITIALIZE_SCHEMA = False
-DEFAULT_KAFKA_RETRY_5M_TOPIC = "country-compare.data-refresh.retry.5m.v1"
-DEFAULT_KAFKA_RETRY_1H_TOPIC = "country-compare.data-refresh.retry.1h.v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +48,9 @@ class DataUpdateSettings:
     kafka_consumer_group: str = DEFAULT_KAFKA_CONSUMER_GROUP
     kafka_retry_5m_topic: str = DEFAULT_KAFKA_RETRY_5M_TOPIC
     kafka_retry_1h_topic: str = DEFAULT_KAFKA_RETRY_1H_TOPIC
+    kafka_retry_consumer_group: str = DEFAULT_KAFKA_RETRY_CONSUMER_GROUP
+    retry_5m_delay_seconds: int = DEFAULT_RETRY_5M_DELAY_SECONDS
+    retry_1h_delay_seconds: int = DEFAULT_RETRY_1H_DELAY_SECONDS
 
     database_url: str | None = DEFAULT_DATABASE_URL
     job_store: JobStoreBackend = DEFAULT_JOB_STORE
@@ -105,6 +111,18 @@ class DataUpdateSettings:
                 "DATA_UPDATE_KAFKA_RETRY_1H_TOPIC",
                 DEFAULT_KAFKA_RETRY_1H_TOPIC,
             ),
+            kafka_retry_consumer_group=os.getenv(
+                "DATA_UPDATE_KAFKA_RETRY_CONSUMER_GROUP",
+                DEFAULT_KAFKA_RETRY_CONSUMER_GROUP,
+            ),
+            retry_5m_delay_seconds=_env_non_negative_int(
+                "DATA_UPDATE_RETRY_5M_DELAY_SECONDS",
+                DEFAULT_RETRY_5M_DELAY_SECONDS,
+            ),
+            retry_1h_delay_seconds=_env_non_negative_int(
+                "DATA_UPDATE_RETRY_1H_DELAY_SECONDS",
+                DEFAULT_RETRY_1H_DELAY_SECONDS,
+            ),
             database_url=_env_optional("DATA_UPDATE_DATABASE_URL"),
             job_store=_env_job_store("DATA_UPDATE_JOB_STORE", DEFAULT_JOB_STORE),
             postgres_initialize_schema=_env_bool(
@@ -158,3 +176,14 @@ def _env_optional(name: str) -> str | None:
 
     stripped = raw.strip()
     return stripped or None
+
+
+def _env_non_negative_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+
+    value = int(raw)
+    if value < 0:
+        raise ValueError(f"{name} must be greater than or equal to zero")
+    return value
