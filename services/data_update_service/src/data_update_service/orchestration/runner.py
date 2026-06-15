@@ -225,7 +225,12 @@ def _execute_refresh(
     acquisition_result: Any | None = None
     raw_root: Path | None = None
     if deps.source_acquirer is not None:
-        acquisition_result = deps.source_acquirer.acquire(command)
+        try:
+            acquisition_result = deps.source_acquirer.acquire(command)
+        except Exception as exc:
+            result = _source_acquisition_failure(command, exc)
+            _complete_job(deps, result)
+            return result
         raw_dir = getattr(acquisition_result, "raw_dir", None)
         if raw_dir is not None:
             raw_root = Path(str(raw_dir))
@@ -412,6 +417,34 @@ def _processing_failure(
         error_code="processing_failed",
         error_message=_processing_error_message(processing_result),
     )
+
+
+def _source_acquisition_failure(
+    command: RefreshCommand, exc: Exception
+) -> RefreshResult:
+    if _is_retryable_source_acquisition_error(exc):
+        return _failure(
+            command,
+            status="failed_retryable",
+            error_code="source_acquisition_retryable",
+            error_message=str(exc),
+        )
+    return _failure(
+        command,
+        status="failed_non_retryable",
+        error_code="source_acquisition_failed",
+        error_message=str(exc),
+    )
+
+
+def _is_retryable_source_acquisition_error(exc: Exception) -> bool:
+    try:
+        from country_compare.pipelines.acquisition.snapshot import (
+            RetryableSourceSnapshotAcquisitionError,
+        )
+    except Exception:  # pragma: no cover - defensive if acquisition package unavailable
+        return False
+    return isinstance(exc, RetryableSourceSnapshotAcquisitionError)
 
 
 def _processing_error_message(processing_result: Any) -> str:
