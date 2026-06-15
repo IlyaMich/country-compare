@@ -16,6 +16,6 @@ COPY data ./data
 COPY services/data_update_service ./services/data_update_service
 
 RUN python -m pip install -e . \
-    && python -m pip install -e "services/data_update_service[kafka]"
+    && python -m pip install -e "services/data_update_service[kafka,postgres]"
 
 CMD ["python", "-m", "data_update_service.worker.consumer"]
