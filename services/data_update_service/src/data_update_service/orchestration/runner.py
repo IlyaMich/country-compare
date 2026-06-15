@@ -32,10 +32,6 @@ from data_update_service.orchestration.diff import (
 from data_update_service.orchestration.results import RefreshResult
 from data_update_service.settings import DataUpdateSettings
 
-NO_CANONICAL_OUTPUTS_MESSAGE = (
-    "no valid canonical outputs were produced by the pipeline"
-)
-
 
 class PipelineRunner(Protocol):
     def run(
@@ -231,6 +227,7 @@ def _execute_refresh(
             result = _source_acquisition_failure(command, exc)
             _complete_job(deps, result)
             return result
+
         raw_dir = getattr(acquisition_result, "raw_dir", None)
         if raw_dir is not None:
             raw_root = Path(str(raw_dir))
@@ -244,14 +241,6 @@ def _execute_refresh(
     )
 
     if not bool(getattr(processing_result, "ok", False)):
-        if _is_expected_dry_run_without_outputs(command, processing_result):
-            result = _dry_run_no_outputs_result(
-                command,
-                processing_result,
-                acquisition_result=acquisition_result,
-            )
-            _complete_job(deps, result)
-            return result
         result = _processing_failure(command, processing_result)
         _complete_job(deps, result)
         return result
@@ -260,14 +249,6 @@ def _execute_refresh(
 
     dataframe = getattr(processing_result, "canonical_dataframe", None)
     if not isinstance(dataframe, pd.DataFrame):
-        if command.dry_run:
-            result = _dry_run_no_outputs_result(
-                command,
-                processing_result,
-                acquisition_result=acquisition_result,
-            )
-            _complete_job(deps, result)
-            return result
         result = _failure(
             command,
             status="failed_non_retryable",
@@ -374,42 +355,21 @@ def _execute_refresh(
     return result
 
 
-def _is_expected_dry_run_without_outputs(
+def _run_pipeline(
+    pipeline_runner: PipelineRunner,
     command: RefreshCommand,
-    processing_result: Any,
-) -> bool:
-    if not command.dry_run:
-        return False
-    error_message = _processing_error_message(processing_result)
-    return NO_CANONICAL_OUTPUTS_MESSAGE in error_message.lower()
-
-
-def _dry_run_no_outputs_result(
-    command: RefreshCommand,
-    processing_result: Any,
     *,
-    acquisition_result: Any | None = None,
-) -> RefreshResult:
-    warnings = _collect_warnings(
-        processing_result, acquisition_result=acquisition_result
-    )
-    warning = (
-        "Dry run completed without canonical outputs. "
-        "No artifacts were published or promoted."
-    )
-    if warning not in warnings:
-        warnings.append(warning)
-    return RefreshResult(
-        job_id=command.job_id,
-        command_id=command.command_id,
-        source_family=command.source_family,
-        status="dry_run_completed",
-        warnings=warnings,
-    )
+    audit_dir: Path,
+    raw_root: Path | None,
+) -> Any:
+    if raw_root is None:
+        return pipeline_runner.run(command, audit_dir=audit_dir)
+    return pipeline_runner.run(command, audit_dir=audit_dir, raw_root=raw_root)
 
 
 def _processing_failure(
-    command: RefreshCommand, processing_result: Any
+    command: RefreshCommand,
+    processing_result: Any,
 ) -> RefreshResult:
     return _failure(
         command,
@@ -512,15 +472,3 @@ def _path_to_uri(path: Any) -> str | None:
         return None
     resolved = Path(path)
     return resolved.as_uri() if resolved.is_absolute() else resolved.resolve().as_uri()
-
-
-def _run_pipeline(
-    pipeline_runner: PipelineRunner,
-    command: RefreshCommand,
-    *,
-    audit_dir: Path,
-    raw_root: Path | None,
-) -> Any:
-    if raw_root is None:
-        return pipeline_runner.run(command, audit_dir=audit_dir)
-    return pipeline_runner.run(command, audit_dir=audit_dir, raw_root=raw_root)
