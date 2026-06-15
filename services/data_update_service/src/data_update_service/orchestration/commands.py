@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -12,12 +12,27 @@ CommandType = Literal["refresh_source"]
 PromotionChannel = Literal["staging", "prod"]
 
 
+def _normalize_portable_path(value: Any) -> str:
+    """Normalize command paths for transport between Windows hosts and Linux containers.
+
+    Kafka commands are JSON payloads, so paths should be serialized in a portable
+    POSIX-like form. Without this, a command published from Windows may contain
+    backslashes, and the Linux worker will treat them as literal filename
+    characters.
+    """
+
+    normalized = str(value).strip().replace("\\", "/")
+    if not normalized:
+        raise ValueError("must not be empty")
+    return normalized
+
+
 class RefreshCommand(BaseModel):
     """Command that describes one source refresh request.
 
-    This schema is intentionally transport-neutral. The CLI creates it directly
-    in Milestone 1; later Kafka and private API adapters should pass the same
-    model into `run_refresh_job()`.
+    This schema is intentionally transport-neutral. The CLI creates it directly,
+    and Kafka/private API adapters should pass the same model into
+    `run_refresh_job()`.
     """
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
@@ -40,12 +55,16 @@ class RefreshCommand(BaseModel):
     attempt: int = Field(default=1, ge=1)
     max_attempts: int = Field(default=3, ge=1)
 
+    @field_validator("manifest_path", mode="before")
+    @classmethod
+    def _normalize_manifest_path(cls, value: Any) -> str:
+        return _normalize_portable_path(value)
+
     @field_validator(
         "command_id",
         "job_id",
         "idempotency_key",
         "source_family",
-        "manifest_path",
         "requested_by",
         "correlation_id",
     )
@@ -116,7 +135,7 @@ class RefreshCommand(BaseModel):
                 or f"{normalized_source}:{mode}:{now.date().isoformat()}:{command_suffix}"
             ),
             source_family=normalized_source,
-            manifest_path=str(manifest_path),
+            manifest_path=_normalize_portable_path(manifest_path),
             mode=mode,
             dry_run=dry_run,
             publish=publish,
