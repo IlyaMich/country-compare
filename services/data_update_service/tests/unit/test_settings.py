@@ -63,3 +63,13 @@ def test_settings_rejects_invalid_postgres_schema_flag(monkeypatch) -> None:
 
     with pytest.raises(ValueError, match="DATA_UPDATE_POSTGRES_INITIALIZE_SCHEMA"):
         DataUpdateSettings.from_env()
+
+
+def test_settings_reads_retry_topics(monkeypatch) -> None:
+    monkeypatch.setenv("DATA_UPDATE_KAFKA_RETRY_5M_TOPIC", "retry.5m")
+    monkeypatch.setenv("DATA_UPDATE_KAFKA_RETRY_1H_TOPIC", "retry.1h")
+
+    settings = DataUpdateSettings.from_env()
+
+    assert settings.kafka_retry_5m_topic == "retry.5m"
+    assert settings.kafka_retry_1h_topic == "retry.1h"
