@@ -16,6 +16,7 @@ JobStatus = Literal[
     "pipeline_completed",
     "validation_passed",
     "artifact_published",
+    "retry_scheduled",
     "completed",
     "completed_no_changes",
     "dry_run_completed",
@@ -147,6 +148,9 @@ class InMemoryJobStore:
                 record,
                 status="running",
                 started_at=started_at,
+                finished_at=None,
+                error_code=None,
+                error_message=None,
                 updated_at=now,
                 status_history=_append_status(record.status_history, "running"),
             )
@@ -157,9 +161,11 @@ class InMemoryJobStore:
         with self._lock:
             now = datetime.now(tz=UTC)
             record = self._require_job(job_id)
+
             updated = replace(
                 record,
                 status=status,
+                finished_at=None,
                 updated_at=now,
                 status_history=_append_status(record.status_history, status),
             )
