@@ -9,6 +9,7 @@ import pytest
 from data_update_service.infrastructure.job_store import DuplicateCommandConflictError
 from data_update_service.infrastructure.locks import SourceLockUnavailableError
 from data_update_service.infrastructure.postgres import (
+    PostgresAttemptStore,
     PostgresJobStore,
     PostgresSourceLockManager,
 )
@@ -148,5 +149,40 @@ def _reset_tables(database_url: str) -> None:
     with psycopg.connect(database_url, connect_timeout=5) as connection:
         connection.autocommit = True
         with connection.cursor() as cursor:
+            cursor.execute("DROP TABLE IF EXISTS data_refresh_attempts")
             cursor.execute("DROP TABLE IF EXISTS source_locks")
             cursor.execute("DROP TABLE IF EXISTS data_refresh_jobs")
+
+
+def test_postgres_attempt_store_records_attempt_lifecycle(database_url: str) -> None:
+    command = _command("attempt")
+
+    job_store = PostgresJobStore(database_url, initialize_schema=True)
+    attempt_store = PostgresAttemptStore(database_url, initialize_schema=True)
+
+    job_store.create_or_get_job(command)
+
+    started = attempt_store.start_attempt(command, worker_id="pytest-worker")
+    assert started.job_id == command.job_id
+    assert started.command_id == command.command_id
+    assert started.attempt_number == command.attempt
+    assert started.status == "running"
+    assert started.finished_at is None
+    assert started.worker_id == "pytest-worker"
+
+    finished = attempt_store.finish_attempt(
+        started.attempt_id,
+        status="failed_retryable",
+        error_code="source_acquisition_retryable",
+        error_message="temporary upstream outage",
+    )
+
+    assert finished.status == "failed_retryable"
+    assert finished.finished_at is not None
+    assert finished.error_code == "source_acquisition_retryable"
+    assert finished.error_message == "temporary upstream outage"
+
+    attempts = attempt_store.list_attempts(command.job_id)
+
+    assert [attempt.attempt_id for attempt in attempts] == [started.attempt_id]
+    assert attempts[0].status == "failed_retryable"
