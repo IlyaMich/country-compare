@@ -1,0 +1,99 @@
+name: Data Refresh
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_family:
+        description: Source family
+        default: world_bank
+        required: true
+      manifest_path:
+        description: Source manifest path
+        default: config/source_manifests/world_bank_real_data.yaml
+        required: true
+      dry_run:
+        description: Do not publish artifacts
+        default: "true"
+        required: true
+      publish:
+        description: Publish artifact package
+        default: "false"
+        required: true
+      promote:
+        description: Promote after successful validation
+        default: "false"
+        required: true
+      promotion_channel:
+        description: Dataset channel
+        default: staging
+        required: true
+  pull_request:
+    paths:
+      - "config/source_manifests/**"
+      - "src/country_compare/data/**"
+      - "src/country_compare/pipelines/**"
+      - "services/data_update_service/**"
+      - ".github/workflows/data-refresh.yml"
+
+jobs:
+  data-refresh-dry-run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,ml]"
+          python -m pip install -e "services/data_update_service[dev]"
+
+      - name: Run shared data refresh runner
+        env:
+          SOURCE_FAMILY: ${{ github.event.inputs.source_family || 'world_bank' }}
+          MANIFEST_PATH: ${{ github.event.inputs.manifest_path || 'config/source_manifests/world_bank_real_data.yaml' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+          PUBLISH: ${{ github.event.inputs.publish || 'false' }}
+          PROMOTE: ${{ github.event.inputs.promote || 'false' }}
+          PROMOTION_CHANNEL: ${{ github.event.inputs.promotion_channel || 'staging' }}
+        run: |
+          python -m data_update_service.cli refresh \
+            --source-family "$SOURCE_FAMILY" \
+            --manifest-path "$MANIFEST_PATH" \
+            --mode full_refresh \
+            --dry-run "$DRY_RUN" \
+            --publish "$PUBLISH" \
+            --promote "$PROMOTE" \
+            --promotion-channel "$PROMOTION_CHANNEL" \
+            --output-json data/audit/data_update/refresh_result.json
+
+      - name: Validate config
+        run: country-compare validate-config
+
+      - name: Validate data
+        run: country-compare validate-data
+
+      - name: Run data-update unit tests
+        run: python -m pytest services/data_update_service/tests
+
+      - name: Lint data-update service
+        run: python -m ruff check services/data_update_service/src services/data_update_service/tests
+
+      - name: Check data-update formatting
+        run: python -m black --check services/data_update_service/src services/data_update_service/tests
+
+      - name: Type-check data-update service
+        run: python -m mypy services/data_update_service/src
+
+      - name: Upload refresh reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: data-refresh-reports
+          path: |
+            data/audit/data_update/**
+            data/artifacts/data_update/**
