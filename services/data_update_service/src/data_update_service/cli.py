@@ -6,12 +6,15 @@ from pathlib import Path
 from typing import Any
 
 from data_update_service.infrastructure.kafka import (
+    ConfluentKafkaConsumer,
     ConfluentKafkaProducer,
+    KafkaConsumer,
     KafkaProducer,
 )
 from data_update_service.orchestration.commands import RefreshCommand
 from data_update_service.orchestration.runner import RunnerDependencies, run_refresh_job
 from data_update_service.settings import DataUpdateSettings
+from data_update_service.worker.dlq import inspect_dlq_messages
 from data_update_service.worker.publisher import publish_refresh_command
 
 ACQUISITION_MODE_CHOICES = ("local", "remote", "auto")
@@ -70,6 +73,29 @@ def build_parser() -> argparse.ArgumentParser:
         "publish-command",
         help="Publish a RefreshCommand to the Kafka command topic",
     )
+    inspect_dlq = subparsers.add_parser(
+        "inspect-dlq",
+        help="Inspect messages from the Kafka DLQ topic",
+    )
+    inspect_dlq.add_argument(
+        "--kafka-bootstrap-servers",
+        default=settings.kafka_bootstrap_servers,
+    )
+    inspect_dlq.add_argument("--kafka-dlq-topic", default=settings.kafka_dlq_topic)
+    inspect_dlq.add_argument(
+        "--consumer-group",
+        default=settings.kafka_dlq_consumer_group,
+    )
+    inspect_dlq.add_argument("--max-messages", type=int, default=10)
+    inspect_dlq.add_argument("--timeout-seconds", type=float, default=1.0)
+    inspect_dlq.add_argument("--max-empty-polls", type=int, default=2)
+    inspect_dlq.add_argument("--commit", type=_parse_bool, default=False)
+    inspect_dlq.add_argument(
+        "--format",
+        choices=("json", "text"),
+        default="json",
+    )
+    inspect_dlq.add_argument("--output-json", type=Path, default=None)
     publish.add_argument("--source-family", default=settings.default_source_family)
     publish.add_argument(
         "--manifest-path", type=Path, default=settings.default_manifest_path
@@ -165,6 +191,83 @@ def publish_command_from_args(
     return 0
 
 
+def inspect_dlq_from_args(
+    args: argparse.Namespace,
+    *,
+    consumer: KafkaConsumer | None = None,
+) -> int:
+    resolved_consumer = consumer or ConfluentKafkaConsumer(
+        bootstrap_servers=args.kafka_bootstrap_servers,
+        group_id=args.consumer_group,
+        topics=[args.kafka_dlq_topic],
+        auto_offset_reset="earliest",
+    )
+
+    try:
+        result = inspect_dlq_messages(
+            consumer=resolved_consumer,
+            max_messages=args.max_messages,
+            timeout_seconds=args.timeout_seconds,
+            max_empty_polls=args.max_empty_polls,
+            commit=args.commit,
+        )
+    finally:
+        if consumer is None:
+            resolved_consumer.close()
+
+    payload: dict[str, Any] = {
+        "topic": args.kafka_dlq_topic,
+        "consumer_group": args.consumer_group,
+        "committed": args.commit,
+        **result.as_dict(),
+    }
+
+    if args.format == "text":
+        output = _format_dlq_inspection_text(payload)
+    else:
+        output = json.dumps(payload, indent=2, sort_keys=True)
+
+    print(output)
+
+    if args.output_json is not None:
+        args.output_json.parent.mkdir(parents=True, exist_ok=True)
+        args.output_json.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    return 0
+
+
+def _format_dlq_inspection_text(payload: dict[str, Any]) -> str:
+    messages = payload["messages"]
+    lines = [
+        f"DLQ topic: {payload['topic']}",
+        f"Consumer group: {payload['consumer_group']}",
+        f"Messages: {payload['count']}",
+        f"Committed: {payload['committed']}",
+    ]
+
+    for index, message in enumerate(messages, start=1):
+        event = message.get("event") or {}
+        lines.extend(
+            [
+                "",
+                f"[{index}] key={message.get('key')} "
+                f"partition={message.get('partition')} offset={message.get('offset')}",
+                f"    error_code={event.get('error_code') or message.get('parse_error')}",
+                f"    error_message={event.get('error_message')}",
+                f"    job_id={event.get('job_id')}",
+                f"    command_id={event.get('command_id')}",
+                f"    source_family={event.get('source_family')}",
+                f"    original_topic={event.get('original_topic')}",
+                f"    created_at={event.get('created_at')}",
+            ]
+        )
+
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -172,6 +275,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_refresh_from_args(args)
     if args.command == "publish-command":
         return publish_command_from_args(args)
+    if args.command == "inspect-dlq":
+        return inspect_dlq_from_args(args)
     parser.error(f"unsupported command: {args.command}")
     return 2
 

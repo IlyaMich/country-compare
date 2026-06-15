@@ -22,6 +22,7 @@ DEFAULT_KAFKA_CONSUMER_GROUP = "data-update-workers"
 DEFAULT_KAFKA_RETRY_5M_TOPIC = "country-compare.data-refresh.retry.5m.v1"
 DEFAULT_KAFKA_RETRY_1H_TOPIC = "country-compare.data-refresh.retry.1h.v1"
 DEFAULT_KAFKA_RETRY_CONSUMER_GROUP = "data-update-retry-workers"
+DEFAULT_KAFKA_DLQ_CONSUMER_GROUP = "data-update-dlq-inspector"
 DEFAULT_RETRY_5M_DELAY_SECONDS = 300
 DEFAULT_RETRY_1H_DELAY_SECONDS = 3600
 DEFAULT_DATABASE_URL: str | None = None
@@ -49,6 +50,7 @@ class DataUpdateSettings:
     kafka_retry_5m_topic: str = DEFAULT_KAFKA_RETRY_5M_TOPIC
     kafka_retry_1h_topic: str = DEFAULT_KAFKA_RETRY_1H_TOPIC
     kafka_retry_consumer_group: str = DEFAULT_KAFKA_RETRY_CONSUMER_GROUP
+    kafka_dlq_consumer_group: str = DEFAULT_KAFKA_DLQ_CONSUMER_GROUP
     retry_5m_delay_seconds: int = DEFAULT_RETRY_5M_DELAY_SECONDS
     retry_1h_delay_seconds: int = DEFAULT_RETRY_1H_DELAY_SECONDS
 
@@ -114,6 +116,10 @@ class DataUpdateSettings:
             kafka_retry_consumer_group=os.getenv(
                 "DATA_UPDATE_KAFKA_RETRY_CONSUMER_GROUP",
                 DEFAULT_KAFKA_RETRY_CONSUMER_GROUP,
+            ),
+            kafka_dlq_consumer_group=os.getenv(
+                "DATA_UPDATE_KAFKA_DLQ_CONSUMER_GROUP",
+                DEFAULT_KAFKA_DLQ_CONSUMER_GROUP,
             ),
             retry_5m_delay_seconds=_env_non_negative_int(
                 "DATA_UPDATE_RETRY_5M_DELAY_SECONDS",

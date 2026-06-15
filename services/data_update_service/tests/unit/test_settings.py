@@ -92,3 +92,11 @@ def test_settings_rejects_negative_retry_delay(monkeypatch) -> None:
 
     with pytest.raises(ValueError, match="DATA_UPDATE_RETRY_5M_DELAY_SECONDS"):
         DataUpdateSettings.from_env()
+
+
+def test_settings_reads_dlq_consumer_group(monkeypatch) -> None:
+    monkeypatch.setenv("DATA_UPDATE_KAFKA_DLQ_CONSUMER_GROUP", "dlq-inspectors")
+
+    settings = DataUpdateSettings.from_env()
+
+    assert settings.kafka_dlq_consumer_group == "dlq-inspectors"
