@@ -175,13 +175,13 @@ class RunnerDependencies:
     def postgres_defaults(
         cls,
         settings: DataUpdateSettings | None = None,
-        *,
-        initialize_schema: bool = False,
     ) -> RunnerDependencies:
         resolved = settings or DataUpdateSettings.from_env()
+        initialize_schema = resolved.postgres_initialize_schema
+
         if resolved.database_url is None:
             raise ValueError(
-                "DATA_UPDATE_DATABASE_URL is required for Postgres defaults"
+                "DATA_UPDATE_DATABASE_URL is required when DATA_UPDATE_JOB_STORE=postgres"
             )
 
         return cls(

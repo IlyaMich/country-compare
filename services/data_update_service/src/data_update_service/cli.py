@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -166,21 +167,54 @@ def _command_from_args(args: argparse.Namespace) -> RefreshCommand:
     )
 
 
-def run_refresh_from_args(args: argparse.Namespace) -> int:
-    command = _command_from_args(args)
-    settings = DataUpdateSettings(
+def _settings_from_refresh_args(args: argparse.Namespace) -> DataUpdateSettings:
+    env_settings = DataUpdateSettings.from_env()
+    return replace(
+        env_settings,
         artifact_root=args.artifact_root,
         audit_root=args.audit_root,
         workspace_root=args.workspace_root,
         max_attempts=args.max_attempts,
     )
-    result = run_refresh_job(command, RunnerDependencies.local_defaults(settings))
+
+
+def _runner_dependencies_from_settings(
+    settings: DataUpdateSettings,
+) -> RunnerDependencies:
+    if settings.job_store == "postgres":
+        return RunnerDependencies.postgres_defaults(settings)
+    return RunnerDependencies.local_defaults(settings)
+
+
+def run_refresh_from_args(args: argparse.Namespace) -> int:
+    command = _command_from_args(args)
+    settings = _settings_from_refresh_args(args)
+
+    print(
+        json.dumps(
+            {
+                "job_store": settings.job_store,
+                "database_url": settings.database_url,
+                "postgres_initialize_schema": settings.postgres_initialize_schema,
+                "artifact_root": str(settings.artifact_root),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+    deps = _runner_dependencies_from_settings(settings)
+
+    result = run_refresh_job(command, deps)
+
     payload: dict[str, Any] = result.model_dump(mode="json")
     output = json.dumps(payload, indent=2, sort_keys=True)
     print(output)
+
     if args.output_json is not None:
         args.output_json.parent.mkdir(parents=True, exist_ok=True)
         args.output_json.write_text(output + "\n", encoding="utf-8")
+
     return 0 if result.ok else 1
 
 
