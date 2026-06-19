@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
+from data_update_service.infrastructure.dataset_event_publisher import (
+    KafkaDatasetEventPublisher,
+)
 from data_update_service.infrastructure.kafka import (
     ConfluentKafkaConsumer,
     ConfluentKafkaProducer,
@@ -88,7 +91,6 @@ def build_worker_dependencies(settings: DataUpdateSettings) -> RunnerDependencie
 
 def build_kafka_worker(settings: DataUpdateSettings | None = None) -> RefreshWorker:
     resolved = settings or DataUpdateSettings.from_env()
-
     producer = ConfluentKafkaProducer(
         bootstrap_servers=resolved.kafka_bootstrap_servers,
     )
@@ -97,6 +99,7 @@ def build_kafka_worker(settings: DataUpdateSettings | None = None) -> RefreshWor
         group_id=resolved.kafka_consumer_group,
         topics=[resolved.kafka_command_topic],
     )
+
     event_publisher = WorkerEventPublisher(
         producer=producer,
         status_topic=resolved.kafka_status_topic,
@@ -104,11 +107,22 @@ def build_kafka_worker(settings: DataUpdateSettings | None = None) -> RefreshWor
         retry_5m_topic=resolved.kafka_retry_5m_topic,
         retry_1h_topic=resolved.kafka_retry_1h_topic,
     )
-    handler = RefreshCommandWorkerHandler(
-        event_publisher=event_publisher,
-        dependencies=build_worker_dependencies(resolved),
+
+    dataset_event_publisher = KafkaDatasetEventPublisher(
+        producer=producer,
+        dataset_version_topic=resolved.kafka_dataset_version_topic,
+        dataset_promotion_topic=resolved.kafka_dataset_promotion_topic,
     )
 
+    dependencies = replace(
+        build_worker_dependencies(resolved),
+        dataset_event_publisher=dataset_event_publisher,
+    )
+
+    handler = RefreshCommandWorkerHandler(
+        event_publisher=event_publisher,
+        dependencies=dependencies,
+    )
     return RefreshWorker(consumer=consumer, handler=handler)
 
 
