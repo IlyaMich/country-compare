@@ -8,7 +8,7 @@ from threading import RLock
 from typing import Any, Protocol
 
 from data_update_service.orchestration.artifact_package import ArtifactPackage
-from data_update_service.orchestration.commands import RefreshCommand
+from data_update_service.orchestration.commands import PromotionChannel, RefreshCommand
 from data_update_service.orchestration.results import RefreshResult
 
 
@@ -48,6 +48,28 @@ class DatasetVersionRecord:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class DatasetChannelRecord:
+    channel: PromotionChannel
+    source_family: str
+    dataset_version: str
+    artifact_uri: str
+    parquet_sha256: str
+    promoted_by: str
+    promoted_at: datetime
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "channel": self.channel,
+            "source_family": self.source_family,
+            "dataset_version": self.dataset_version,
+            "artifact_uri": self.artifact_uri,
+            "parquet_sha256": self.parquet_sha256,
+            "promoted_by": self.promoted_by,
+            "promoted_at": self.promoted_at.isoformat(),
+        }
+
+
 class DatasetRegistry(Protocol):
     def register_dataset_version(
         self,
@@ -66,6 +88,30 @@ class DatasetRegistry(Protocol):
     ) -> list[DatasetVersionRecord]:
         """List known dataset-version metadata records."""
 
+    def promote_dataset_version(
+        self,
+        *,
+        dataset_version: str,
+        channel: PromotionChannel,
+        promoted_by: str,
+    ) -> DatasetChannelRecord:
+        """Promote a registered dataset version to a channel."""
+
+    def get_channel(
+        self,
+        *,
+        source_family: str,
+        channel: PromotionChannel,
+    ) -> DatasetChannelRecord | None:
+        """Return the current channel pointer if present."""
+
+    def list_channels(
+        self,
+        *,
+        source_family: str | None = None,
+    ) -> list[DatasetChannelRecord]:
+        """List channel pointers."""
+
 
 class InMemoryDatasetRegistry:
     """Thread-safe in-memory dataset registry for tests."""
@@ -73,6 +119,7 @@ class InMemoryDatasetRegistry:
     def __init__(self) -> None:
         self._guard = RLock()
         self._records: dict[str, DatasetVersionRecord] = {}
+        self._channels: dict[tuple[str, PromotionChannel], DatasetChannelRecord] = {}
 
     def register_dataset_version(
         self,
@@ -100,11 +147,57 @@ class InMemoryDatasetRegistry:
     ) -> list[DatasetVersionRecord]:
         with self._guard:
             records = list(self._records.values())
-        if source_family is not None:
-            records = [
-                record for record in records if record.source_family == source_family
-            ]
-        return sorted(records, key=lambda item: item.created_at)
+            if source_family is not None:
+                records = [
+                    record
+                    for record in records
+                    if record.source_family == source_family
+                ]
+            return sorted(records, key=lambda item: item.created_at)
+
+    def promote_dataset_version(
+        self,
+        *,
+        dataset_version: str,
+        channel: PromotionChannel,
+        promoted_by: str,
+    ) -> DatasetChannelRecord:
+        with self._guard:
+            version = self._records.get(dataset_version)
+            if version is None:
+                raise KeyError(f"unknown dataset version: {dataset_version}")
+
+            record = build_dataset_channel_record(
+                version=version,
+                channel=channel,
+                promoted_by=promoted_by,
+            )
+            self._channels[(record.source_family, channel)] = record
+            return record
+
+    def get_channel(
+        self,
+        *,
+        source_family: str,
+        channel: PromotionChannel,
+    ) -> DatasetChannelRecord | None:
+        with self._guard:
+            return self._channels.get((source_family, channel))
+
+    def list_channels(
+        self,
+        *,
+        source_family: str | None = None,
+    ) -> list[DatasetChannelRecord]:
+        with self._guard:
+            channels = list(self._channels.values())
+            if source_family is not None:
+                channels = [
+                    channel
+                    for channel in channels
+                    if channel.source_family == source_family
+                ]
+            return sorted(channels, key=lambda item: (item.source_family, item.channel))
 
 
 class FilesystemDatasetRegistry:
@@ -140,7 +233,7 @@ class FilesystemDatasetRegistry:
                 record = records.get(dataset_version)
                 if record is not None:
                     return record
-        return None
+            return None
 
     def list_dataset_versions(
         self, *, source_family: str | None = None
@@ -153,15 +246,78 @@ class FilesystemDatasetRegistry:
                 for source_dir in self.root.iterdir() if self.root.exists() else []:
                     if source_dir.is_dir():
                         records.extend(self._read_records(source_dir.name).values())
-        return sorted(records, key=lambda item: item.created_at)
+            return sorted(records, key=lambda item: item.created_at)
+
+    def promote_dataset_version(
+        self,
+        *,
+        dataset_version: str,
+        channel: PromotionChannel,
+        promoted_by: str,
+    ) -> DatasetChannelRecord:
+        with self._guard:
+            version = self.get_dataset_version(dataset_version)
+            if version is None:
+                raise KeyError(f"unknown dataset version: {dataset_version}")
+
+            record = build_dataset_channel_record(
+                version=version,
+                channel=channel,
+                promoted_by=promoted_by,
+            )
+            self._write_channel(record)
+            return record
+
+    def get_channel(
+        self,
+        *,
+        source_family: str,
+        channel: PromotionChannel,
+    ) -> DatasetChannelRecord | None:
+        with self._guard:
+            path = self._channel_path(source_family, channel)
+            if not path.exists():
+                return None
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            return dataset_channel_record_from_dict(payload)
+
+    def list_channels(
+        self,
+        *,
+        source_family: str | None = None,
+    ) -> list[DatasetChannelRecord]:
+        with self._guard:
+            if source_family is not None:
+                source_dirs = [self.root / source_family]
+            else:
+                source_dirs = [
+                    path
+                    for path in (self.root.iterdir() if self.root.exists() else [])
+                    if path.is_dir()
+                ]
+
+            channels: list[DatasetChannelRecord] = []
+            for source_dir in source_dirs:
+                channels_dir = source_dir / "channels"
+                if not channels_dir.exists():
+                    continue
+                for channel_path in channels_dir.glob("*.json"):
+                    payload = json.loads(channel_path.read_text(encoding="utf-8"))
+                    channels.append(dataset_channel_record_from_dict(payload))
+
+            return sorted(channels, key=lambda item: (item.source_family, item.channel))
 
     def _registry_path(self, source_family: str) -> Path:
         return self.root / source_family / "registry" / "dataset_versions.json"
+
+    def _channel_path(self, source_family: str, channel: PromotionChannel) -> Path:
+        return self.root / source_family / "channels" / f"{channel}.json"
 
     def _read_records(self, source_family: str) -> dict[str, DatasetVersionRecord]:
         path = self._registry_path(source_family)
         if not path.exists():
             return {}
+
         payload = json.loads(path.read_text(encoding="utf-8"))
         records = payload.get("dataset_versions", [])
         return {
@@ -179,7 +335,16 @@ class FilesystemDatasetRegistry:
             "dataset_versions": [record.as_dict() for record in records.values()],
         }
         path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    def _write_channel(self, record: DatasetChannelRecord) -> None:
+        path = self._channel_path(record.source_family, record.channel)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(record.as_dict(), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
         )
 
 
@@ -207,6 +372,24 @@ def build_dataset_version_record(
     )
 
 
+def build_dataset_channel_record(
+    *,
+    version: DatasetVersionRecord,
+    channel: PromotionChannel,
+    promoted_by: str,
+    promoted_at: datetime | None = None,
+) -> DatasetChannelRecord:
+    return DatasetChannelRecord(
+        channel=channel,
+        source_family=version.source_family,
+        dataset_version=version.dataset_version,
+        artifact_uri=version.artifact_uri,
+        parquet_sha256=version.parquet_sha256,
+        promoted_by=promoted_by,
+        promoted_at=promoted_at or datetime.now(tz=UTC),
+    )
+
+
 def dataset_version_record_from_dict(payload: dict[str, Any]) -> DatasetVersionRecord:
     return DatasetVersionRecord(
         dataset_version=str(payload["dataset_version"]),
@@ -227,4 +410,16 @@ def dataset_version_record_from_dict(payload: dict[str, Any]) -> DatasetVersionR
         validation_status=str(payload["validation_status"]),
         created_by_job_id=str(payload["created_by_job_id"]),
         created_at=datetime.fromisoformat(str(payload["created_at"])),
+    )
+
+
+def dataset_channel_record_from_dict(payload: dict[str, Any]) -> DatasetChannelRecord:
+    return DatasetChannelRecord(
+        channel=payload["channel"],
+        source_family=str(payload["source_family"]),
+        dataset_version=str(payload["dataset_version"]),
+        artifact_uri=str(payload["artifact_uri"]),
+        parquet_sha256=str(payload["parquet_sha256"]),
+        promoted_by=str(payload["promoted_by"]),
+        promoted_at=datetime.fromisoformat(str(payload["promoted_at"])),
     )
