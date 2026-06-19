@@ -15,7 +15,10 @@ from data_update_service.orchestration.commands import RefreshCommand
 from data_update_service.orchestration.runner import RunnerDependencies, run_refresh_job
 from data_update_service.settings import DataUpdateSettings
 from data_update_service.worker.dlq import inspect_dlq_messages
-from data_update_service.worker.publisher import publish_refresh_command
+from data_update_service.worker.publisher import (
+    publish_invalid_refresh_command,
+    publish_refresh_command,
+)
 
 ACQUISITION_MODE_CHOICES = ("local", "remote", "auto")
 
@@ -73,6 +76,27 @@ def build_parser() -> argparse.ArgumentParser:
         "publish-command",
         help="Publish a RefreshCommand to the Kafka command topic",
     )
+    publish_invalid = subparsers.add_parser(
+        "publish-invalid-command",
+        help="Publish an intentionally invalid RefreshCommand for DLQ smoke testing",
+    )
+    publish_invalid.add_argument(
+        "--source-family", default=settings.default_source_family
+    )
+    publish_invalid.add_argument(
+        "--payload",
+        default='{"bad": "payload"}',
+        help="Raw payload to publish to the command topic.",
+    )
+    publish_invalid.add_argument(
+        "--kafka-bootstrap-servers",
+        default=settings.kafka_bootstrap_servers,
+    )
+    publish_invalid.add_argument(
+        "--kafka-command-topic",
+        default=settings.kafka_command_topic,
+    )
+    publish_invalid.add_argument("--output-json", type=Path, default=None)
     inspect_dlq = subparsers.add_parser(
         "inspect-dlq",
         help="Inspect messages from the Kafka DLQ topic",
@@ -158,6 +182,42 @@ def run_refresh_from_args(args: argparse.Namespace) -> int:
         args.output_json.parent.mkdir(parents=True, exist_ok=True)
         args.output_json.write_text(output + "\n", encoding="utf-8")
     return 0 if result.ok else 1
+
+
+def publish_invalid_command_from_args(
+    args: argparse.Namespace,
+    *,
+    producer: KafkaProducer | None = None,
+) -> int:
+    resolved_producer = producer or ConfluentKafkaProducer(
+        bootstrap_servers=args.kafka_bootstrap_servers,
+    )
+
+    payload_bytes = args.payload.encode("utf-8")
+    metadata = publish_invalid_refresh_command(
+        producer=resolved_producer,
+        topic=args.kafka_command_topic,
+        key=args.source_family,
+        payload=payload_bytes,
+    )
+
+    output_payload: dict[str, Any] = {
+        "published": True,
+        "topic": metadata.topic,
+        "key": metadata.key,
+        "payload_size_bytes": metadata.payload_size_bytes,
+        "expected_worker_result": "invalid_command_dlq",
+        "expected_dlq_error_code": "invalid_refresh_command",
+    }
+
+    output = json.dumps(output_payload, indent=2, sort_keys=True)
+    print(output)
+
+    if args.output_json is not None:
+        args.output_json.parent.mkdir(parents=True, exist_ok=True)
+        args.output_json.write_text(output + "\n", encoding="utf-8")
+
+    return 0
 
 
 def publish_command_from_args(
@@ -277,6 +337,8 @@ def main(argv: list[str] | None = None) -> int:
         return publish_command_from_args(args)
     if args.command == "inspect-dlq":
         return inspect_dlq_from_args(args)
+    if args.command == "publish-invalid-command":
+        return publish_invalid_command_from_args(args)
     parser.error(f"unsupported command: {args.command}")
     return 2
 

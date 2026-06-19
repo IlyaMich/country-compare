@@ -44,3 +44,42 @@ def publish_refresh_command(
         job_id=command.job_id,
         source_family=command.source_family,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class PublishedInvalidCommandMetadata:
+    topic: str
+    key: str | None
+    payload_size_bytes: int
+
+
+def publish_invalid_refresh_command(
+    *,
+    producer: KafkaProducer,
+    topic: str,
+    key: str | None,
+    payload: bytes,
+    headers: Mapping[str, str] | None = None,
+) -> PublishedInvalidCommandMetadata:
+    """Publish a deliberately invalid refresh command for DLQ smoke testing.
+
+    This is intended for local/operator verification only. The worker should reject
+    the payload during RefreshCommand validation and publish a DeadLetterEvent.
+    """
+    producer.send(
+        topic=topic,
+        key=key,
+        value=payload,
+        headers={
+            "message_type": "InvalidRefreshCommand",
+            "smoke_test": "true",
+            **dict(headers or {}),
+        },
+    )
+    producer.flush()
+
+    return PublishedInvalidCommandMetadata(
+        topic=topic,
+        key=key,
+        payload_size_bytes=len(payload),
+    )
