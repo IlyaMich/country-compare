@@ -6,10 +6,18 @@ from pathlib import Path
 from typing import Literal, cast
 
 JobStoreBackend = Literal["memory", "postgres"]
+ArtifactStoreBackend = Literal["filesystem", "s3"]
 
 DEFAULT_SOURCE_FAMILY = "world_bank"
 DEFAULT_MANIFEST_PATH = Path("config/source_manifests/world_bank_real_data.yaml")
 DEFAULT_ARTIFACT_ROOT = Path("data/artifacts/data_update")
+DEFAULT_ARTIFACT_STORE: ArtifactStoreBackend = "filesystem"
+DEFAULT_ARTIFACT_BUCKET: str | None = None
+DEFAULT_ARTIFACT_PREFIX = "datasets"
+DEFAULT_ARTIFACT_ENDPOINT_URL: str | None = None
+DEFAULT_ARTIFACT_REGION = "auto"
+DEFAULT_ARTIFACT_ACCESS_KEY_ID: str | None = None
+DEFAULT_ARTIFACT_SECRET_ACCESS_KEY: str | None = None
 DEFAULT_AUDIT_ROOT = Path("data/audit/data_update")
 DEFAULT_WORKSPACE_ROOT = Path("data/work/data-update")
 DEFAULT_MAX_ATTEMPTS = 3
@@ -39,6 +47,13 @@ class DataUpdateSettings:
     default_source_family: str = DEFAULT_SOURCE_FAMILY
     default_manifest_path: Path = DEFAULT_MANIFEST_PATH
     artifact_root: Path = DEFAULT_ARTIFACT_ROOT
+    artifact_store: ArtifactStoreBackend = DEFAULT_ARTIFACT_STORE
+    artifact_bucket: str | None = DEFAULT_ARTIFACT_BUCKET
+    artifact_prefix: str = DEFAULT_ARTIFACT_PREFIX
+    artifact_endpoint_url: str | None = DEFAULT_ARTIFACT_ENDPOINT_URL
+    artifact_region: str = DEFAULT_ARTIFACT_REGION
+    artifact_access_key_id: str | None = DEFAULT_ARTIFACT_ACCESS_KEY_ID
+    artifact_secret_access_key: str | None = DEFAULT_ARTIFACT_SECRET_ACCESS_KEY
     audit_root: Path = DEFAULT_AUDIT_ROOT
     workspace_root: Path = DEFAULT_WORKSPACE_ROOT
     max_attempts: int = DEFAULT_MAX_ATTEMPTS
@@ -77,6 +92,24 @@ class DataUpdateSettings:
             ),
             artifact_root=Path(
                 os.getenv("DATA_UPDATE_ARTIFACT_ROOT", str(DEFAULT_ARTIFACT_ROOT))
+            ),
+            artifact_store=_env_artifact_store(
+                "DATA_UPDATE_ARTIFACT_STORE",
+                DEFAULT_ARTIFACT_STORE,
+            ),
+            artifact_bucket=_env_optional("DATA_UPDATE_ARTIFACT_BUCKET"),
+            artifact_prefix=os.getenv(
+                "DATA_UPDATE_ARTIFACT_PREFIX",
+                DEFAULT_ARTIFACT_PREFIX,
+            ).strip("/"),
+            artifact_endpoint_url=_env_optional("DATA_UPDATE_ARTIFACT_ENDPOINT_URL"),
+            artifact_region=os.getenv(
+                "DATA_UPDATE_ARTIFACT_REGION",
+                DEFAULT_ARTIFACT_REGION,
+            ),
+            artifact_access_key_id=_env_optional("DATA_UPDATE_ARTIFACT_ACCESS_KEY_ID"),
+            artifact_secret_access_key=_env_optional(
+                "DATA_UPDATE_ARTIFACT_SECRET_ACCESS_KEY"
             ),
             audit_root=Path(
                 os.getenv("DATA_UPDATE_AUDIT_ROOT", str(DEFAULT_AUDIT_ROOT))
@@ -185,6 +218,23 @@ def _env_job_store(name: str, default: JobStoreBackend) -> JobStoreBackend:
         raise ValueError(f"{name} must be one of: memory, postgres")
 
     return cast(JobStoreBackend, normalized)
+
+
+def _env_artifact_store(
+    name: str,
+    default: ArtifactStoreBackend,
+) -> ArtifactStoreBackend:
+    raw = _env_optional(name)
+
+    if raw is None:
+        return default
+
+    normalized = raw.strip().lower()
+
+    if normalized not in {"filesystem", "s3"}:
+        raise ValueError(f"{name} must be one of: filesystem, s3")
+
+    return cast(ArtifactStoreBackend, normalized)
 
 
 def _env_optional(name: str) -> str | None:
