@@ -100,3 +100,23 @@ def test_settings_reads_dlq_consumer_group(monkeypatch) -> None:
     settings = DataUpdateSettings.from_env()
 
     assert settings.kafka_dlq_consumer_group == "dlq-inspectors"
+
+
+def test_settings_reads_s3_artifact_store_env(monkeypatch) -> None:
+    monkeypatch.setenv("DATA_UPDATE_ARTIFACT_STORE", "s3")
+    monkeypatch.setenv("DATA_UPDATE_ARTIFACT_BUCKET", "country-compare-datasets")
+    monkeypatch.setenv("DATA_UPDATE_ARTIFACT_PREFIX", "datasets")
+    monkeypatch.setenv("DATA_UPDATE_ARTIFACT_ENDPOINT_URL", "http://localhost:9000")
+    monkeypatch.setenv("DATA_UPDATE_ARTIFACT_REGION", "us-east-1")
+    monkeypatch.setenv("DATA_UPDATE_ARTIFACT_ACCESS_KEY_ID", "minio")
+    monkeypatch.setenv("DATA_UPDATE_ARTIFACT_SECRET_ACCESS_KEY", "minio123")
+
+    settings = DataUpdateSettings.from_env()
+
+    assert settings.artifact_store == "s3"
+    assert settings.artifact_bucket == "country-compare-datasets"
+    assert settings.artifact_prefix == "datasets"
+    assert settings.artifact_endpoint_url == "http://localhost:9000"
+    assert settings.artifact_region == "us-east-1"
+    assert settings.artifact_access_key_id == "minio"
+    assert settings.artifact_secret_access_key == "minio123"
