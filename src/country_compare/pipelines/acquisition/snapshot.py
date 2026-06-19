@@ -340,7 +340,16 @@ def _normalize_acquisition_mode(value: str) -> AcquisitionMode:
 
 
 def _resolve_manifest_raw_root(raw_root: str | Path | None) -> Path:
-    return Path.cwd() if raw_root is None else Path(raw_root)
+    from country_compare.paths import PROJECT_ROOT, RAW_DATA_DIR
+
+    if raw_root is None:
+        return RAW_DATA_DIR
+
+    candidate = Path(raw_root)
+    if candidate.is_absolute():
+        return candidate
+
+    return PROJECT_ROOT / candidate
 
 
 def _safe_relative_manifest_path(path: str | Path) -> Path:

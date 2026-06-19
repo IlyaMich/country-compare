@@ -218,6 +218,15 @@ def test_download_zip_raises_retryable_after_max_attempts(
     assert calls["count"] == 2
 
 
+def test_resolve_manifest_raw_root_uses_project_root_for_relative_paths() -> None:
+    from country_compare.paths import PROJECT_ROOT
+    from country_compare.pipelines.acquisition.snapshot import (
+        _resolve_manifest_raw_root,
+    )
+
+    assert _resolve_manifest_raw_root("data/raw") == PROJECT_ROOT / "data/raw"
+
+
 def _write_manifest(tmp_path: Path) -> Path:
     manifest_path = tmp_path / "manifest.yaml"
     manifest_path.write_text(
