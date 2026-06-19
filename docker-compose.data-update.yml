@@ -1,0 +1,163 @@
+x-data-update-env: &data-update-env
+  DATA_UPDATE_KAFKA_BOOTSTRAP_SERVERS: data-update-kafka:9092
+  DATA_UPDATE_KAFKA_COMMAND_TOPIC: country-compare.data-refresh.commands.v1
+  DATA_UPDATE_KAFKA_STATUS_TOPIC: country-compare.data-refresh.status.v1
+  DATA_UPDATE_KAFKA_RETRY_5M_TOPIC: country-compare.data-refresh.retry.5m.v1
+  DATA_UPDATE_KAFKA_RETRY_1H_TOPIC: country-compare.data-refresh.retry.1h.v1
+  DATA_UPDATE_KAFKA_DLQ_TOPIC: country-compare.data-refresh.dlq.v1
+  DATA_UPDATE_KAFKA_DATASET_VERSION_TOPIC: country-compare.dataset.versions.v1
+  DATA_UPDATE_KAFKA_DATASET_PROMOTION_TOPIC: country-compare.dataset.promotions.v1
+  DATA_UPDATE_KAFKA_CONSUMER_GROUP: data-update-workers
+  DATA_UPDATE_KAFKA_RETRY_CONSUMER_GROUP: data-update-retry-workers
+
+  DATA_UPDATE_JOB_STORE: postgres
+  DATA_UPDATE_DATABASE_URL: postgresql://country_compare:country_compare@data-update-postgres:5432/country_compare
+  DATA_UPDATE_POSTGRES_INITIALIZE_SCHEMA: "true"
+
+  DATA_UPDATE_ARTIFACT_STORE: s3
+  DATA_UPDATE_ARTIFACT_BUCKET: country-compare-datasets
+  DATA_UPDATE_ARTIFACT_PREFIX: datasets
+  DATA_UPDATE_ARTIFACT_ENDPOINT_URL: http://data-update-minio:9000
+  DATA_UPDATE_ARTIFACT_REGION: us-east-1
+  DATA_UPDATE_ARTIFACT_ACCESS_KEY_ID: minio
+  DATA_UPDATE_ARTIFACT_SECRET_ACCESS_KEY: minio123
+
+  DATA_UPDATE_RETRY_5M_DELAY_SECONDS: "5"
+  DATA_UPDATE_RETRY_1H_DELAY_SECONDS: "10"
+
+services:
+  data-update-postgres:
+    image: postgres:16-alpine
+    profiles: ["data-update"]
+    environment:
+      POSTGRES_DB: country_compare
+      POSTGRES_USER: country_compare
+      POSTGRES_PASSWORD: country_compare
+    ports:
+      - "5433:5432"
+    volumes:
+      - data-update-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U country_compare -d country_compare"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  data-update-kafka:
+    image: bitnami/kafka:3.7
+    profiles: ["data-update"]
+    ports:
+      - "9094:9094"
+    environment:
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@data-update-kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://data-update-kafka:9092,EXTERNAL://127.0.0.1:9094
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "false"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    volumes:
+      - data-update-kafka:/bitnami/kafka
+
+  data-update-kafka-init:
+    image: bitnami/kafka:3.7
+    profiles: ["data-update"]
+    depends_on:
+      - data-update-kafka
+    entrypoint: ["/bin/bash", "-lc"]
+    command: |
+      until kafka-topics.sh --bootstrap-server data-update-kafka:9092 --list >/dev/null 2>&1; do
+        echo "Waiting for data-update Kafka..."
+        sleep 2
+      done
+
+      for topic in \
+        country-compare.data-refresh.commands.v1 \
+        country-compare.data-refresh.status.v1 \
+        country-compare.data-refresh.retry.5m.v1 \
+        country-compare.data-refresh.retry.1h.v1 \
+        country-compare.data-refresh.dlq.v1 \
+        country-compare.dataset.versions.v1 \
+        country-compare.dataset.promotions.v1
+      do
+        kafka-topics.sh \
+          --bootstrap-server data-update-kafka:9092 \
+          --create \
+          --if-not-exists \
+          --topic "$$topic" \
+          --partitions 3 \
+          --replication-factor 1
+      done
+
+      kafka-topics.sh --bootstrap-server data-update-kafka:9092 --list
+
+  data-update-minio:
+    image: minio/minio:latest
+    profiles: ["data-update"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - data-update-minio:/data
+
+  data-update-minio-init:
+    image: minio/mc:latest
+    profiles: ["data-update"]
+    depends_on:
+      - data-update-minio
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      until mc alias set local http://data-update-minio:9000 minio minio123 >/dev/null 2>&1; do
+        echo "Waiting for data-update MinIO..."
+        sleep 2
+      done
+
+      mc mb --ignore-existing local/country-compare-datasets
+      mc ls local/country-compare-datasets
+
+  data-update-worker:
+    build:
+      context: .
+      dockerfile: services/data_update_service/Dockerfile
+    image: country-compare-data-update-service:local
+    profiles: ["data-update"]
+    command: ["python", "-m", "data_update_service.worker.consumer"]
+    depends_on:
+      data-update-postgres:
+        condition: service_healthy
+      data-update-kafka-init:
+        condition: service_completed_successfully
+      data-update-minio-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *data-update-env
+    # For ACQUISITION_MODE=local smoke testing, uncomment:
+    # volumes:
+    #   - ./data/raw:/app/data/raw:ro
+
+  data-update-retry-relay:
+    build:
+      context: .
+      dockerfile: services/data_update_service/Dockerfile
+    image: country-compare-data-update-service:local
+    profiles: ["data-update"]
+    command: ["python", "-m", "data_update_service.worker.retry_relay"]
+    depends_on:
+      data-update-postgres:
+        condition: service_healthy
+      data-update-kafka-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *data-update-env
+
+volumes:
+  data-update-postgres:
+  data-update-kafka:
+  data-update-minio:
