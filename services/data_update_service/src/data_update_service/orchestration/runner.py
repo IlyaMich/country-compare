@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -36,6 +36,12 @@ from data_update_service.orchestration.artifact_package import (
     FilesystemArtifactStore,
 )
 from data_update_service.orchestration.commands import RefreshCommand
+from data_update_service.orchestration.dataset_events import (
+    DatasetEventPublisher,
+    NoopDatasetEventPublisher,
+    make_dataset_promotion_event,
+    make_dataset_version_event,
+)
 from data_update_service.orchestration.diff import (
     DatasetDiffReport,
     generate_diff_report,
@@ -148,6 +154,9 @@ class RunnerDependencies:
     attempt_store: AttemptStore | None = None
     source_locks: SourceLockManager | None = None
     dataset_registry: DatasetRegistry | None = None
+    dataset_event_publisher: DatasetEventPublisher = field(
+        default_factory=NoopDatasetEventPublisher
+    )
 
     @classmethod
     def local_defaults(
@@ -434,19 +443,42 @@ def _execute_refresh(
         warnings=warnings,
     )
     if deps.dataset_registry is not None:
-        deps.dataset_registry.register_dataset_version(
+        version_record = deps.dataset_registry.register_dataset_version(
             command=command,
             artifact=artifact,
             result=result,
+        )
+        deps.dataset_event_publisher.publish_dataset_version(
+            make_dataset_version_event(
+                command=command,
+                record=version_record,
+            )
         )
 
         if command.promote:
             if command.promotion_channel is None:
                 raise ValueError("promotion_channel is required when promote=true")
-            deps.dataset_registry.promote_dataset_version(
+
+            previous_channel = deps.dataset_registry.get_channel(
+                source_family=command.source_family,
+                channel=command.promotion_channel,
+            )
+            previous_dataset_version = (
+                previous_channel.dataset_version
+                if previous_channel is not None
+                else None
+            )
+
+            channel_record = deps.dataset_registry.promote_dataset_version(
                 dataset_version=artifact.dataset_version,
                 channel=command.promotion_channel,
                 promoted_by=command.requested_by,
+            )
+            deps.dataset_event_publisher.publish_dataset_promotion(
+                make_dataset_promotion_event(
+                    record=channel_record,
+                    previous_dataset_version=previous_dataset_version,
+                )
             )
             _update_status(deps, command.job_id, "promotion_completed")
     _complete_job(deps, result)
