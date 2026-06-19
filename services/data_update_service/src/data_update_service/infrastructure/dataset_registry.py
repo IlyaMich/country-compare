@@ -443,7 +443,12 @@ def dataset_channel_record_from_dict(payload: dict[str, Any]) -> DatasetChannelR
 
 
 def _optional_artifact_file_sha256(artifact: ArtifactPackage, filename: str) -> str:
-    path = artifact.artifact_dir / filename
+    artifact_dir = getattr(artifact, "artifact_dir", None)
+    if artifact_dir is None:
+        return ""
+
+    path = Path(artifact_dir) / filename
     if not path.exists():
         return ""
+
     return sha256_file(path)

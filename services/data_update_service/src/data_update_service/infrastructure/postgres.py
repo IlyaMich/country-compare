@@ -7,6 +7,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from data_update_service.infrastructure.attempt_store import AttemptRecord
+from data_update_service.infrastructure.dataset_registry import (
+    DatasetChannelRecord,
+    DatasetVersionRecord,
+    build_dataset_channel_record,
+    build_dataset_version_record,
+)
 from data_update_service.infrastructure.job_store import (
     DuplicateCommandConflictError,
     JobRecord,
@@ -16,16 +22,9 @@ from data_update_service.infrastructure.locks import (
     SourceLock,
     SourceLockUnavailableError,
 )
-from data_update_service.orchestration.commands import RefreshCommand
-from data_update_service.orchestration.results import RefreshResult
-from data_update_service.infrastructure.dataset_registry import (
-    DatasetChannelRecord,
-    DatasetVersionRecord,
-    build_dataset_channel_record,
-    build_dataset_version_record,
-)
 from data_update_service.orchestration.artifact_package import ArtifactPackage
-from data_update_service.orchestration.commands import PromotionChannel
+from data_update_service.orchestration.commands import PromotionChannel, RefreshCommand
+from data_update_service.orchestration.results import RefreshResult
 
 
 class PostgresInfrastructureError(RuntimeError):
@@ -443,12 +442,10 @@ class PostgresDatasetRegistry:
         with _connect(self.database_url) as connection:
             with connection.cursor() as cursor:
                 cursor.execute(_CREATE_DATA_REFRESH_JOBS_SQL)
-                cursor.execute(
-                    """
+                cursor.execute("""
                     ALTER TABLE data_refresh_jobs
                     ADD COLUMN IF NOT EXISTS acquisition_mode TEXT NOT NULL DEFAULT 'local'
-                    """
-                )
+                    """)
                 cursor.execute(_CREATE_DATASET_VERSIONS_SQL)
                 cursor.execute(_CREATE_DATASET_CHANNELS_SQL)
 
@@ -547,13 +544,11 @@ class PostgresDatasetRegistry:
         with _connect(self.database_url) as connection:
             with connection.cursor() as cursor:
                 if source_family is None:
-                    cursor.execute(
-                        """
+                    cursor.execute("""
                         SELECT *
                         FROM dataset_versions
                         ORDER BY created_at ASC, dataset_version ASC
-                        """
-                    )
+                        """)
                 else:
                     cursor.execute(
                         """
@@ -565,8 +560,7 @@ class PostgresDatasetRegistry:
                         (source_family,),
                     )
                 return [
-                    _row_to_dataset_version_record(row)
-                    for row in cursor.fetchall()
+                    _row_to_dataset_version_record(row) for row in cursor.fetchall()
                 ]
 
     def promote_dataset_version(
@@ -663,8 +657,7 @@ class PostgresDatasetRegistry:
         with _connect(self.database_url) as connection:
             with connection.cursor() as cursor:
                 if source_family is None:
-                    cursor.execute(
-                        """
+                    cursor.execute("""
                         SELECT
                             c.channel,
                             v.source_family,
@@ -677,8 +670,7 @@ class PostgresDatasetRegistry:
                         JOIN dataset_versions v
                           ON v.dataset_version = c.dataset_version
                         ORDER BY v.source_family ASC, c.channel ASC
-                        """
-                    )
+                        """)
                 else:
                     cursor.execute(
                         """
@@ -700,10 +692,9 @@ class PostgresDatasetRegistry:
                     )
 
                 return [
-                    _row_to_dataset_channel_record(row)
-                    for row in cursor.fetchall()
+                    _row_to_dataset_channel_record(row) for row in cursor.fetchall()
                 ]
-            
+
 
 class PostgresSourceLockManager:
     """Postgres-backed source-family lock manager."""
@@ -1052,9 +1043,7 @@ def _row_to_dataset_version_record(row: dict[str, Any]) -> DatasetVersionRecord:
             else None
         ),
         diff_report_uri=(
-            str(row["diff_report_uri"])
-            if row.get("diff_report_uri")
-            else None
+            str(row["diff_report_uri"]) if row.get("diff_report_uri") else None
         ),
         row_count=int(row["row_count"]),
         country_count=int(row["country_count"]),
