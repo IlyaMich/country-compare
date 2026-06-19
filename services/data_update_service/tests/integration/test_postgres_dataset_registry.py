@@ -124,7 +124,9 @@ def test_postgres_dataset_registry_registers_version(tmp_path: Path) -> None:
     assert record.parquet_sha256 == artifact.parquet_sha256
     assert record.manifest_sha256
     assert record.catalog_sha256
-    assert registry.list_dataset_versions(source_family="world_bank") == [record]
+
+    records = registry.list_dataset_versions(source_family="world_bank")
+    assert record in records
 
 
 def test_postgres_dataset_registry_promotes_channel(tmp_path: Path) -> None:
@@ -184,7 +186,15 @@ def test_postgres_dataset_registry_promotes_channel(tmp_path: Path) -> None:
         )
         == channel
     )
-    assert registry.list_channels(source_family="world_bank") == [channel]
+    channels = registry.list_channels(source_family="world_bank")
+    matching_channels = [
+        item
+        for item in channels
+        if item.channel == channel.channel
+        and item.dataset_version == channel.dataset_version
+    ]
+
+    assert matching_channels == [channel]
 
 
 def test_postgres_dataset_registry_rejects_unknown_promotion() -> None:

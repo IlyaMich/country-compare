@@ -81,10 +81,7 @@ def build_worker_dependencies(settings: DataUpdateSettings) -> RunnerDependencie
         return RunnerDependencies.local_defaults(settings)
 
     if settings.job_store == "postgres":
-        return RunnerDependencies.postgres_defaults(
-            settings,
-            initialize_schema=settings.postgres_initialize_schema,
-        )
+        return RunnerDependencies.postgres_defaults(settings)
 
     raise ValueError(f"Unsupported DATA_UPDATE_JOB_STORE value: {settings.job_store!r}")
 
