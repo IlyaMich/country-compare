@@ -34,6 +34,7 @@ from data_update_service.infrastructure.postgres import (
 from data_update_service.orchestration.artifact_package import (
     ArtifactPackage,
     FilesystemArtifactStore,
+    S3ArtifactStore,
 )
 from data_update_service.orchestration.commands import RefreshCommand
 from data_update_service.orchestration.dataset_events import (
@@ -170,7 +171,7 @@ class RunnerDependencies:
             source_acquirer=CountryCompareSourceAcquirer(
                 workspace_root=resolved.workspace_root
             ),
-            artifact_store=FilesystemArtifactStore(resolved.artifact_root),
+            artifact_store=_artifact_store_from_settings(resolved),
             audit_root=resolved.audit_root,
             job_store=InMemoryJobStore(),
             source_locks=InMemorySourceLockManager(
@@ -199,7 +200,7 @@ class RunnerDependencies:
             source_acquirer=CountryCompareSourceAcquirer(
                 workspace_root=resolved.workspace_root
             ),
-            artifact_store=FilesystemArtifactStore(resolved.artifact_root),
+            artifact_store=_artifact_store_from_settings(resolved),
             audit_root=resolved.audit_root,
             job_store=PostgresJobStore(
                 resolved.database_url,
@@ -219,6 +220,30 @@ class RunnerDependencies:
                 initialize_schema=initialize_schema,
             ),
         )
+
+
+def _artifact_store_from_settings(settings: DataUpdateSettings) -> ArtifactStore:
+    if settings.artifact_store == "filesystem":
+        return FilesystemArtifactStore(settings.artifact_root)
+
+    if settings.artifact_store == "s3":
+        if settings.artifact_bucket is None:
+            raise ValueError(
+                "DATA_UPDATE_ARTIFACT_BUCKET is required when "
+                "DATA_UPDATE_ARTIFACT_STORE=s3"
+            )
+
+        return S3ArtifactStore(
+            bucket=settings.artifact_bucket,
+            prefix=settings.artifact_prefix,
+            endpoint_url=settings.artifact_endpoint_url,
+            region_name=settings.artifact_region,
+            access_key_id=settings.artifact_access_key_id,
+            secret_access_key=settings.artifact_secret_access_key,
+            local_staging_root=settings.artifact_root / "_s3_staging",
+        )
+
+    raise ValueError(f"Unsupported artifact store: {settings.artifact_store}")
 
 
 def run_refresh_job(
@@ -433,8 +458,16 @@ def _execute_refresh(
         status="completed",
         dataset_version=str(artifact.dataset_version) or None,
         artifact_uri=str(artifact.artifact_uri) or None,
-        validation_report_uri=_path_to_uri(artifact.validation_report_path),
-        diff_report_uri=_path_to_uri(artifact.diff_report_json_path),
+        validation_report_uri=_artifact_file_uri(
+            artifact,
+            "validation_report_uri",
+            artifact.validation_report_path,
+        ),
+        diff_report_uri=_artifact_file_uri(
+            artifact,
+            "diff_report_json_uri",
+            artifact.diff_report_json_path,
+        ),
         row_count=summary.row_count,
         country_count=summary.country_count,
         metric_count=summary.metric_count,
@@ -628,3 +661,14 @@ def _path_to_uri(path: Any) -> str | None:
         return None
     resolved = Path(path)
     return resolved.as_uri() if resolved.is_absolute() else resolved.resolve().as_uri()
+
+
+def _artifact_file_uri(
+    artifact: ArtifactPackage,
+    uri_attr: str,
+    path: Any,
+) -> str | None:
+    uri = getattr(artifact, uri_attr, None)
+    if uri is not None:
+        return str(uri)
+    return _path_to_uri(path)
