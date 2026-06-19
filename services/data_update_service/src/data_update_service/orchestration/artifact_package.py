@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,6 +27,16 @@ class ArtifactPackage:
     diff_report_markdown_path: Path
     command_path: Path
     result_path: Path
+
+    metrics_uri: str | None = None
+    validation_report_uri: str | None = None
+    diff_report_json_uri: str | None = None
+    diff_report_markdown_uri: str | None = None
+    command_uri: str | None = None
+    result_uri: str | None = None
+    manifest_uri: str | None = None
+    catalog_uri: str | None = None
+    source_audit_uri: str | None = None
 
 
 def sha256_file(path: Path) -> str:
@@ -174,10 +185,12 @@ class FilesystemArtifactStore:
         except OSError:
             pass
 
+        artifact_uri = version_dir.resolve().as_uri()
+
         return ArtifactPackage(
             dataset_version=dataset_version,
             artifact_dir=version_dir,
-            artifact_uri=version_dir.resolve().as_uri(),
+            artifact_uri=artifact_uri,
             parquet_sha256=parquet_sha256,
             metrics_path=final_metrics_path,
             validation_report_path=validation_report_path,
@@ -185,4 +198,162 @@ class FilesystemArtifactStore:
             diff_report_markdown_path=diff_report_markdown_path,
             command_path=command_path,
             result_path=result_path,
+            metrics_uri=final_metrics_path.resolve().as_uri(),
+            validation_report_uri=validation_report_path.resolve().as_uri(),
+            diff_report_json_uri=diff_report_json_path.resolve().as_uri(),
+            diff_report_markdown_uri=diff_report_markdown_path.resolve().as_uri(),
+            command_uri=command_path.resolve().as_uri(),
+            result_uri=result_path.resolve().as_uri(),
+            manifest_uri=manifest_path.resolve().as_uri(),
+            catalog_uri=catalog_path.resolve().as_uri(),
+            source_audit_uri=source_audit_path.resolve().as_uri(),
         )
+
+
+class S3ArtifactStore:
+    """S3-compatible immutable artifact package publisher.
+
+    This works with AWS S3, Cloudflare R2, Backblaze B2 S3-compatible API,
+    and local MinIO by changing settings only.
+    """
+
+    def __init__(
+        self,
+        *,
+        bucket: str,
+        prefix: str = "datasets",
+        endpoint_url: str | None = None,
+        region_name: str | None = None,
+        access_key_id: str | None = None,
+        secret_access_key: str | None = None,
+        local_staging_root: str | Path | None = None,
+        client: Any | None = None,
+    ) -> None:
+        if not bucket.strip():
+            raise ValueError("bucket is required for S3ArtifactStore")
+
+        self.bucket = bucket
+        self.prefix = prefix.strip("/")
+        self.endpoint_url = endpoint_url
+        self.region_name = region_name
+        self.access_key_id = access_key_id
+        self.secret_access_key = secret_access_key
+        self.local_staging_root = (
+            Path(local_staging_root)
+            if local_staging_root is not None
+            else Path(tempfile.mkdtemp(prefix="country-compare-data-update-s3-"))
+        )
+        self._client = client or self._build_client()
+
+    def publish_package(
+        self,
+        *,
+        command: RefreshCommand,
+        dataframe: pd.DataFrame,
+        validation_report: Any,
+        diff_report: DatasetDiffReport,
+        result_payload: Any,
+        now: datetime | None = None,
+    ) -> ArtifactPackage:
+        local_store = FilesystemArtifactStore(self.local_staging_root)
+
+        local_package = local_store.publish_package(
+            command=command,
+            dataframe=dataframe,
+            validation_report=validation_report,
+            diff_report=diff_report,
+            result_payload=result_payload,
+            now=now,
+        )
+
+        object_prefix = _join_object_key(
+            self.prefix,
+            command.source_family,
+            "versions",
+            local_package.dataset_version,
+        )
+
+        uploaded_uris: dict[str, str] = {}
+
+        for path in sorted(local_package.artifact_dir.iterdir()):
+            if not path.is_file():
+                continue
+
+            relative_name = path.name
+            key = _join_object_key(object_prefix, relative_name)
+            self._upload_file(path=path, key=key)
+            uploaded_uris[relative_name] = _s3_uri(self.bucket, key)
+
+        return ArtifactPackage(
+            dataset_version=local_package.dataset_version,
+            artifact_dir=local_package.artifact_dir,
+            artifact_uri=_s3_uri(self.bucket, object_prefix) + "/",
+            parquet_sha256=local_package.parquet_sha256,
+            metrics_path=local_package.metrics_path,
+            validation_report_path=local_package.validation_report_path,
+            diff_report_json_path=local_package.diff_report_json_path,
+            diff_report_markdown_path=local_package.diff_report_markdown_path,
+            command_path=local_package.command_path,
+            result_path=local_package.result_path,
+            metrics_uri=uploaded_uris.get("metrics.parquet"),
+            validation_report_uri=uploaded_uris.get("validation_report.json"),
+            diff_report_json_uri=uploaded_uris.get("diff_report.json"),
+            diff_report_markdown_uri=uploaded_uris.get("diff_report.md"),
+            command_uri=uploaded_uris.get("refresh_command.json"),
+            result_uri=uploaded_uris.get("refresh_result.json"),
+            manifest_uri=uploaded_uris.get("metrics_manifest.json"),
+            catalog_uri=uploaded_uris.get("catalog.json"),
+            source_audit_uri=uploaded_uris.get("source_audit.json"),
+        )
+
+    def _build_client(self) -> Any:
+        try:
+            import boto3
+        except ImportError as exc:  # pragma: no cover - exercised only without extra
+            raise RuntimeError(
+                "S3ArtifactStore requires boto3. Install with "
+                "'services/data_update_service[s3]'."
+            ) from exc
+
+        kwargs: dict[str, Any] = {}
+
+        if self.endpoint_url is not None:
+            kwargs["endpoint_url"] = self.endpoint_url
+        if self.region_name:
+            kwargs["region_name"] = self.region_name
+        if self.access_key_id is not None:
+            kwargs["aws_access_key_id"] = self.access_key_id
+        if self.secret_access_key is not None:
+            kwargs["aws_secret_access_key"] = self.secret_access_key
+
+        return boto3.client("s3", **kwargs)
+
+    def _upload_file(self, *, path: Path, key: str) -> None:
+        extra_args = {"ContentType": _content_type_for(path)}
+        self._client.upload_file(
+            Filename=str(path),
+            Bucket=self.bucket,
+            Key=key,
+            ExtraArgs=extra_args,
+        )
+
+
+def _join_object_key(*parts: str) -> str:
+    return "/".join(part.strip("/") for part in parts if part.strip("/"))
+
+
+def _s3_uri(bucket: str, key: str) -> str:
+    return f"s3://{bucket}/{key.strip('/')}"
+
+
+def _content_type_for(path: Path) -> str:
+    suffix = path.suffix.lower()
+
+    if suffix == ".json":
+        return "application/json"
+    if suffix == ".md":
+        return "text/markdown; charset=utf-8"
+    if suffix == ".parquet":
+        return "application/octet-stream"
+
+    return "application/octet-stream"
