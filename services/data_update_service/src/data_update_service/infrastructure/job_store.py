@@ -16,6 +16,7 @@ JobStatus = Literal[
     "pipeline_completed",
     "validation_passed",
     "artifact_published",
+    "promotion_completed",
     "retry_scheduled",
     "completed",
     "completed_no_changes",

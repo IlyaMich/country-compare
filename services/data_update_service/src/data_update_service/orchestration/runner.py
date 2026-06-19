@@ -372,6 +372,26 @@ def _execute_refresh(
         _complete_job(deps, result)
         return result
 
+    if command.promote and deps.dataset_registry is None:
+        result = _failure(
+            command,
+            status="failed_non_retryable",
+            error_code="dataset_registry_not_configured",
+            error_message="promote=true requires a dataset registry.",
+        )
+        _complete_job(deps, result)
+        return result
+
+    if command.promote and command.promotion_channel is None:
+        result = _failure(
+            command,
+            status="failed_non_retryable",
+            error_code="promotion_channel_required",
+            error_message="promotion_channel is required when promote=true.",
+        )
+        _complete_job(deps, result)
+        return result
+
     pre_publish_result = RefreshResult(
         job_id=command.job_id,
         command_id=command.command_id,
@@ -415,6 +435,16 @@ def _execute_refresh(
             artifact=artifact,
             result=result,
         )
+
+        if command.promote:
+            if command.promotion_channel is None:
+                raise ValueError("promotion_channel is required when promote=true")
+            deps.dataset_registry.promote_dataset_version(
+                dataset_version=artifact.dataset_version,
+                channel=command.promotion_channel,
+                promoted_by=command.requested_by,
+            )
+            _update_status(deps, command.job_id, "promotion_completed")
     _complete_job(deps, result)
     return result
 
