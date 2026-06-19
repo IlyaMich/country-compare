@@ -7,7 +7,10 @@ from pathlib import Path
 from threading import RLock
 from typing import Any, Protocol
 
-from data_update_service.orchestration.artifact_package import ArtifactPackage
+from data_update_service.orchestration.artifact_package import (
+    ArtifactPackage,
+    sha256_file,
+)
 from data_update_service.orchestration.commands import PromotionChannel, RefreshCommand
 from data_update_service.orchestration.results import RefreshResult
 
@@ -28,6 +31,8 @@ class DatasetVersionRecord:
     validation_status: str
     created_by_job_id: str
     created_at: datetime
+    manifest_sha256: str = ""
+    catalog_sha256: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -45,6 +50,8 @@ class DatasetVersionRecord:
             "validation_status": self.validation_status,
             "created_by_job_id": self.created_by_job_id,
             "created_at": self.created_at.isoformat(),
+            "manifest_sha256": self.manifest_sha256,
+            "catalog_sha256": self.catalog_sha256,
         }
 
 
@@ -369,6 +376,14 @@ def build_dataset_version_record(
         validation_status="passed" if result.ok else "failed",
         created_by_job_id=command.job_id,
         created_at=datetime.now(tz=UTC),
+        manifest_sha256=_optional_artifact_file_sha256(
+            artifact,
+            "metrics_manifest.json",
+        ),
+        catalog_sha256=_optional_artifact_file_sha256(
+            artifact,
+            "catalog.json",
+        ),
     )
 
 
@@ -410,6 +425,8 @@ def dataset_version_record_from_dict(payload: dict[str, Any]) -> DatasetVersionR
         validation_status=str(payload["validation_status"]),
         created_by_job_id=str(payload["created_by_job_id"]),
         created_at=datetime.fromisoformat(str(payload["created_at"])),
+        manifest_sha256=str(payload.get("manifest_sha256") or ""),
+        catalog_sha256=str(payload.get("catalog_sha256") or ""),
     )
 
 
@@ -423,3 +440,10 @@ def dataset_channel_record_from_dict(payload: dict[str, Any]) -> DatasetChannelR
         promoted_by=str(payload["promoted_by"]),
         promoted_at=datetime.fromisoformat(str(payload["promoted_at"])),
     )
+
+
+def _optional_artifact_file_sha256(artifact: ArtifactPackage, filename: str) -> str:
+    path = artifact.artifact_dir / filename
+    if not path.exists():
+        return ""
+    return sha256_file(path)
