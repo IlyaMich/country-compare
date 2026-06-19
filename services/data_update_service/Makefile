@@ -32,7 +32,7 @@ KAFKA_COMMAND_TOPIC ?= country-compare.data-refresh.commands.v1
 KAFKA_BOOTSTRAP_SERVERS ?= 127.0.0.1:9094
 KAFKA_DLQ_TOPIC ?= country-compare.data-refresh.dlq.v1
 
-.PHONY: help install install-dev install-kafka test lint lint-fix format format-check typecheck check check-strict run run-dev refresh-dry-run refresh-artifact publish-command run-worker build-image compose-up compose-down prepare-compose-dirs clean
+.PHONY: help install install-dev install-kafka test lint lint-fix format format-check typecheck check check-strict run run-dev refresh-dry-run refresh-artifact publish-command run-worker build-image compose-up compose-down prepare-compose-dirs clean publish-invalid-command
 
 help:
 	@echo "Data Update Service targets:"
@@ -56,6 +56,7 @@ help:
 	@echo "  make compose-up       Start the local data-update Kafka/worker stack"
 	@echo "  make compose-down     Stop the local data-update stack"
 	@echo "  make clean            Remove local caches"
+	@echo "  make publish-invalid-command Publish an invalid command for DLQ smoke testing"
 
 install:
 	$(PYTHON) -m pip install .
@@ -100,6 +101,12 @@ refresh-artifact:
 
 publish-command:
 	cd "$(REPO_ROOT)" && $(PYTHON) -m data_update_service.cli publish-command --source-family $(SOURCE_FAMILY) --manifest-path $(MANIFEST_PATH) --mode $(MODE) --acquisition-mode $(ACQUISITION_MODE) --dry-run $(DRY_RUN) --publish $(PUBLISH) --promote $(PROMOTE) --promotion-channel $(PROMOTION_CHANNEL) --requested-by $(REQUESTED_BY) --kafka-bootstrap-servers $(KAFKA_BOOTSTRAP_SERVERS) --kafka-command-topic $(KAFKA_COMMAND_TOPIC)
+
+publish-invalid-command:
+	cd "$(REPO_ROOT)" && $(PYTHON) -m data_update_service.cli publish-invalid-command \
+		--source-family $(SOURCE_FAMILY) \
+		--kafka-bootstrap-servers $(KAFKA_BOOTSTRAP_SERVERS) \
+		--kafka-command-topic $(KAFKA_COMMAND_TOPIC)
 
 inspect-dlq:
 	python -m data_update_service.cli inspect-dlq \
