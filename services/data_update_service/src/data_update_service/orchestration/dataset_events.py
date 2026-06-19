@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import MutableSequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal, Protocol, TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, Protocol
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -80,7 +80,9 @@ class InMemoryDatasetEventPublisher:
     """Deterministic publisher fake for unit tests."""
 
     version_events: MutableSequence[DatasetVersionEvent] = field(default_factory=list)
-    promotion_events: MutableSequence[DatasetPromotionEvent] = field(default_factory=list)
+    promotion_events: MutableSequence[DatasetPromotionEvent] = field(
+        default_factory=list
+    )
 
     def publish_dataset_version(self, event: DatasetVersionEvent) -> None:
         self.version_events.append(event)
