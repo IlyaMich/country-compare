@@ -27,6 +27,7 @@ from data_update_service.infrastructure.locks import (
 )
 from data_update_service.infrastructure.postgres import (
     PostgresAttemptStore,
+    PostgresDatasetRegistry,
     PostgresJobStore,
     PostgresSourceLockManager,
 )
@@ -200,7 +201,10 @@ class RunnerDependencies:
                 ttl_seconds=resolved.source_lock_ttl_seconds,
                 initialize_schema=initialize_schema,
             ),
-            dataset_registry=FilesystemDatasetRegistry(resolved.artifact_root),
+            dataset_registry=PostgresDatasetRegistry(
+                resolved.database_url,
+                initialize_schema=initialize_schema,
+            ),
             attempt_store=PostgresAttemptStore(
                 resolved.database_url,
                 initialize_schema=initialize_schema,
