@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -41,6 +42,7 @@ def _command() -> RefreshCommand:
 
 
 def _artifact(tmp_path: Path) -> ArtifactPackage:
+    suffix = uuid4().hex[:8]
     artifact_dir = tmp_path / "artifact"
     artifact_dir.mkdir()
 
@@ -66,10 +68,10 @@ def _artifact(tmp_path: Path) -> ArtifactPackage:
         path.write_text(path.name, encoding="utf-8")
 
     return ArtifactPackage(
-        dataset_version="world_bank_2026-06-19T00-00-00Z_abcdef1",
+        dataset_version=f"world_bank_2026-06-19T00-00-00Z_{suffix}",
         artifact_dir=artifact_dir,
         artifact_uri=artifact_dir.resolve().as_uri(),
-        parquet_sha256="abcdef1234567890",
+        parquet_sha256=f"{suffix}1234567890",
         metrics_path=metrics_path,
         validation_report_path=validation_report_path,
         diff_report_json_path=diff_report_json_path,
