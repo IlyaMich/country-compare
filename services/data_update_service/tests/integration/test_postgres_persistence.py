@@ -1,20 +1,34 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
+import pandas as pd
 import pytest
 
 from data_update_service.infrastructure.job_store import DuplicateCommandConflictError
 from data_update_service.infrastructure.locks import SourceLockUnavailableError
 from data_update_service.infrastructure.postgres import (
     PostgresAttemptStore,
+    PostgresDatasetRegistry,
     PostgresJobStore,
     PostgresSourceLockManager,
 )
+from data_update_service.orchestration.artifact_package import FilesystemArtifactStore
 from data_update_service.orchestration.commands import RefreshCommand
+from data_update_service.orchestration.diff import (
+    DatasetDiffReport,
+    DatasetSummary,
+)
 from data_update_service.orchestration.results import RefreshResult
+from data_update_service.orchestration.runner import (
+    RunnerDependencies,
+    run_refresh_job,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -149,6 +163,8 @@ def _reset_tables(database_url: str) -> None:
     with psycopg.connect(database_url, connect_timeout=5) as connection:
         connection.autocommit = True
         with connection.cursor() as cursor:
+            cursor.execute("DROP TABLE IF EXISTS dataset_channels")
+            cursor.execute("DROP TABLE IF EXISTS dataset_versions")
             cursor.execute("DROP TABLE IF EXISTS data_refresh_attempts")
             cursor.execute("DROP TABLE IF EXISTS source_locks")
             cursor.execute("DROP TABLE IF EXISTS data_refresh_jobs")
@@ -209,3 +225,153 @@ def test_postgres_job_store_advances_attempt_for_non_terminal_retry_command(
     assert loaded.status == "retry_scheduled"
     assert loaded.attempt == 2
     assert loaded.max_attempts == command.max_attempts
+
+
+def test_runner_persists_dataset_registry_state_in_postgres(
+    database_url: str,
+    tmp_path: Path,
+) -> None:
+    command = _runner_command(tmp_path)
+
+    registry = PostgresDatasetRegistry(database_url, initialize_schema=True)
+
+    deps = RunnerDependencies(
+        pipeline_runner=_FakePipelineRunner(),
+        diff_generator=_FakeDiffGenerator(),
+        source_acquirer=None,
+        artifact_store=FilesystemArtifactStore(tmp_path / "artifacts"),
+        audit_root=tmp_path / "audit",
+        job_store=PostgresJobStore(database_url, initialize_schema=True),
+        source_locks=PostgresSourceLockManager(
+            database_url,
+            ttl_seconds=60,
+            initialize_schema=True,
+        ),
+        dataset_registry=registry,
+        attempt_store=PostgresAttemptStore(database_url, initialize_schema=True),
+    )
+
+    result = run_refresh_job(command, deps)
+
+    assert result.status == "completed"
+    assert result.dataset_version is not None
+
+    version = registry.get_dataset_version(result.dataset_version)
+    channel = registry.get_channel(source_family="world_bank", channel="staging")
+
+    assert version is not None
+    assert version.dataset_version == result.dataset_version
+    assert version.source_family == "world_bank"
+    assert version.artifact_uri == result.artifact_uri
+    assert version.row_count == 2
+    assert version.country_count == 2
+    assert version.metric_count == 1
+    assert version.year_min == 2024
+    assert version.year_max == 2024
+
+    assert channel is not None
+    assert channel.channel == "staging"
+    assert channel.source_family == "world_bank"
+    assert channel.dataset_version == result.dataset_version
+    assert channel.artifact_uri == result.artifact_uri
+    assert channel.promoted_by == "pytest"
+
+    stored_result = deps.job_store.result_for_job(command.job_id)
+    attempts = deps.attempt_store.list_attempts(command.job_id)
+
+    assert stored_result is not None
+    assert stored_result.status == "completed"
+    assert stored_result.dataset_version == result.dataset_version
+    assert len(attempts) == 1
+    assert attempts[0].status == "completed"
+
+
+@dataclass(frozen=True, slots=True)
+class _FakeProcessingResult:
+    ok: bool
+    canonical_dataframe: pd.DataFrame
+    validation_report: dict[str, Any]
+    warnings: list[str]
+
+
+class _FakePipelineRunner:
+    def run(
+        self,
+        command: RefreshCommand,
+        *,
+        audit_dir: Path,
+        raw_root: Path | None = None,
+    ) -> _FakeProcessingResult:
+        return _FakeProcessingResult(
+            ok=True,
+            canonical_dataframe=pd.DataFrame(
+                [
+                    {
+                        "country_code": "ISR",
+                        "country_name": "Israel",
+                        "metric_id": "gdp_per_capita",
+                        "metric_name": "GDP per capita",
+                        "value": 100.0,
+                        "year": 2024,
+                        "unit": "current_usd",
+                        "source_name": "pytest",
+                        "source_url": "https://example.test",
+                        "higher_is_better": True,
+                        "category": "economy",
+                    },
+                    {
+                        "country_code": "FRA",
+                        "country_name": "France",
+                        "metric_id": "gdp_per_capita",
+                        "metric_name": "GDP per capita",
+                        "value": 120.0,
+                        "year": 2024,
+                        "unit": "current_usd",
+                        "source_name": "pytest",
+                        "source_url": "https://example.test",
+                        "higher_is_better": True,
+                        "category": "economy",
+                    },
+                ]
+            ),
+            validation_report={"passed": True},
+            warnings=[],
+        )
+
+
+class _FakeDiffGenerator:
+    def generate(self, dataframe: pd.DataFrame) -> DatasetDiffReport:
+        return DatasetDiffReport(
+            summary=DatasetSummary(
+                row_count=len(dataframe.index),
+                country_count=int(dataframe["country_code"].nunique()),
+                metric_count=int(dataframe["metric_id"].nunique()),
+                year_min=int(dataframe["year"].min()),
+                year_max=int(dataframe["year"].max()),
+            ),
+            no_changes=False,
+            notes=("pytest runner postgres registry coverage",),
+        )
+
+
+def _runner_command(tmp_path: Path) -> RefreshCommand:
+    suffix = uuid4().hex[:8]
+    manifest_path = tmp_path / "manifest.yaml"
+    manifest_path.write_text("sources: []\n", encoding="utf-8")
+
+    return RefreshCommand.create(
+        source_family="world_bank",
+        manifest_path=manifest_path,
+        mode="full_refresh",
+        acquisition_mode="local",
+        dry_run=False,
+        publish=True,
+        promote=True,
+        promotion_channel="staging",
+        requested_by="pytest",
+        requested_at=datetime(2026, 1, 1, tzinfo=UTC),
+        command_id=f"cmd_runner_postgres_registry_{suffix}",
+        job_id=f"job_runner_postgres_registry_{suffix}",
+        idempotency_key=f"idem_runner_postgres_registry_{suffix}",
+        correlation_id=f"corr_runner_postgres_registry_{suffix}",
+    )
