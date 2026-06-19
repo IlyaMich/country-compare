@@ -72,7 +72,14 @@ def _dataframe() -> pd.DataFrame:
     )
 
 
-def _command(tmp_path: Path, *, dry_run: bool, publish: bool) -> RefreshCommand:
+def _command(
+    tmp_path: Path,
+    *,
+    dry_run: bool,
+    publish: bool,
+    promote: bool = False,
+    promotion_channel: str | None = "staging",
+) -> RefreshCommand:
     manifest_path = tmp_path / "manifest.yaml"
     manifest_path.write_text("sources: []\n", encoding="utf-8")
     return RefreshCommand.create(
@@ -80,6 +87,8 @@ def _command(tmp_path: Path, *, dry_run: bool, publish: bool) -> RefreshCommand:
         manifest_path=manifest_path,
         dry_run=dry_run,
         publish=publish,
+        promote=promote,
+        promotion_channel=promotion_channel,
     )
 
 
@@ -200,6 +209,68 @@ def test_run_refresh_job_returns_retryable_failure_when_source_is_locked(
     assert result.status == "failed_retryable"
     assert result.error_code == "source_lock_unavailable"
     assert runner.call_count == 0
+
+
+def test_run_refresh_job_promotes_dataset_after_publish(tmp_path) -> None:
+    runner = CountingPipelineRunner(FakePipelineResult(ok=True, dataframe=_dataframe()))
+    registry = InMemoryDatasetRegistry()
+    job_store = InMemoryJobStore()
+    deps = RunnerDependencies(
+        pipeline_runner=runner,
+        diff_generator=FakeDiffGenerator(),
+        artifact_store=FakeArtifactStore(),
+        audit_root=tmp_path / "audit",
+        job_store=job_store,
+        source_locks=InMemorySourceLockManager(),
+        dataset_registry=registry,
+    )
+    command = _command(
+        tmp_path,
+        dry_run=False,
+        publish=True,
+        promote=True,
+        promotion_channel="staging",
+    )
+
+    result = run_refresh_job(command, deps)
+
+    channel = registry.get_channel(source_family="world_bank", channel="staging")
+    stored_job = job_store.get_job(command.job_id)
+
+    assert result.status == "completed"
+    assert channel is not None
+    assert channel.dataset_version == result.dataset_version
+    assert channel.promoted_by == command.requested_by
+    assert stored_job is not None
+    assert stored_job.status == "completed"
+    assert "promotion_completed" in stored_job.status_history
+
+
+def test_run_refresh_job_fails_promote_without_registry(tmp_path) -> None:
+    runner = CountingPipelineRunner(FakePipelineResult(ok=True, dataframe=_dataframe()))
+    artifact_store = FakeArtifactStore()
+    deps = RunnerDependencies(
+        pipeline_runner=runner,
+        diff_generator=FakeDiffGenerator(),
+        artifact_store=artifact_store,
+        audit_root=tmp_path / "audit",
+        job_store=InMemoryJobStore(),
+        source_locks=InMemorySourceLockManager(),
+        dataset_registry=None,
+    )
+    command = _command(
+        tmp_path,
+        dry_run=False,
+        publish=True,
+        promote=True,
+        promotion_channel="staging",
+    )
+
+    result = run_refresh_job(command, deps)
+
+    assert result.status == "failed_non_retryable"
+    assert result.error_code == "dataset_registry_not_configured"
+    assert artifact_store.called is False
 
 
 def test_run_refresh_job_registers_dataset_metadata_after_publish(tmp_path) -> None:

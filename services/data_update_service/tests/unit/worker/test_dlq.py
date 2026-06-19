@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from data_update_service.worker.dlq import inspect_dlq_messages, parse_dlq_message
 
 from data_update_service.infrastructure.kafka import InMemoryKafkaConsumer, KafkaMessage
+from data_update_service.worker.dlq import inspect_dlq_messages, parse_dlq_message
 from data_update_service.worker.events import DeadLetterEvent
 
 

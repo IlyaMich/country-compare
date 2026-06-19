@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from data_update_service.infrastructure.dataset_registry import (
@@ -62,8 +63,50 @@ def test_in_memory_dataset_registry_registers_metadata() -> None:
     assert registry.list_dataset_versions(source_family="world_bank") == [record]
 
 
-def test_filesystem_dataset_registry_persists_metadata(tmp_path) -> None:
+def test_in_memory_dataset_registry_promotes_registered_version() -> None:
+    registry = InMemoryDatasetRegistry()
+    registry.register_dataset_version(
+        command=_command(),
+        artifact=FakeArtifact(),
+        result=_result(),
+    )
+
+    channel = registry.promote_dataset_version(
+        dataset_version=FakeArtifact.dataset_version,
+        channel="staging",
+        promoted_by="pytest",
+    )
+
+    assert channel.channel == "staging"
+    assert channel.source_family == "world_bank"
+    assert channel.dataset_version == FakeArtifact.dataset_version
+    assert channel.artifact_uri == FakeArtifact.artifact_uri
+    assert channel.parquet_sha256 == FakeArtifact.parquet_sha256
+    assert channel.promoted_by == "pytest"
+    assert (
+        registry.get_channel(source_family="world_bank", channel="staging") == channel
+    )
+    assert registry.list_channels(source_family="world_bank") == [channel]
+
+
+def test_in_memory_dataset_registry_rejects_unknown_promotion() -> None:
+    registry = InMemoryDatasetRegistry()
+
+    try:
+        registry.promote_dataset_version(
+            dataset_version="missing",
+            channel="staging",
+            promoted_by="pytest",
+        )
+    except KeyError as exc:
+        assert "unknown dataset version" in str(exc)
+    else:  # pragma: no cover - explicit assertion path
+        raise AssertionError("expected KeyError")
+
+
+def test_filesystem_dataset_registry_persists_metadata(tmp_path: Path) -> None:
     registry = FilesystemDatasetRegistry(tmp_path)
+
     record = registry.register_dataset_version(
         command=_command(),
         artifact=FakeArtifact(),
@@ -76,3 +119,38 @@ def test_filesystem_dataset_registry_persists_metadata(tmp_path) -> None:
 
     assert reloaded == record
     assert (tmp_path / "world_bank" / "registry" / "dataset_versions.json").exists()
+
+
+def test_filesystem_dataset_registry_writes_channel_pointer(tmp_path: Path) -> None:
+    registry = FilesystemDatasetRegistry(tmp_path)
+    registry.register_dataset_version(
+        command=_command(),
+        artifact=FakeArtifact(),
+        result=_result(),
+    )
+
+    channel = registry.promote_dataset_version(
+        dataset_version=FakeArtifact.dataset_version,
+        channel="prod",
+        promoted_by="pytest",
+    )
+
+    channel_path = tmp_path / "world_bank" / "channels" / "prod.json"
+    assert channel_path.exists()
+
+    payload = json.loads(channel_path.read_text(encoding="utf-8"))
+    assert payload["channel"] == "prod"
+    assert payload["source_family"] == "world_bank"
+    assert payload["dataset_version"] == FakeArtifact.dataset_version
+    assert payload["artifact_uri"] == FakeArtifact.artifact_uri
+    assert payload["parquet_sha256"] == FakeArtifact.parquet_sha256
+    assert payload["promoted_by"] == "pytest"
+
+    reloaded = FilesystemDatasetRegistry(tmp_path).get_channel(
+        source_family="world_bank",
+        channel="prod",
+    )
+    assert reloaded == channel
+    assert FilesystemDatasetRegistry(tmp_path).list_channels(
+        source_family="world_bank"
+    ) == [channel]
