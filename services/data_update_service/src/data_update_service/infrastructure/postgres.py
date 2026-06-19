@@ -18,6 +18,14 @@ from data_update_service.infrastructure.locks import (
 )
 from data_update_service.orchestration.commands import RefreshCommand
 from data_update_service.orchestration.results import RefreshResult
+from data_update_service.infrastructure.dataset_registry import (
+    DatasetChannelRecord,
+    DatasetVersionRecord,
+    build_dataset_channel_record,
+    build_dataset_version_record,
+)
+from data_update_service.orchestration.artifact_package import ArtifactPackage
+from data_update_service.orchestration.commands import PromotionChannel
 
 
 class PostgresInfrastructureError(RuntimeError):
@@ -421,6 +429,282 @@ class PostgresAttemptStore:
         return [_row_to_attempt_record(row) for row in rows]
 
 
+class PostgresDatasetRegistry:
+    """Postgres-backed implementation of the DatasetRegistry protocol."""
+
+    def __init__(self, database_url: str, *, initialize_schema: bool = False) -> None:
+        if not database_url.strip():
+            raise ValueError("database_url must not be empty")
+        self.database_url = database_url
+        if initialize_schema:
+            self.initialize_schema()
+
+    def initialize_schema(self) -> None:
+        with _connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(_CREATE_DATA_REFRESH_JOBS_SQL)
+                cursor.execute(
+                    """
+                    ALTER TABLE data_refresh_jobs
+                    ADD COLUMN IF NOT EXISTS acquisition_mode TEXT NOT NULL DEFAULT 'local'
+                    """
+                )
+                cursor.execute(_CREATE_DATASET_VERSIONS_SQL)
+                cursor.execute(_CREATE_DATASET_CHANNELS_SQL)
+
+    def register_dataset_version(
+        self,
+        *,
+        command: RefreshCommand,
+        artifact: ArtifactPackage,
+        result: RefreshResult,
+    ) -> DatasetVersionRecord:
+        record = build_dataset_version_record(
+            command=command,
+            artifact=artifact,
+            result=result,
+        )
+
+        with _connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO dataset_versions (
+                        dataset_version,
+                        source_family,
+                        artifact_uri,
+                        parquet_sha256,
+                        manifest_sha256,
+                        catalog_sha256,
+                        validation_report_uri,
+                        diff_report_uri,
+                        row_count,
+                        country_count,
+                        metric_count,
+                        year_min,
+                        year_max,
+                        validation_status,
+                        created_by_job_id,
+                        created_at
+                    )
+                    VALUES (
+                        %(dataset_version)s,
+                        %(source_family)s,
+                        %(artifact_uri)s,
+                        %(parquet_sha256)s,
+                        %(manifest_sha256)s,
+                        %(catalog_sha256)s,
+                        %(validation_report_uri)s,
+                        %(diff_report_uri)s,
+                        %(row_count)s,
+                        %(country_count)s,
+                        %(metric_count)s,
+                        %(year_min)s,
+                        %(year_max)s,
+                        %(validation_status)s,
+                        %(created_by_job_id)s,
+                        %(created_at)s
+                    )
+                    ON CONFLICT (dataset_version) DO NOTHING
+                    """,
+                    record.as_dict(),
+                )
+
+                cursor.execute(
+                    """
+                    SELECT *
+                    FROM dataset_versions
+                    WHERE dataset_version = %s
+                    """,
+                    (record.dataset_version,),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    raise PostgresInfrastructureError(
+                        f"failed to register dataset version: {record.dataset_version}"
+                    )
+                return _row_to_dataset_version_record(row)
+
+    def get_dataset_version(self, dataset_version: str) -> DatasetVersionRecord | None:
+        with _connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT *
+                    FROM dataset_versions
+                    WHERE dataset_version = %s
+                    """,
+                    (dataset_version,),
+                )
+                row = cursor.fetchone()
+                return _row_to_dataset_version_record(row) if row is not None else None
+
+    def list_dataset_versions(
+        self,
+        *,
+        source_family: str | None = None,
+    ) -> list[DatasetVersionRecord]:
+        with _connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                if source_family is None:
+                    cursor.execute(
+                        """
+                        SELECT *
+                        FROM dataset_versions
+                        ORDER BY created_at ASC, dataset_version ASC
+                        """
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        SELECT *
+                        FROM dataset_versions
+                        WHERE source_family = %s
+                        ORDER BY created_at ASC, dataset_version ASC
+                        """,
+                        (source_family,),
+                    )
+                return [
+                    _row_to_dataset_version_record(row)
+                    for row in cursor.fetchall()
+                ]
+
+    def promote_dataset_version(
+        self,
+        *,
+        dataset_version: str,
+        channel: PromotionChannel,
+        promoted_by: str,
+    ) -> DatasetChannelRecord:
+        version = self.get_dataset_version(dataset_version)
+        if version is None:
+            raise KeyError(f"unknown dataset version: {dataset_version}")
+
+        channel_record = build_dataset_channel_record(
+            version=version,
+            channel=channel,
+            promoted_by=promoted_by,
+        )
+
+        with _connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO dataset_channels (
+                        channel,
+                        dataset_version,
+                        promoted_by,
+                        promoted_at
+                    )
+                    VALUES (
+                        %(channel)s,
+                        %(dataset_version)s,
+                        %(promoted_by)s,
+                        %(promoted_at)s
+                    )
+                    ON CONFLICT (channel)
+                    DO UPDATE SET
+                        dataset_version = EXCLUDED.dataset_version,
+                        promoted_by = EXCLUDED.promoted_by,
+                        promoted_at = EXCLUDED.promoted_at
+                    """,
+                    {
+                        "channel": channel_record.channel,
+                        "dataset_version": channel_record.dataset_version,
+                        "promoted_by": channel_record.promoted_by,
+                        "promoted_at": channel_record.promoted_at,
+                    },
+                )
+
+        reloaded = self.get_channel(
+            source_family=version.source_family,
+            channel=channel,
+        )
+        if reloaded is None:
+            raise PostgresInfrastructureError(
+                f"failed to promote dataset version {dataset_version!r} to {channel!r}"
+            )
+        return reloaded
+
+    def get_channel(
+        self,
+        *,
+        source_family: str,
+        channel: PromotionChannel,
+    ) -> DatasetChannelRecord | None:
+        with _connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        c.channel,
+                        v.source_family,
+                        c.dataset_version,
+                        v.artifact_uri,
+                        v.parquet_sha256,
+                        c.promoted_by,
+                        c.promoted_at
+                    FROM dataset_channels c
+                    JOIN dataset_versions v
+                      ON v.dataset_version = c.dataset_version
+                    WHERE c.channel = %s
+                      AND v.source_family = %s
+                    """,
+                    (channel, source_family),
+                )
+                row = cursor.fetchone()
+                return _row_to_dataset_channel_record(row) if row is not None else None
+
+    def list_channels(
+        self,
+        *,
+        source_family: str | None = None,
+    ) -> list[DatasetChannelRecord]:
+        with _connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                if source_family is None:
+                    cursor.execute(
+                        """
+                        SELECT
+                            c.channel,
+                            v.source_family,
+                            c.dataset_version,
+                            v.artifact_uri,
+                            v.parquet_sha256,
+                            c.promoted_by,
+                            c.promoted_at
+                        FROM dataset_channels c
+                        JOIN dataset_versions v
+                          ON v.dataset_version = c.dataset_version
+                        ORDER BY v.source_family ASC, c.channel ASC
+                        """
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        SELECT
+                            c.channel,
+                            v.source_family,
+                            c.dataset_version,
+                            v.artifact_uri,
+                            v.parquet_sha256,
+                            c.promoted_by,
+                            c.promoted_at
+                        FROM dataset_channels c
+                        JOIN dataset_versions v
+                          ON v.dataset_version = c.dataset_version
+                        WHERE v.source_family = %s
+                        ORDER BY v.source_family ASC, c.channel ASC
+                        """,
+                        (source_family,),
+                    )
+
+                return [
+                    _row_to_dataset_channel_record(row)
+                    for row in cursor.fetchall()
+                ]
+            
+
 class PostgresSourceLockManager:
     """Postgres-backed source-family lock manager."""
 
@@ -756,6 +1040,47 @@ def _row_to_attempt_record(row: dict[str, Any]) -> AttemptRecord:
     )
 
 
+def _row_to_dataset_version_record(row: dict[str, Any]) -> DatasetVersionRecord:
+    return DatasetVersionRecord(
+        dataset_version=str(row["dataset_version"]),
+        source_family=str(row["source_family"]),
+        artifact_uri=str(row["artifact_uri"]),
+        parquet_sha256=str(row["parquet_sha256"]),
+        validation_report_uri=(
+            str(row["validation_report_uri"])
+            if row.get("validation_report_uri")
+            else None
+        ),
+        diff_report_uri=(
+            str(row["diff_report_uri"])
+            if row.get("diff_report_uri")
+            else None
+        ),
+        row_count=int(row["row_count"]),
+        country_count=int(row["country_count"]),
+        metric_count=int(row["metric_count"]),
+        year_min=int(row["year_min"]) if row.get("year_min") is not None else None,
+        year_max=int(row["year_max"]) if row.get("year_max") is not None else None,
+        validation_status=str(row["validation_status"]),
+        created_by_job_id=str(row["created_by_job_id"]),
+        created_at=_ensure_aware_datetime(row["created_at"]),
+        manifest_sha256=str(row.get("manifest_sha256") or ""),
+        catalog_sha256=str(row.get("catalog_sha256") or ""),
+    )
+
+
+def _row_to_dataset_channel_record(row: dict[str, Any]) -> DatasetChannelRecord:
+    return DatasetChannelRecord(
+        channel=cast(PromotionChannel, row["channel"]),
+        source_family=str(row["source_family"]),
+        dataset_version=str(row["dataset_version"]),
+        artifact_uri=str(row["artifact_uri"]),
+        parquet_sha256=str(row["parquet_sha256"]),
+        promoted_by=str(row["promoted_by"]),
+        promoted_at=_ensure_aware_datetime(row["promoted_at"]),
+    )
+
+
 def _attempt_id(job_id: str, attempt_number: int) -> str:
     return f"{job_id}_attempt_{attempt_number}"
 
@@ -812,5 +1137,35 @@ CREATE TABLE IF NOT EXISTS data_refresh_attempts (
     error_code TEXT,
     error_message TEXT,
     UNIQUE (job_id, attempt_number)
+)
+"""
+
+_CREATE_DATASET_VERSIONS_SQL = """
+CREATE TABLE IF NOT EXISTS dataset_versions (
+    dataset_version TEXT PRIMARY KEY,
+    source_family TEXT NOT NULL,
+    artifact_uri TEXT NOT NULL,
+    parquet_sha256 TEXT NOT NULL,
+    manifest_sha256 TEXT NOT NULL DEFAULT '',
+    catalog_sha256 TEXT NOT NULL DEFAULT '',
+    validation_report_uri TEXT,
+    diff_report_uri TEXT,
+    row_count INTEGER NOT NULL,
+    country_count INTEGER NOT NULL,
+    metric_count INTEGER NOT NULL,
+    year_min INTEGER,
+    year_max INTEGER,
+    validation_status TEXT NOT NULL,
+    created_by_job_id TEXT REFERENCES data_refresh_jobs(job_id),
+    created_at TIMESTAMPTZ NOT NULL
+)
+"""
+
+_CREATE_DATASET_CHANNELS_SQL = """
+CREATE TABLE IF NOT EXISTS dataset_channels (
+    channel TEXT PRIMARY KEY,
+    dataset_version TEXT NOT NULL REFERENCES dataset_versions(dataset_version),
+    promoted_by TEXT NOT NULL,
+    promoted_at TIMESTAMPTZ NOT NULL
 )
 """
