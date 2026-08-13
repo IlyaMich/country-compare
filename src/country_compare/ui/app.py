@@ -6,7 +6,7 @@ import streamlit as st
 
 from country_compare.settings import load_app_settings
 from country_compare.ui import state
-from country_compare.ui.bootstrap import bootstrap_app
+from country_compare.ui.bootstrap import bootstrap_ui_runtime
 from country_compare.ui.navigation import (
     AVAILABLE_PAGES,
     COMPARE_PAGE,
@@ -44,11 +44,13 @@ def main() -> None:
         layout=_streamlit_layout(app_settings.ui.layout),
     )
 
-    context, facade = bootstrap_app(settings=app_settings)
+    runtime = bootstrap_ui_runtime(settings=app_settings)
+    context = runtime.app_context
 
     views = {
         OVERVIEW_PAGE: lambda: render_overview_page(
-            facade, debug=state.snapshot().debug_mode
+            runtime,
+            debug=state.snapshot().debug_mode,
         ),
         COMPARE_PAGE: lambda: render_compare_view(context),
         PREDICTION_PAGE: lambda: render_prediction_view(context),
