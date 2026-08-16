@@ -166,3 +166,38 @@ def test_build_client_does_not_build_local_facade_for_http_mode(
     assert result is expected_client
 
     bootstrap._build_client_cached.clear()
+
+
+def test_http_runtime_does_not_require_local_dataset(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    metrics_config = tmp_path / "metrics.yaml"
+    scoring_config = tmp_path / "scoring_profiles.yaml"
+    missing_dataset = tmp_path / "does-not-exist.parquet"
+
+    metrics_config.write_text("metrics: []\n", encoding="utf-8")
+    scoring_config.write_text("profiles: []\n", encoding="utf-8")
+
+    context = bootstrap.build_app_context(
+        metrics_config_path=metrics_config,
+        scoring_config_path=scoring_config,
+        store_path=missing_dataset,
+    )
+
+    class FakeHttpClient:
+        mode = "http"
+
+    client = FakeHttpClient()
+
+    monkeypatch.setattr(
+        bootstrap,
+        "get_country_compare_client",
+        lambda current_context: client,
+    )
+
+    runtime = bootstrap.get_ui_runtime_context(context)
+
+    assert not missing_dataset.exists()
+    assert runtime.is_http is True
+    assert runtime.client is client
