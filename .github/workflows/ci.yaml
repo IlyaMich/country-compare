@@ -186,13 +186,15 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      - name: Run pip-audit in non-blocking mode
+      - name: Run pip-audit
+        continue-on-error: ${{ github.ref_type != 'tag' || ! startsWith(github.ref_name, 'v') }}
         run: |
           python -m pip install --upgrade pip pip-audit
-          python -m pip_audit || true
+          python -m pip_audit
 
   docker-build:
     name: Docker build, smoke, and release image
+    needs: dependency-security
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'
     permissions:
@@ -422,12 +424,12 @@ jobs:
             --api-key ci-smoke-key \
             --check-llm-readiness
 
-      - name: Run Trivy backend image scan in non-blocking mode
+      - name: Run Trivy backend image scan
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: country-compare-backend:ci
           format: table
-          exit-code: "0"
+          exit-code: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && '1' || '0' }}
           ignore-unfixed: true
           severity: CRITICAL,HIGH
 
@@ -696,8 +698,8 @@ jobs:
           cd services/llm_forecast_service
           python -m mypy src
 
-      - name: Run LLM forecast service dependency scan in non-blocking mode
-        continue-on-error: true
+      - name: Run LLM forecast service dependency scan
+        continue-on-error: ${{ github.ref_type != 'tag' || ! startsWith(github.ref_name, 'v') }}
         run: |
           cd services/llm_forecast_service
           python -m pip_audit
@@ -804,13 +806,12 @@ jobs:
         run: |
           docker rm -f llm-forecast-service-ci || true
 
-      - name: Run Trivy LLM forecast service image scan in non-blocking mode
-        continue-on-error: true
+      - name: Run Trivy LLM forecast service image scan
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: llm-forecast-service:ci
           format: table
-          exit-code: "0"
+          exit-code: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && '1' || '0' }}
           ignore-unfixed: true
           severity: CRITICAL,HIGH
 
