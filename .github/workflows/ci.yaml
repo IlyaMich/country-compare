@@ -11,6 +11,7 @@ on:
         options:
           - all
           - backend
+          - ui
           - llm
       publish_images:
         description: "Publish selected image(s) to GHCR. Allowed only from main, develop, or v* tags."
@@ -39,7 +40,11 @@ jobs:
   python-quality:
     name: Python quality checks
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      inputs.image_target == 'all' ||
+      inputs.image_target == 'backend' ||
+      inputs.image_target == 'ui'
 
     steps:
       - name: Check out repository
@@ -87,7 +92,11 @@ jobs:
   package-build:
     name: Build and install package artifacts
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      inputs.image_target == 'all' ||
+      inputs.image_target == 'backend' ||
+      inputs.image_target == 'ui'
 
     steps:
       - name: Check out repository
@@ -160,7 +169,11 @@ jobs:
   dependency-security:
     name: Dependency security scan
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch' || inputs.image_target == 'all' || inputs.image_target == 'backend'
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      inputs.image_target == 'all' ||
+      inputs.image_target == 'backend' ||
+      inputs.image_target == 'ui'
 
     steps:
       - name: Check out repository
@@ -217,15 +230,23 @@ jobs:
         run: |
           docker compose build
 
-      - name: Smoke test default Compose backend
+      - name: Smoke test default Compose stack
         run: |
-          docker compose up -d backend
-          python scripts/smoke_api_container.py --base-url http://127.0.0.1:8000
+          docker compose up -d backend ui
 
-      - name: Show default Compose backend logs on failure
+          python scripts/smoke_api_container.py \
+            --base-url http://127.0.0.1:8000
+
+          python scripts/smoke_ui_container.py \
+            --base-url http://127.0.0.1:8501
+
+          docker compose exec -T ui \
+            sh -c 'test ! -f /app/data/processed/metrics.parquet'
+
+      - name: Show default Compose logs on failure
         if: failure()
         run: |
-          docker compose logs backend
+          docker compose logs backend ui
 
       - name: Stop default Compose services
         if: always()
