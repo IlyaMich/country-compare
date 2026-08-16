@@ -19,6 +19,10 @@ from country_compare.services.prediction_service import PredictionService
 from country_compare.services.presentation_service import PresentationService
 from country_compare.settings import AppSettings, load_app_settings
 from country_compare.ui import state
+from country_compare.ui.runtime import (
+    UiRuntimeContext,
+    build_ui_runtime_context,
+)
 
 
 def build_app_context(
@@ -87,11 +91,14 @@ def _build_client_cached(
     api_url: str | None,
     api_key: str | None,
 ) -> CountryCompareClient:
-    facade = _build_facade_cached(context)
+    resolved_api_url = resolve_api_url(api_url)
+
+    facade = _build_facade_cached(context) if resolved_api_url is None else None
+
     return build_country_compare_client(
         context,
         facade=facade,
-        api_url=api_url,
+        api_url=resolved_api_url,
         api_key=api_key,
     )
 
@@ -110,6 +117,15 @@ def _build_http_ui_services_cached(
 
 def get_country_compare_client(context: AppContext) -> CountryCompareClient:
     return _build_client_cached(context, resolve_api_url(), resolve_api_key())
+
+
+def get_ui_runtime_context(context: AppContext) -> UiRuntimeContext:
+    client = get_country_compare_client(context)
+
+    return build_ui_runtime_context(
+        app_context=context,
+        client=client,
+    )
 
 
 def get_ui_services(context: AppContext) -> dict[str, object]:
@@ -152,3 +168,26 @@ def bootstrap_app(
     facade = _build_facade_cached(context)
 
     return context, facade
+
+
+def bootstrap_ui_runtime(
+    *,
+    settings: AppSettings | None = None,
+    metrics_config_path: str | Path | None = None,
+    scoring_config_path: str | Path | None = None,
+    store_backend: str | None = None,
+    store_path: str | Path | None = None,
+    debug: bool | None = None,
+) -> UiRuntimeContext:
+    context = build_app_context(
+        settings=settings,
+        metrics_config_path=metrics_config_path,
+        scoring_config_path=scoring_config_path,
+        store_backend=store_backend,
+        store_path=store_path,
+        debug=debug,
+    )
+
+    state.initialize_session_state(default_debug=context.debug)
+
+    return get_ui_runtime_context(context)

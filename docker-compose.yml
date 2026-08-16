@@ -85,7 +85,6 @@ services:
       COUNTRY_COMPARE_EXPORT_DIR: ${COUNTRY_COMPARE_EXPORT_DIR:-/app/data/exports}
     volumes:
       - ./config:/app/config:ro
-      - ./data:/app/data
     ports:
       - "8501:8501"
     depends_on:

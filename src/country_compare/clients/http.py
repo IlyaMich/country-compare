@@ -139,8 +139,14 @@ class HttpCountryCompareClient:
                 valid=valid,
                 messages=(
                     ("Remote backend readiness check passed.",)
-                    if valid
-                    else ("Remote backend readiness check failed.",)
+                    if validate_config_against_dataset and valid
+                    else (
+                        ("Remote backend readiness check failed.",)
+                        if validate_config_against_dataset
+                        else (
+                            "Remote metadata loaded; dataset-aware validation was not requested.",
+                        )
+                    )
                 ),
                 error=config_error,
             ),
