@@ -12,11 +12,14 @@ COPY services/llm_forecast_service/README.md /app/README.md
 COPY services/llm_forecast_service/src /app/src
 
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install . \
+    && python -m pip install --no-cache-dir . \
+    && python -m pip uninstall -y setuptools wheel \
+    && python -m pip uninstall -y pip \
+    && rm -rf /root/.cache/pip \
+    && rm -rf /usr/local/lib/python3.11/ensurepip \
     && groupadd --system app \
     && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app \
     && chown -R app:app /app
-
 USER app
 
 EXPOSE 8080
