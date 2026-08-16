@@ -501,6 +501,156 @@ jobs:
 
           printf 'Published image tags:\n%s\n' "${tags[@]}"
 
+  ui-image:
+    name: UI Docker build, smoke, and release image
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      inputs.image_target == 'all' ||
+      inputs.image_target == 'ui'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python for smoke checks
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Build release candidate UI image
+        run: |
+          docker build \
+            --file Dockerfile.ui \
+            --tag country-compare-ui:ci \
+            .
+
+      - name: Smoke test UI image without local dataset
+        run: |
+          set -euo pipefail
+
+          cleanup() {
+            docker rm -f country-compare-ui-ci || true
+          }
+
+          trap cleanup EXIT
+
+          docker run -d \
+            --name country-compare-ui-ci \
+            --publish 18501:8501 \
+            --env PORT=8501 \
+            --env COUNTRY_COMPARE_API_URL=http://127.0.0.1:18000 \
+            --env COUNTRY_COMPARE_API_KEY=ci-smoke-key \
+            country-compare-ui:ci
+
+          python scripts/smoke_ui_container.py \
+            --base-url http://127.0.0.1:18501 \
+            --wait-seconds 180
+
+          docker exec country-compare-ui-ci \
+            sh -c 'test ! -f /app/data/processed/metrics.parquet'
+
+      - name: Show UI container logs on failure
+        if: failure()
+        run: |
+          docker logs country-compare-ui-ci || true
+
+      - name: Run Trivy UI image scan in non-blocking mode
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: country-compare-ui:ci
+          format: table
+          exit-code: "0"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+
+      - name: Resolve UI image publish policy
+        id: ui_publish_policy
+        shell: bash
+        env:
+          PUBLISH_IMAGES: ${{ inputs.publish_images || 'false' }}
+        run: |
+          set -euo pipefail
+
+          should_publish=false
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            if [ "${GITHUB_REF}" = "refs/heads/main" ] || \
+               [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              should_publish=true
+            fi
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && \
+               [ "${PUBLISH_IMAGES}" = "true" ]; then
+            if [ "${GITHUB_REF}" = "refs/heads/main" ] || \
+               [ "${GITHUB_REF}" = "refs/heads/develop" ] || \
+               [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+              should_publish=true
+            else
+              echo "Manual UI image publishing is allowed only from main, develop, or v* tags." >&2
+              echo "Current ref: ${GITHUB_REF}" >&2
+              exit 1
+            fi
+          fi
+
+          echo "should_publish=${should_publish}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve GHCR UI image name
+        id: ui_image
+        if: steps.ui_publish_policy.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "name=ghcr.io/${owner}/country-compare-ui" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR for UI image
+        if: steps.ui_image.outputs.name != ''
+        shell: bash
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            --username "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Publish UI image to GHCR
+        if: steps.ui_image.outputs.name != ''
+        env:
+          IMAGE_NAME: ${{ steps.ui_image.outputs.name }}
+          SHORT_SHA: ${{ steps.ui_image.outputs.short_sha }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tags=("${IMAGE_NAME}:sha-${SHORT_SHA}")
+
+          if [ "${REF_TYPE}" = "branch" ] && \
+             [ "${REF_NAME}" = "main" ]; then
+            tags+=(
+              "${IMAGE_NAME}:main"
+              "${IMAGE_NAME}:latest"
+            )
+          fi
+
+          if [ "${REF_TYPE}" = "tag" ]; then
+            tags+=("${IMAGE_NAME}:${REF_NAME}")
+          fi
+
+          for tag in "${tags[@]}"; do
+            docker tag country-compare-ui:ci "${tag}"
+            docker push "${tag}"
+          done
+
+          printf 'Published UI image tags:\n%s\n' "${tags[@]}"
+
   llm-forecast-service:
     name: LLM forecast service checks
     runs-on: ubuntu-latest
