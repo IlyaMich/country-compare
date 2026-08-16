@@ -22,7 +22,7 @@ This directory documents the current Country Compare implementation: the Streaml
 | `manual_qa.md` | Manual QA checklist before a release. |
 | `demo_walkthrough.md` | Demo flow for UI, API, forecasts, exports. |
 | `troubleshooting.md` | Common local, API, data, UI, Docker, and LLM issues. |
-| `release_notes_v0_1_beta.md` | Current implementation notes retained for release history. |
+| `release_notes_v1_0_0.md` | Current implementation notes retained for release history. |
 
 ## Current architecture in one screen
 

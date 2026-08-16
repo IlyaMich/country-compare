@@ -11,12 +11,12 @@ _API_KEY_SCHEME: dict[str, Any] = {
     "type": "apiKey",
     "in": "header",
     "name": "X-API-Key",
-    "description": "Shared beta API key passed in the X-API-Key header.",
+    "description": "Shared API key passed in the X-API-Key header.",
 }
 _BEARER_SCHEME: dict[str, Any] = {
     "type": "http",
     "scheme": "bearer",
-    "description": "Shared beta API key passed as an Authorization: Bearer token.",
+    "description": "Shared API key passed as an Authorization: Bearer token.",
 }
 
 

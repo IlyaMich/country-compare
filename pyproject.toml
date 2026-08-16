@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "country-compare"
-version = "0.1.0"
+version = "1.0.0"
 description = "Country comparison toolkit using standardized long-format metric data."
 readme = "README.md"
 requires-python = ">=3.11"

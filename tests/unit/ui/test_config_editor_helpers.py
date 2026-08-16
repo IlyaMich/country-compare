@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+from unittest.mock import Mock
+
+from country_compare.ui.runtime import (
+    UiCapabilities,
+    UiMode,
+    UiRuntimeContext,
+)
+from country_compare.ui.views import config_editor
 from country_compare.ui.views.config_editor import (
     _apply_metric_changes,
     _apply_profile_changes,
@@ -126,3 +134,50 @@ def test_apply_profile_changes_renames_default_profile() -> None:
     assert updated_scoring["default_profile"] == "starter"
     assert "starter" in updated_scoring["profiles"]
     assert "balanced" not in updated_scoring["profiles"]
+
+
+def test_config_editor_returns_early_when_capability_is_disabled(
+    monkeypatch,
+    fake_app_context,
+) -> None:
+    runtime = UiRuntimeContext(
+        app_context=fake_app_context,
+        client=Mock(),
+        mode=UiMode.HTTP,
+        capabilities=UiCapabilities(
+            config_editing=False,
+        ),
+    )
+
+    titles: list[str] = []
+    messages: list[str] = []
+
+    monkeypatch.setattr(
+        config_editor.st,
+        "title",
+        titles.append,
+    )
+    monkeypatch.setattr(
+        config_editor.st,
+        "info",
+        messages.append,
+    )
+
+    def fail_get_services(context):
+        raise AssertionError(
+            "Config services must not be loaded when config editing " "is unavailable."
+        )
+
+    monkeypatch.setattr(
+        config_editor,
+        "get_ui_services",
+        fail_get_services,
+    )
+
+    config_editor.render_config_editor_view(
+        fake_app_context,
+        runtime=runtime,
+    )
+
+    assert titles == ["Config Editor"]
+    assert messages

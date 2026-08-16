@@ -15,6 +15,7 @@ from country_compare.config.models import (
 from country_compare.services.errors import AppError, error_from_exception
 from country_compare.ui.bootstrap import get_ui_services, refresh_cached_services
 from country_compare.ui.components.messages import render_app_error
+from country_compare.ui.runtime import UiRuntimeContext
 from country_compare.ui.state import (
     commit_config_editor_saved_state,
     config_editor_is_dirty,
@@ -33,7 +34,18 @@ from country_compare.ui.state import (
 EMPTY_OVERRIDE = "__use_default__"
 
 
-def render_config_editor_view(context) -> None:
+def render_config_editor_view(
+    context,
+    *,
+    runtime: UiRuntimeContext,
+) -> None:
+    if not runtime.capabilities.config_editing:
+        st.title("Config Editor")
+        st.info(
+            "Configuration editing is available only when Country Compare "
+            "is running in local UI mode."
+        )
+        return
     st.title("Config Editor")
     st.caption(
         "Edit metrics and scoring profiles as drafts, validate them against the current rules, "
