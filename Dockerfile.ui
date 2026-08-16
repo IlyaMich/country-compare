@@ -17,7 +17,11 @@ COPY src /app/src
 COPY config /app/config
 
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install ".[ui, ml]" \
+    && python -m pip install --no-cache-dir ".[ui,ml]" \
+    && python -m pip uninstall -y setuptools wheel \
+    && python -m pip uninstall -y pip \
+    && rm -rf /root/.cache/pip \
+    && rm -rf /usr/local/lib/python3.11/ensurepip \
     && groupadd --system app \
     && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app \
     && mkdir -p /app/data/processed /app/data/audit /app/data/exports \
