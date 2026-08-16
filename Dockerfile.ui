@@ -15,7 +15,6 @@ WORKDIR /app
 COPY pyproject.toml README.md /app/
 COPY src /app/src
 COPY config /app/config
-COPY data /app/data
 
 RUN python -m pip install --upgrade pip setuptools wheel \
     && python -m pip install ".[ui, ml]" \
