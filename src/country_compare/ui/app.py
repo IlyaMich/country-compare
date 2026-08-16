@@ -8,11 +8,11 @@ from country_compare.settings import load_app_settings
 from country_compare.ui import state
 from country_compare.ui.bootstrap import bootstrap_ui_runtime
 from country_compare.ui.navigation import (
-    AVAILABLE_PAGES,
     COMPARE_PAGE,
     CONFIG_EDITOR_PAGE,
     OVERVIEW_PAGE,
     PREDICTION_PAGE,
+    available_pages_for_runtime,
     page_index,
 )
 from country_compare.ui.text import (
@@ -47,6 +47,10 @@ def main() -> None:
     runtime = bootstrap_ui_runtime(settings=app_settings)
     context = runtime.app_context
 
+    available_pages = available_pages_for_runtime(
+        config_editing=runtime.capabilities.config_editing,
+    )
+
     views = {
         OVERVIEW_PAGE: lambda: render_overview_page(
             runtime,
@@ -54,8 +58,13 @@ def main() -> None:
         ),
         COMPARE_PAGE: lambda: render_compare_view(context),
         PREDICTION_PAGE: lambda: render_prediction_view(context),
-        CONFIG_EDITOR_PAGE: lambda: render_config_editor_view(context),
     }
+
+    if runtime.capabilities.config_editing:
+        views[CONFIG_EDITOR_PAGE] = lambda: render_config_editor_view(
+            context,
+            runtime=runtime,
+        )
 
     current_snapshot = state.snapshot()
 
@@ -63,8 +72,11 @@ def main() -> None:
         st.title(context.settings.ui.app_title if context.settings else SIDEBAR_TITLE)
         selected_page = st.radio(
             PAGE_RADIO_LABEL,
-            AVAILABLE_PAGES,
-            index=page_index(current_snapshot.selected_page),
+            available_pages,
+            index=page_index(
+                current_snapshot.selected_page,
+                available_pages=available_pages,
+            ),
         )
         state.set_selected_page(selected_page)
 
