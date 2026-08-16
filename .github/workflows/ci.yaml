@@ -260,20 +260,7 @@ jobs:
           COUNTRY_COMPARE_API_PORT: "8000"
           PORT: "8000"
         run: |
-          docker compose -f compose.api.yml build backend
-
-      - name: Verify backend image has no Python packaging tools
-        run: |
-          docker run --rm country-compare-backend:ci \
-            python - <<'PY'
-          import importlib.util
-
-          for package in ("pip", "setuptools", "wheel"):
-              assert importlib.util.find_spec(package) is None, \
-                  f"{package} should not be present in the runtime image"
-
-          print("Runtime image contains no Python packaging tools.")
-          PY          
+          docker compose -f compose.api.yml build backend          
 
       - name: Smoke test backend-only Compose service
         env:
@@ -334,6 +321,19 @@ jobs:
             --file Dockerfile.backend \
             --tag country-compare-backend:ci \
             .
+
+      - name: Verify backend image has no Python packaging tools
+        run: |
+          docker run --rm -i country-compare-backend:ci \
+            python - <<'PY'
+          import importlib.util
+
+          for package in ("pip", "setuptools", "wheel"):
+              assert importlib.util.find_spec(package) is None, \
+                  f"{package} should not be present in the runtime image"
+
+          print("Runtime image contains no Python packaging tools.")
+          PY    
 
       - name: Smoke test release candidate image without host volumes
         run: |
@@ -545,14 +545,14 @@ jobs:
 
       - name: Verify backend image has no Python packaging tools
         run: |
-          docker run --rm country-compare-ui:ci \
+          docker run --rm -i country-compare-backend:ci \
             python - <<'PY'
           import importlib.util
-
+      
           for package in ("pip", "setuptools", "wheel"):
               assert importlib.util.find_spec(package) is None, \
                   f"{package} should not be present in the runtime image"
-
+      
           print("Runtime image contains no Python packaging tools.")
           PY
 
@@ -736,7 +736,7 @@ jobs:
 
       - name: Verify backend image has no Python packaging tools
         run: |
-          docker run --rm llm-forecast-service:ci \
+          docker run --rm -i llm-forecast-service:ci \
             python - <<'PY'
           import importlib.util
 
