@@ -51,7 +51,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -103,7 +103,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -180,7 +180,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -190,8 +190,7 @@ jobs:
         continue-on-error: ${{ github.ref_type != 'tag' || ! startsWith(github.ref_name, 'v') }}
         run: |
           python -m pip install --upgrade pip pip-audit
-          python -m pip_audit
-
+          python -m pip_audit .
   docker-build:
     name: Docker build, smoke, and release image
     needs: dependency-security
@@ -206,7 +205,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python for fixture data and smoke checks
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -505,6 +504,7 @@ jobs:
 
   ui-image:
     name: UI Docker build, smoke, and release image
+    needs: dependency-security
     runs-on: ubuntu-latest
     if: >-
       github.event_name != 'workflow_dispatch' ||
@@ -519,11 +519,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python for smoke checks
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
-          cache: pip
-          cache-dependency-path: pyproject.toml
 
       - name: Build release candidate UI image
         run: |
@@ -562,13 +560,12 @@ jobs:
         run: |
           docker logs country-compare-ui-ci || true
 
-      - name: Run Trivy UI image scan in non-blocking mode
-        continue-on-error: true
+      - name: Run Trivy UI image scan
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: country-compare-ui:ci
           format: table
-          exit-code: "0"
+          exit-code: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && '1' || '0' }}
           ignore-unfixed: true
           severity: CRITICAL,HIGH
 
@@ -666,7 +663,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
