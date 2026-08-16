@@ -22,7 +22,11 @@ COPY config /app/config
 COPY data /app/data
 
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install ".[api,ml]" \
+    && python -m pip install --no-cache-dir ".[api,ml]" \
+    && python -m pip uninstall -y setuptools wheel \
+    && python -m pip uninstall -y pip \
+    && rm -rf /root/.cache/pip \
+    && rm -rf /usr/local/lib/python3.11/ensurepip \
     && groupadd --system app \
     && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app \
     && mkdir -p /app/data/processed /app/data/audit /app/data/exports \

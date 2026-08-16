@@ -262,6 +262,19 @@ jobs:
         run: |
           docker compose -f compose.api.yml build backend
 
+      - name: Verify backend image has no Python packaging tools
+        run: |
+          docker run --rm country-compare-backend:ci \
+            python - <<'PY'
+          import importlib.util
+
+          for package in ("pip", "setuptools", "wheel"):
+              assert importlib.util.find_spec(package) is None, \
+                  f"{package} should not be present in the runtime image"
+
+          print("Runtime image contains no Python packaging tools.")
+          PY          
+
       - name: Smoke test backend-only Compose service
         env:
           COUNTRY_COMPARE_API_ENV: production
@@ -530,6 +543,19 @@ jobs:
             --tag country-compare-ui:ci \
             .
 
+      - name: Verify backend image has no Python packaging tools
+        run: |
+          docker run --rm country-compare-ui:ci \
+            python - <<'PY'
+          import importlib.util
+
+          for package in ("pip", "setuptools", "wheel"):
+              assert importlib.util.find_spec(package) is None, \
+                  f"{package} should not be present in the runtime image"
+
+          print("Runtime image contains no Python packaging tools.")
+          PY
+
       - name: Smoke test UI image without local dataset
         run: |
           set -euo pipefail
@@ -707,6 +733,19 @@ jobs:
             --file services/llm_forecast_service/Dockerfile \
             --tag llm-forecast-service:ci \
             .
+
+      - name: Verify backend image has no Python packaging tools
+        run: |
+          docker run --rm llm-forecast-service:ci \
+            python - <<'PY'
+          import importlib.util
+
+          for package in ("pip", "setuptools", "wheel"):
+              assert importlib.util.find_spec(package) is None, \
+                  f"{package} should not be present in the runtime image"
+
+          print("Runtime image contains no Python packaging tools.")
+          PY
 
       - name: Validate LLM Compose profile
         run: |
