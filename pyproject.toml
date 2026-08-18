@@ -1,19 +1,60 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "country-compare"
 version = "1.0.1"
-description = "Country comparison toolkit using standardized long-format metric data."
+description = "Country comparison and forecasting platform with FastAPI, Streamlit, and optional LLM-assisted predictions."
 readme = "README.md"
 requires-python = ">=3.11"
+
+authors = [
+    { name = "Ilya Michlin" },
+]
+
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+
+keywords = [
+    "country-comparison",
+    "data-analysis",
+    "forecasting",
+    "fastapi",
+    "streamlit",
+    "world-bank",
+    "data-visualization",
+    "llm",
+]
+
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Environment :: Web Environment",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+
+
 dependencies = [
   "pandas>=3.0.2",
   "pyarrow>=23.0.1",
   "PyYAML>=6.0.3",
   "pydantic>=2.13.2",
 ]
+
+[project.urls]
+Homepage = "https://country-compare-ui.onrender.com"
+Repository = "https://github.com/IlyaMich/country-compare"
+Documentation = "https://github.com/IlyaMich/country-compare/tree/main/docs"
+Issues = "https://github.com/IlyaMich/country-compare/issues"
+Changelog = "https://github.com/IlyaMich/country-compare/releases"
 
 [project.scripts]
 country-compare = "country_compare.cli.main:main"
