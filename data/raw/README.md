@@ -24,13 +24,16 @@ Each metric directory contains the raw CSV source file for one metric.
 
 ## License and attribution
 
-These raw CSV files are sourced from World Bank Open Data. At the time these
-files were added, the reviewed World Bank datasets indicated a Creative Commons
-Attribution 4.0 International license, unless otherwise indicated by the
-specific source dataset.
+For repository-wide third-party data licensing and attribution policy,
+see [`THIRD_PARTY_DATA.md`](../../THIRD_PARTY_DATA.md).
 
-When adding or replacing raw files, verify the license shown by the source
-dataset page.
+These raw CSV files are sourced from World Bank Open Data. At the time
+these files were added, the reviewed World Bank datasets indicated a
+Creative Commons Attribution 4.0 International license, unless otherwise
+indicated by the specific source dataset.
+
+When adding or replacing raw files, verify the license shown by the
+source dataset page.
 
 Attribution:
 

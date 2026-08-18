@@ -253,3 +253,11 @@ Start with `docs/index.md`. Key docs:
 - `docs/llm_forecast_service.md` for the optional private LLM service.
 - `docs/testing.md` and `docs/manual_qa.md` for validation.
 - `docs/deployment_api.md` for deploying the backend.
+
+## License
+
+Country Compare's source code is licensed under the Apache License 2.0. See [`LICENSE`](LICENSE) for the full license terms.
+
+Third-party datasets and other third-party materials included in this repository are not relicensed under the Apache License 2.0. They remain subject to the licenses and attribution requirements of their respective providers.
+
+The raw datasets under [`data/raw/`](data/raw/) are sourced from World Bank Open Data. See [`THIRD_PARTY_DATA.md`](THIRD_PARTY_DATA.md) and [`data/raw/README.md`](data/raw/README.md) for source, license, and attribution information.
