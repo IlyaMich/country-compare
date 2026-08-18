@@ -545,7 +545,7 @@ jobs:
 
       - name: Verify backend image has no Python packaging tools
         run: |
-          docker run --rm -i country-compare-backend:ci \
+          docker run --rm -i country-compare-ui:ci \
             python - <<'PY'
           import importlib.util
       
