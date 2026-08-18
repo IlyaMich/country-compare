@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,12 +8,47 @@ version = "1.0.1"
 description = "Private LLM forecast adjustment service for Country Compare."
 readme = "README.md"
 requires-python = ">=3.11"
+
+authors = [
+    { name = "Ilya Michlin" },
+]
+
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+
+keywords = [
+    "country-compare",
+    "llm",
+    "forecasting",
+    "fastapi",
+    "microservice",
+    "structured-output",
+]
+
+classifiers = [
+    "Private :: Do Not Upload",
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Environment :: Web Environment",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
 dependencies = [
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.30.0",
   "pydantic>=2.13.2",
   "httpx>=0.27.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/IlyaMich/country-compare"
+Documentation = "https://github.com/IlyaMich/country-compare/blob/main/docs/llm_forecast_service.md"
+Issues = "https://github.com/IlyaMich/country-compare/issues"
+Changelog = "https://github.com/IlyaMich/country-compare/releases"
 
 [project.optional-dependencies]
 dev = [
