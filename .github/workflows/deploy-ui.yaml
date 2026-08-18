@@ -107,16 +107,11 @@ jobs:
 
             echo "${response}"
 
-            deploy_id=$(python -c '
-            import json
-            import sys
-
-            payload = json.load(sys.stdin)
-            print(payload["deploy"]["id"])
-            ' <<< "${response}")
+            deploy_id=$(python -c \
+              'import json, sys; print(json.load(sys.stdin)["deploy"]["id"])' \
+              <<< "${response}")
 
             echo "deploy_id=${deploy_id}" >> "$GITHUB_OUTPUT"
-
             echo "Render deploy ID: ${deploy_id}"
 
             exit 0
@@ -177,24 +172,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-      
+
           if [ -z "${RENDER_API_KEY}" ]; then
             echo "RENDER_API_KEY is not configured." >&2
             exit 1
           fi
-      
+
           if [ -z "${RENDER_SERVICE_ID}" ]; then
             echo "COUNTRY_COMPARE_UI_RENDER_SERVICE_ID is not configured." >&2
             exit 1
           fi
-      
+
           if [ -z "${RENDER_DEPLOY_ID}" ]; then
             echo "Render deployment ID was not returned by the deploy hook." >&2
             exit 1
           fi
-      
+
           deadline=$((SECONDS + 600))
-      
+
           while [ "${SECONDS}" -lt "${deadline}" ]; do
             response=$(curl \
               --fail \
@@ -202,33 +197,30 @@ jobs:
               --silent \
               --header "Authorization: Bearer ${RENDER_API_KEY}" \
               "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${RENDER_DEPLOY_ID}")
-      
-            status=$(python -c '
-          import json
-          import sys
-      
-          print(json.load(sys.stdin)["status"])
-          ' <<< "${response}")
-      
+
+            status=$(python -c \
+              'import json, sys; print(json.load(sys.stdin)["status"])' \
+              <<< "${response}")
+
             echo "Render deploy ${RENDER_DEPLOY_ID}: ${status}"
-      
+
             case "${status}" in
               live)
                 echo "Render deployment is live."
                 exit 0
                 ;;
-      
+
               build_failed|update_failed|canceled|deactivated)
                 echo "Render deployment failed with status: ${status}" >&2
                 exit 1
                 ;;
-      
+
               *)
                 sleep 5
                 ;;
             esac
           done
-      
+
           echo "Timed out waiting for Render deployment." >&2
           exit 1
 
