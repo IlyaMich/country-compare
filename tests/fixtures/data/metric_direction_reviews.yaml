@@ -1,0 +1,152 @@
+reviewed_at: "2026-08-23"
+
+directions:
+  compensation_employees_lcu:
+    higher_is_better: false
+    review_status: approved
+    rationale: >
+      Lower is used as the project scoring direction for this absolute
+      government compensation measure. The metric is size- and
+      currency-sensitive and should be interpreted cautiously in
+      cross-country comparisons.
+
+  taxes_goods_services_lcu:
+    higher_is_better: false
+    review_status: approved
+    rationale: >
+      Lower is used as the project scoring direction for taxes on goods
+      and services. Absolute LCU totals are size- and currency-sensitive
+      and are not a direct tax-burden rate.
+
+  external_debt_total:
+    higher_is_better: false
+    review_status: approved
+    rationale: >
+      Lower total external debt is treated as preferable, while recognizing
+      that the absolute USD total is strongly affected by economy size.
+
+  journal_articles:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      More scientific and technical journal output is treated as a positive
+      innovation indicator, although absolute counts partly reflect country size.
+
+  rnd_expenditure_pct_gdp:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      Greater R&D expenditure as a share of GDP is treated as stronger
+      commitment to research and innovation.
+
+  internet_users_pct:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      A greater share of the population using the Internet is treated as
+      preferable for digital access and connectivity.
+
+  military_exp_pct_gdp:
+    higher_is_better: false
+    review_status: approved
+    rationale: >
+      Lower military expenditure as a share of GDP is treated as preferable
+      for the project's general civilian-development comparison. This is a
+      project assumption and may not fit security-focused comparisons.
+
+  market_cap_pct_gdp:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      Higher listed-company market capitalization relative to GDP is treated
+      as a positive proxy for domestic capital-market depth.
+
+  consumer_price_index:
+    higher_is_better: false
+    review_status: approved
+    rationale: >
+      Lower CPI relative to the common 2010 base is treated as lower cumulative
+      price growth since the base year. CPI levels should be interpreted
+      cautiously across countries.
+
+  imports_growth_pct:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      Higher import growth is treated as a positive trade and domestic-demand
+      dynamism indicator. It is context-dependent and is not inherently
+      beneficial in every macroeconomic situation.
+
+  exports_growth_pct:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      Higher export growth is treated as a positive indicator of external
+      demand and trade performance.
+
+  gdp_current_usd:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      Higher total GDP is treated as greater economic scale. This is not a
+      per-capita welfare measure and favors larger economies.
+
+  unemployment_pct:
+    higher_is_better: false
+    review_status: approved
+    rationale: >
+      Lower unemployment is treated as preferable labor-market performance.
+
+  labor_participation_pct:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      Higher labor-force participation is treated as stronger engagement of
+      the working-age population in the labor market.
+
+  youth_literacy_pct:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      Higher youth literacy is treated as a better education outcome.
+
+  education_spending_pct_gdp:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      Higher education spending relative to GDP is treated as greater public
+      commitment to education, while recognizing that spending does not
+      directly measure efficiency or educational outcomes.
+
+  crude_death_rate:
+    higher_is_better: false
+    review_status: approved
+    rationale: >
+      Lower crude mortality is treated as preferable, although crude death
+      rates are affected by population age structure.
+
+  life_expectancy_female:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      Higher female life expectancy at birth is treated as a better health outcome.
+
+  life_expectancy_male:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      Higher male life expectancy at birth is treated as a better health outcome.
+
+  population_growth_pct:
+    higher_is_better: true
+    review_status: approved
+    rationale: >
+      Higher population growth is treated as a low-weight demographic-dynamism
+      indicator. Its desirability is strongly context-dependent.
+
+  top10_income_share:
+    higher_is_better: false
+    review_status: approved
+    rationale: >
+      A lower income share held by the highest 10 percent is treated as lower
+      income concentration and therefore preferable for inequality comparisons.
