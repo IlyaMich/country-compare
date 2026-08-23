@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 from fastapi.testclient import TestClient
 
 from country_compare.api.dependencies import get_app_facade
 from country_compare.api.main import create_app
 from country_compare.api.settings import ApiSettings
 from country_compare.services.errors import AppError
+from country_compare.services.presentation_service import PresentationService
 from country_compare.services.requests import (
     MultiMetricRequest,
     SingleMetricRequest,
@@ -102,6 +104,236 @@ class FakeFacade:
             summary={"status": "success", "title": "Weighted score"},
             metadata={"profile_name": request.profile_name},
         )
+
+
+class TopNValidationFacade:
+    def __init__(self) -> None:
+        self.presentation = PresentationService()
+
+    def compare_single_metric(
+        self,
+        request: SingleMetricRequest,
+    ) -> tuple[ComparisonResult, PresentationResult]:
+        dataframe = pd.DataFrame(
+            [
+                {
+                    "country_code": "AAA",
+                    "country_name": "Alpha",
+                    "metric_id": "oracle_metric",
+                    "metric_name": "Oracle Metric",
+                    "value": 10.0,
+                    "normalized_value": 0.0,
+                    "rank": 3,
+                    "year": 2023,
+                },
+                {
+                    "country_code": "BBB",
+                    "country_name": "Beta",
+                    "metric_id": "oracle_metric",
+                    "metric_name": "Oracle Metric",
+                    "value": 30.0,
+                    "normalized_value": 1.0,
+                    "rank": 1,
+                    "year": 2023,
+                },
+                {
+                    "country_code": "CCC",
+                    "country_name": "Gamma",
+                    "metric_id": "oracle_metric",
+                    "metric_name": "Oracle Metric",
+                    "value": 20.0,
+                    "normalized_value": 0.5,
+                    "rank": 2,
+                    "year": 2023,
+                },
+            ]
+        )
+
+        result = ComparisonResult(
+            mode="single_metric",
+            request=request,
+            dataframe=dataframe,
+            metadata={
+                "metric_id": "oracle_metric",
+                "selected_countries": ["AAA", "BBB", "CCC"],
+            },
+        )
+
+        return (
+            result,
+            self.presentation.build_single_metric_presentation(result),
+        )
+
+    def compare_multi_metric(
+        self,
+        request: MultiMetricRequest,
+    ) -> tuple[ComparisonResult, PresentationResult]:
+        dataframe = pd.DataFrame(
+            [
+                {
+                    "country_code": "AAA",
+                    "country_name": "Alpha",
+                    "metric_id": "metric_alpha",
+                    "metric_name": "Metric Alpha",
+                    "value": 10.0,
+                    "normalized_value": 0.0,
+                    "rank": 3,
+                    "year": 2023,
+                },
+                {
+                    "country_code": "BBB",
+                    "country_name": "Beta",
+                    "metric_id": "metric_alpha",
+                    "metric_name": "Metric Alpha",
+                    "value": 30.0,
+                    "normalized_value": 1.0,
+                    "rank": 1,
+                    "year": 2023,
+                },
+                {
+                    "country_code": "CCC",
+                    "country_name": "Gamma",
+                    "metric_id": "metric_alpha",
+                    "metric_name": "Metric Alpha",
+                    "value": 20.0,
+                    "normalized_value": 0.5,
+                    "rank": 2,
+                    "year": 2023,
+                },
+                {
+                    "country_code": "AAA",
+                    "country_name": "Alpha",
+                    "metric_id": "metric_beta",
+                    "metric_name": "Metric Beta",
+                    "value": 30.0,
+                    "normalized_value": 1.0,
+                    "rank": 1,
+                    "year": 2023,
+                },
+                {
+                    "country_code": "BBB",
+                    "country_name": "Beta",
+                    "metric_id": "metric_beta",
+                    "metric_name": "Metric Beta",
+                    "value": 10.0,
+                    "normalized_value": 0.0,
+                    "rank": 3,
+                    "year": 2023,
+                },
+                {
+                    "country_code": "CCC",
+                    "country_name": "Gamma",
+                    "metric_id": "metric_beta",
+                    "metric_name": "Metric Beta",
+                    "value": 20.0,
+                    "normalized_value": 0.5,
+                    "rank": 2,
+                    "year": 2023,
+                },
+            ]
+        )
+
+        result = ComparisonResult(
+            mode="multi_metric",
+            request=request,
+            dataframe=dataframe,
+            metadata={
+                "metric_ids": ["metric_alpha", "metric_beta"],
+                "selected_countries": ["AAA", "BBB", "CCC"],
+            },
+        )
+
+        return (
+            result,
+            self.presentation.build_multi_metric_presentation(result),
+        )
+
+    def compare_weighted_score(
+        self,
+        request: WeightedScoreRequest,
+    ) -> tuple[ComparisonResult, PresentationResult]:
+        dataframe = pd.DataFrame(
+            [
+                {
+                    "country_code": "AAA",
+                    "country_name": "Alpha",
+                    "weighted_score": 0.30,
+                    "score_rank": 3,
+                },
+                {
+                    "country_code": "BBB",
+                    "country_name": "Beta",
+                    "weighted_score": 0.80,
+                    "score_rank": 1,
+                },
+                {
+                    "country_code": "CCC",
+                    "country_name": "Gamma",
+                    "weighted_score": 0.50,
+                    "score_rank": 2,
+                },
+            ]
+        )
+
+        result = ComparisonResult(
+            mode="weighted_score",
+            request=request,
+            dataframe=dataframe,
+            metadata={
+                "profile_name": "oracle_profile",
+                "selected_countries": ["AAA", "BBB", "CCC"],
+            },
+        )
+
+        return (
+            result,
+            self.presentation.build_weighted_score_presentation(result),
+        )
+
+
+def _client_for(
+    facade: FakeFacade, *, max_records: int = 500, max_top_n: int = 100
+) -> TestClient:
+    app = create_app(settings=ApiSettings(max_records=max_records, max_top_n=max_top_n))
+    app.dependency_overrides[get_app_facade] = lambda: facade
+    return TestClient(app)
+
+
+def _success_result(
+    *,
+    mode: str,
+    request: object,
+    table: pd.DataFrame,
+    summary: dict[str, object],
+    metadata: dict[str, object],
+    tables: dict[str, pd.DataFrame] | None = None,
+) -> tuple[ComparisonResult, PresentationResult]:
+    result = ComparisonResult(
+        mode=mode,
+        request=request,
+        dataframe=table,
+        metadata=metadata,
+    )
+    presentation = PresentationResult(
+        mode=mode,
+        request=request,
+        summary=summary,
+        table=table,
+        tables=tables or {},
+        metadata=metadata,
+    )
+    return result, presentation
+
+
+def _error_result(
+    *,
+    mode: str,
+    request: object,
+    error: AppError,
+) -> tuple[ComparisonResult, PresentationResult]:
+    result = ComparisonResult(mode=mode, request=request, error=error)
+    presentation = PresentationResult(mode=mode, request=request, error=error)
+    return result, presentation
 
 
 def test_single_metric_comparison_returns_result_envelope() -> None:
@@ -260,27 +492,57 @@ def test_comparison_service_error_returns_error_envelope() -> None:
     }
 
 
-def test_comparison_top_n_limit_returns_400_before_service_call() -> None:
+@pytest.mark.parametrize(
+    ("path", "payload"),
+    [
+        (
+            "/api/v1/compare/single-metric",
+            {
+                "country_codes": ["ISR", "FRA"],
+                "metric_id": "gdp_per_capita",
+                "top_n": 2,
+            },
+        ),
+        (
+            "/api/v1/compare/multi-metric",
+            {
+                "country_codes": ["ISR", "FRA"],
+                "metric_ids": ["gdp_per_capita", "life_expectancy"],
+                "top_n": 2,
+            },
+        ),
+        (
+            "/api/v1/score/profile",
+            {
+                "country_codes": ["ISR", "FRA"],
+                "profile_name": "economic_outlook",
+                "top_n": 2,
+            },
+        ),
+    ],
+)
+def test_comparison_top_n_limit_returns_400_before_service_call(
+    path: str,
+    payload: dict[str, object],
+) -> None:
     facade = FakeFacade()
     client = _client_for(facade, max_top_n=1)
 
-    response = client.post(
-        "/api/v1/compare/single-metric",
-        json={
-            "country_codes": ["ISR", "FRA"],
-            "metric_id": "gdp_per_capita",
-            "top_n": 2,
-        },
-    )
+    response = client.post(path, json=payload)
 
     assert response.status_code == 400
-    payload = response.json()
-    assert payload["ok"] is False
-    assert payload["error"]["code"] == "input_limit_exceeded"
-    assert payload["error"]["details"]["field_errors"]["top_n"].startswith(
+
+    body = response.json()
+
+    assert body["ok"] is False
+    assert body["error"]["code"] == "input_limit_exceeded"
+    assert body["error"]["details"]["field_errors"]["top_n"].startswith(
         "Requested 2 top rows"
     )
+
     assert facade.single_metric_requests == []
+    assert facade.multi_metric_requests == []
+    assert facade.weighted_score_requests == []
 
 
 def test_target_year_strategy_without_target_year_returns_422() -> None:
@@ -302,46 +564,78 @@ def test_target_year_strategy_without_target_year_returns_422() -> None:
     assert facade.single_metric_requests == []
 
 
-def _client_for(
-    facade: FakeFacade, *, max_records: int = 500, max_top_n: int = 100
-) -> TestClient:
-    app = create_app(settings=ApiSettings(max_records=max_records, max_top_n=max_top_n))
-    app.dependency_overrides[get_app_facade] = lambda: facade
-    return TestClient(app)
+def test_cmp_16_single_metric_top_n_preserves_global_rank_order() -> None:
+    facade = TopNValidationFacade()
+    client = _client_for(facade)
 
-
-def _success_result(
-    *,
-    mode: str,
-    request: object,
-    table: pd.DataFrame,
-    summary: dict[str, object],
-    metadata: dict[str, object],
-    tables: dict[str, pd.DataFrame] | None = None,
-) -> tuple[ComparisonResult, PresentationResult]:
-    result = ComparisonResult(
-        mode=mode,
-        request=request,
-        dataframe=table,
-        metadata=metadata,
+    response = client.post(
+        "/api/v1/compare/single-metric",
+        json={
+            "country_codes": ["AAA", "BBB", "CCC"],
+            "metric_id": "oracle_metric",
+            "top_n": 2,
+        },
     )
-    presentation = PresentationResult(
-        mode=mode,
-        request=request,
-        summary=summary,
-        table=table,
-        tables=tables or {},
-        metadata=metadata,
+
+    assert response.status_code == 200
+
+    table = response.json()["tables"]["main"]
+
+    assert table["row_count"] == 2
+    assert [row["country_code"] for row in table["records"]] == [
+        "BBB",
+        "CCC",
+    ]
+    assert [row["rank"] for row in table["records"]] == [1, 2]
+
+
+def test_cmp_16_multi_metric_top_n_preserves_defined_long_table_order() -> None:
+    facade = TopNValidationFacade()
+    client = _client_for(facade)
+
+    response = client.post(
+        "/api/v1/compare/multi-metric",
+        json={
+            "country_codes": ["AAA", "BBB", "CCC"],
+            "metric_ids": ["metric_alpha", "metric_beta"],
+            "top_n": 2,
+        },
     )
-    return result, presentation
+
+    assert response.status_code == 200
+
+    table = response.json()["tables"]["main"]
+
+    assert table["row_count"] == 2
+
+    assert [
+        (row["metric_id"], row["country_code"], row["rank"]) for row in table["records"]
+    ] == [
+        ("metric_alpha", "BBB", 1),
+        ("metric_alpha", "CCC", 2),
+    ]
 
 
-def _error_result(
-    *,
-    mode: str,
-    request: object,
-    error: AppError,
-) -> tuple[ComparisonResult, PresentationResult]:
-    result = ComparisonResult(mode=mode, request=request, error=error)
-    presentation = PresentationResult(mode=mode, request=request, error=error)
-    return result, presentation
+def test_cmp_16_weighted_score_top_n_preserves_global_score_rank() -> None:
+    facade = TopNValidationFacade()
+    client = _client_for(facade)
+
+    response = client.post(
+        "/api/v1/score/profile",
+        json={
+            "country_codes": ["AAA", "BBB", "CCC"],
+            "profile_name": "oracle_profile",
+            "top_n": 2,
+        },
+    )
+
+    assert response.status_code == 200
+
+    table = response.json()["tables"]["main"]
+
+    assert table["row_count"] == 2
+    assert [row["country_code"] for row in table["records"]] == [
+        "BBB",
+        "CCC",
+    ]
+    assert [row["score_rank"] for row in table["records"]] == [1, 2]
