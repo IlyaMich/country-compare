@@ -324,12 +324,9 @@ class PredictionService:
         fallback_method: PredictionMethod | str | None = PredictionMethod.LAST_OBSERVED,
         comparison_options: dict[str, object] | None = None,
     ) -> PredictionServiceResult:
-        resolved_scoring_config = scoring_config or self._load_scoring_config()
-        resolved_comparison_options = self._resolve_predicted_comparison_options(
-            comparison_options=comparison_options,
-            scoring_config=resolved_scoring_config,
-            profile_name=profile_name,
-        )
+        bundle = self._load_configuration_bundle()
+        resolved_scoring_config = scoring_config or bundle.scoring
+        resolved_comparison_options = dict(comparison_options or {})
         request = {
             "profile_name": profile_name,
             "country_codes": list(country_codes),
@@ -345,6 +342,7 @@ class PredictionService:
             request=request,
             executor=lambda dataframe: compare_predicted_profile(
                 dataframe,
+                metrics_config=bundle.metrics,
                 scoring_config=resolved_scoring_config,
                 profile_name=profile_name,
                 country_codes=country_codes,

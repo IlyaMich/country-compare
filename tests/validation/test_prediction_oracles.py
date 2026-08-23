@@ -6,6 +6,16 @@ import pandas as pd
 import pytest
 
 import country_compare.prediction.multi_metric as prediction_multi_metric
+from country_compare.config.models import (
+    MetricConfig,
+    MetricsConfig,
+    MissingDataPolicy,
+    NormalizationMethod,
+    ScoringConfig,
+    ScoringProfile,
+    WeightHandlingStrategy,
+    YearStrategy,
+)
 from country_compare.prediction import (
     ForecastOptions,
     PredictionDiagnosticStatus,
@@ -14,6 +24,9 @@ from country_compare.prediction import (
     PredictionMethod,
     SingleMetricPredictionRequest,
     backtest_series,
+    compare_predicted_multi_metric,
+    compare_predicted_profile,
+    compare_predicted_single_metric,
     list_available_prediction_methods,
     predict_single_metric,
     predict_single_metric_for_countries,
@@ -137,6 +150,128 @@ def _run_backtest_oracle():
         holdout_years=2,
         scenario_id="validation-backtest",
     )
+
+
+def _predicted_comparison_oracle_dataframe() -> pd.DataFrame:
+    country_names = {
+        "AAA": "Alpha",
+        "BBB": "Beta",
+        "CCC": "Gamma",
+    }
+
+    metric_definitions = {
+        "metric_alpha": {
+            "metric_name": "Metric Alpha",
+            "higher_is_better": True,
+            "values": {
+                2022: {
+                    "AAA": 5.0,
+                    "BBB": 15.0,
+                    "CCC": 25.0,
+                },
+                2023: {
+                    "AAA": 10.0,
+                    "BBB": 20.0,
+                    "CCC": 30.0,
+                },
+            },
+        },
+        "metric_beta": {
+            "metric_name": "Metric Beta",
+            "higher_is_better": False,
+            "values": {
+                2022: {
+                    "AAA": 35.0,
+                    "BBB": 15.0,
+                    "CCC": 25.0,
+                },
+                2023: {
+                    "AAA": 30.0,
+                    "BBB": 10.0,
+                    "CCC": 20.0,
+                },
+            },
+        },
+    }
+
+    rows: list[dict[str, object]] = []
+
+    for metric_id, definition in metric_definitions.items():
+        values_by_year = definition["values"]
+
+        for year, country_values in values_by_year.items():
+            for country_code, value in country_values.items():
+                rows.append(
+                    {
+                        "country_code": country_code,
+                        "country_name": country_names[country_code],
+                        "metric_id": metric_id,
+                        "metric_name": definition["metric_name"],
+                        "value": float(value),
+                        "year": int(year),
+                        "unit": "oracle_unit",
+                        "source_name": "Validation oracle",
+                        "source_url": "https://example.test/validation-oracle",
+                        "higher_is_better": bool(definition["higher_is_better"]),
+                        "category": "validation",
+                        "dataset_version": "oracle-v1",
+                        "region": "Oracle Region",
+                        "income_group": "Oracle Income",
+                        "notes": None,
+                    }
+                )
+
+    return pd.DataFrame(rows)
+
+
+def _predicted_profile_oracle_configs() -> tuple[
+    MetricsConfig,
+    ScoringConfig,
+]:
+    metrics_config = MetricsConfig(
+        metrics={
+            "metric_alpha": MetricConfig(
+                display_name="Metric Alpha",
+                category="validation",
+                higher_is_better=True,
+                default_weight=0.6,
+                unit="oracle_unit",
+                normalization_method=NormalizationMethod.MINMAX,
+            ),
+            "metric_beta": MetricConfig(
+                display_name="Metric Beta",
+                category="validation",
+                higher_is_better=False,
+                default_weight=0.4,
+                unit="oracle_unit",
+                normalization_method=NormalizationMethod.MINMAX,
+            ),
+        }
+    )
+
+    scoring_config = ScoringConfig(
+        default_profile="oracle_profile",
+        weight_handling=WeightHandlingStrategy.NORMALIZE,
+        default_year_strategy=YearStrategy.LATEST_PER_METRIC,
+        default_missing_data_policy=MissingDataPolicy.RENORMALIZE_WEIGHTS,
+        profiles={
+            "oracle_profile": ScoringProfile(
+                metrics=["metric_alpha", "metric_beta"],
+                weights={
+                    "metric_alpha": 0.6,
+                    "metric_beta": 0.4,
+                },
+                normalization_overrides={
+                    "metric_alpha": NormalizationMethod.MINMAX,
+                    "metric_beta": NormalizationMethod.MINMAX,
+                },
+                year_strategy=YearStrategy.LATEST_PER_METRIC,
+                missing_data_policy=MissingDataPolicy.RENORMALIZE_WEIGHTS,
+            )
+        },
+    )
+
+    return metrics_config, scoring_config
 
 
 def test_pred_01_last_observed_matches_independent_oracle() -> None:
@@ -1274,3 +1409,285 @@ def test_pred_17_backtest_mape_matches_oracle_and_handles_zero_actual() -> None:
     assert ape[1] == pytest.approx(0.5, abs=1e-12)
 
     assert zero_actual_result.metrics["mape"] is None
+
+
+def test_pred_18_predicted_single_metric_matches_forecast_and_comparison_oracle() -> (
+    None
+):
+    dataframe = _predicted_comparison_oracle_dataframe()
+
+    result = compare_predicted_single_metric(
+        dataframe,
+        metric_id="metric_alpha",
+        country_codes=["AAA", "BBB", "CCC"],
+        forecast_year=2024,
+        horizon_years=2,
+        method=PredictionMethod.LAST_OBSERVED,
+        fallback_method=None,
+        comparison_options={
+            "normalization_method": NormalizationMethod.MINMAX,
+        },
+    )
+
+    # Independent composition oracle:
+    #
+    # Forecast:
+    # AAA -> 10
+    # BBB -> 20
+    # CCC -> 30
+    #
+    # Min-max:
+    # AAA -> 0.0
+    # BBB -> 0.5
+    # CCC -> 1.0
+    #
+    # Ranking:
+    # CCC -> 1
+    # BBB -> 2
+    # AAA -> 3
+
+    expected = {
+        "AAA": (10.0, 0.0, 3),
+        "BBB": (20.0, 0.5, 2),
+        "CCC": (30.0, 1.0, 1),
+    }
+
+    assert result.selected_forecast_year == 2024
+    assert result.selected_forecast_horizon == 1
+    assert result.metadata["selection_mode"] == "forecast_year"
+    assert result.metadata["comparison_target_year"] == 2024
+
+    assert set(result.comparison_df["year"]) == {2024}
+
+    for row in result.comparison_df.itertuples(index=False):
+        expected_value, expected_normalized, expected_rank = expected[row.country_code]
+
+        assert float(row.value) == pytest.approx(
+            expected_value,
+            abs=1e-12,
+        )
+        assert float(row.normalized_value) == pytest.approx(
+            expected_normalized,
+            abs=1e-12,
+        )
+        assert int(row.rank) == expected_rank
+
+
+def test_pred_19_predicted_multi_metric_matches_independent_oracles() -> None:
+    dataframe = _predicted_comparison_oracle_dataframe()
+
+    result = compare_predicted_multi_metric(
+        dataframe,
+        metric_ids=["metric_alpha", "metric_beta"],
+        country_codes=["AAA", "BBB", "CCC"],
+        forecast_horizon=2,
+        horizon_years=2,
+        method=PredictionMethod.LAST_OBSERVED,
+        fallback_method=None,
+        comparison_options={
+            "normalization_method": NormalizationMethod.MINMAX,
+        },
+    )
+
+    # Horizon 2 from the common 2023 origin is 2025.
+    assert result.selected_forecast_horizon == 2
+    assert result.selected_forecast_year == 2025
+    assert result.metadata["selection_mode"] == "forecast_horizon"
+
+    # Independent oracles:
+    #
+    # metric_alpha, higher is better:
+    #
+    # AAA 10 -> 0.0 -> rank 3
+    # BBB 20 -> 0.5 -> rank 2
+    # CCC 30 -> 1.0 -> rank 1
+    #
+    # metric_beta, LOWER is better:
+    #
+    # AAA 30 -> 0.0 -> rank 3
+    # BBB 10 -> 1.0 -> rank 1
+    # CCC 20 -> 0.5 -> rank 2
+
+    expected = {
+        ("metric_alpha", "AAA"): (10.0, 0.0, 3),
+        ("metric_alpha", "BBB"): (20.0, 0.5, 2),
+        ("metric_alpha", "CCC"): (30.0, 1.0, 1),
+        ("metric_beta", "AAA"): (30.0, 0.0, 3),
+        ("metric_beta", "BBB"): (10.0, 1.0, 1),
+        ("metric_beta", "CCC"): (20.0, 0.5, 2),
+    }
+
+    assert len(result.comparison_df) == 6
+
+    for row in result.comparison_df.itertuples(index=False):
+        expected_value, expected_normalized, expected_rank = expected[
+            (row.metric_id, row.country_code)
+        ]
+
+        assert int(row.year) == 2025
+        assert float(row.value) == pytest.approx(
+            expected_value,
+            abs=1e-12,
+        )
+        assert float(row.normalized_value) == pytest.approx(
+            expected_normalized,
+            abs=1e-12,
+        )
+        assert int(row.rank) == expected_rank
+
+
+def test_pred_20_predicted_profile_matches_forecast_normalization_and_weight_oracle() -> (
+    None
+):
+    dataframe = _predicted_comparison_oracle_dataframe()
+    metrics_config, scoring_config = _predicted_profile_oracle_configs()
+
+    result = compare_predicted_profile(
+        dataframe,
+        metrics_config=metrics_config,
+        scoring_config=scoring_config,
+        profile_name="oracle_profile",
+        country_codes=["AAA", "BBB", "CCC"],
+        forecast_horizon=1,
+        horizon_years=2,
+        method=PredictionMethod.LAST_OBSERVED,
+        fallback_method=None,
+    )
+
+    # Forecast horizon 1:
+    # selected year = 2024.
+    #
+    # metric_alpha normalized:
+    # AAA=0.0, BBB=0.5, CCC=1.0
+    #
+    # metric_beta normalized, lower-is-better:
+    # AAA=0.0, BBB=1.0, CCC=0.5
+    #
+    # weights:
+    # alpha=0.6
+    # beta=0.4
+    #
+    # AAA:
+    #   0.0*0.6 + 0.0*0.4 = 0.0
+    #
+    # BBB:
+    #   0.5*0.6 + 1.0*0.4
+    #   = 0.3 + 0.4
+    #   = 0.7
+    #
+    # CCC:
+    #   1.0*0.6 + 0.5*0.4
+    #   = 0.6 + 0.2
+    #   = 0.8
+    #
+    # Final ranking:
+    # CCC -> 1
+    # BBB -> 2
+    # AAA -> 3
+
+    expected = {
+        "AAA": (0.0, 3),
+        "BBB": (0.7, 2),
+        "CCC": (0.8, 1),
+    }
+
+    assert result.selected_forecast_horizon == 1
+    assert result.selected_forecast_year == 2024
+
+    assert list(result.comparison_df["country_code"]) == [
+        "CCC",
+        "BBB",
+        "AAA",
+    ]
+
+    for row in result.comparison_df.itertuples(index=False):
+        expected_score, expected_rank = expected[row.country_code]
+
+        assert float(row.weighted_score) == pytest.approx(
+            expected_score,
+            abs=1e-12,
+        )
+        assert int(row.score_rank) == expected_rank
+
+        assert int(row.metric_count_used) == 2
+        assert int(row.metric_count_expected) == 2
+        assert int(row.missing_metric_count) == 0
+        assert float(row.weight_sum_used) == pytest.approx(
+            1.0,
+            abs=1e-12,
+        )
+
+        assert row.profile_name == "oracle_profile"
+
+
+def test_pred_21_forecast_year_and_horizon_select_same_future_point() -> None:
+    dataframe = _predicted_comparison_oracle_dataframe()
+
+    by_year = compare_predicted_single_metric(
+        dataframe,
+        metric_id="metric_alpha",
+        country_codes=["AAA", "BBB", "CCC"],
+        forecast_year=2025,
+        horizon_years=3,
+        method=PredictionMethod.LAST_OBSERVED,
+        fallback_method=None,
+        comparison_options={
+            "normalization_method": NormalizationMethod.MINMAX,
+        },
+    )
+
+    by_horizon = compare_predicted_single_metric(
+        dataframe,
+        metric_id="metric_alpha",
+        country_codes=["AAA", "BBB", "CCC"],
+        forecast_horizon=2,
+        horizon_years=3,
+        method=PredictionMethod.LAST_OBSERVED,
+        fallback_method=None,
+        comparison_options={
+            "normalization_method": NormalizationMethod.MINMAX,
+        },
+    )
+
+    assert by_year.selected_forecast_year == 2025
+    assert by_year.selected_forecast_horizon == 2
+    assert by_year.metadata["selection_mode"] == "forecast_year"
+
+    assert by_horizon.selected_forecast_year == 2025
+    assert by_horizon.selected_forecast_horizon == 2
+    assert by_horizon.metadata["selection_mode"] == "forecast_horizon"
+
+    columns = [
+        "country_code",
+        "metric_id",
+        "year",
+        "value",
+        "normalized_value",
+        "rank",
+    ]
+
+    pd.testing.assert_frame_equal(
+        by_year.comparison_df[columns].reset_index(drop=True),
+        by_horizon.comparison_df[columns].reset_index(drop=True),
+        check_dtype=True,
+    )
+
+    with pytest.raises(PredictionException) as exc_info:
+        compare_predicted_single_metric(
+            dataframe,
+            metric_id="metric_alpha",
+            country_codes=["AAA", "BBB", "CCC"],
+            forecast_year=2025,
+            forecast_horizon=2,
+            horizon_years=3,
+            method=PredictionMethod.LAST_OBSERVED,
+            fallback_method=None,
+        )
+
+    exc = exc_info.value
+
+    assert exc.code == PredictionErrorCode.INVALID_FORECAST_SELECTION
+    assert exc.details == {
+        "forecast_year": 2025,
+        "forecast_horizon": 2,
+    }
