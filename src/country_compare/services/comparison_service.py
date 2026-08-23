@@ -118,6 +118,7 @@ class ComparisonService:
             warnings = self._build_result_warnings(
                 request=request,
                 dataframe=result_df,
+                bundle=bundle,
             )
             metadata = metadata_builder(
                 request=request,
@@ -468,6 +469,7 @@ class ComparisonService:
         *,
         request: Any,
         dataframe: pd.DataFrame,
+        bundle: Any,
     ) -> list[str]:
         warnings: list[str] = []
 
@@ -478,6 +480,8 @@ class ComparisonService:
             )
             return warnings
 
+        missing_countries: list[str] = []
+
         if "country_code" in dataframe.columns:
             returned_countries = {
                 str(value).upper()
@@ -486,16 +490,41 @@ class ComparisonService:
                 .astype("string")
                 .tolist()
             }
+
             missing_countries = [
                 code
                 for code in getattr(request, "countries", [])
                 if code not in returned_countries
             ]
+
             if missing_countries:
-                warnings.append(
-                    "Some selected countries are not present in the result: "
-                    + ", ".join(sorted(missing_countries))
-                )
+                is_drop_country_score = False
+
+                if getattr(request, "mode", "") == "weighted_score":
+                    profile_name = getattr(request, "profile_name", None)
+
+                    if profile_name:
+                        resolved_profile = self._resolve_weighted_profile(
+                            bundle,
+                            profile_name,
+                        )
+                        is_drop_country_score = (
+                            resolved_profile.missing_data_policy
+                            == MissingDataPolicy.DROP_COUNTRY
+                        )
+
+                if is_drop_country_score:
+                    warnings.append(
+                        "Some selected countries were excluded by the weighted-score "
+                        "drop_country missing-data policy because they did not have all "
+                        "required profile metrics after year selection: "
+                        + ", ".join(sorted(missing_countries))
+                    )
+                else:
+                    warnings.append(
+                        "Some selected countries are not present in the result: "
+                        + ", ".join(sorted(missing_countries))
+                    )
 
         if getattr(request, "mode", "") == "weighted_score":
             if (
