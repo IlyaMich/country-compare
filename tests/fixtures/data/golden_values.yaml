@@ -88,6 +88,7 @@ release_dataset:
   golden_values:
   - country_code: CAN
     metric_id: consumer_price_index
+    indicator_code: FP.CPI.TOTL
     year: 2023
     expected_value: 134.895535203205
     tolerance_abs: 0.01
@@ -99,8 +100,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: consumer_price_index
+    indicator_code: FP.CPI.TOTL
     year: 2023
     expected_value: 131.892448207043
     tolerance_abs: 0.01
@@ -112,8 +115,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: crude_death_rate
+    indicator_code: SP.DYN.CDRT.IN
     year: 2023
     expected_value: 8.2
     tolerance_abs: 0.01
@@ -125,8 +130,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: crude_death_rate
+    indicator_code: SP.DYN.CDRT.IN
     year: 2023
     expected_value: 12.3
     tolerance_abs: 0.01
@@ -138,8 +145,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: SGP
     metric_id: education_spending_pct_gdp
+    indicator_code: SE.XPD.TOTL.GD.ZS
     year: 2023
     expected_value: 2.1037700176239
     tolerance_abs: 0.25
@@ -151,8 +160,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: education_spending_pct_gdp
+    indicator_code: SE.XPD.TOTL.GD.ZS
     year: 2022
     expected_value: 4.84426021575928
     tolerance_abs: 0.25
@@ -164,8 +175,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: gdp_current_usd
+    indicator_code: NY.GDP.MKTP.CD
     year: 2023
     expected_value: 2173339670064.33
     tolerance_pct: 1.0
@@ -177,8 +190,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: gdp_current_usd
+    indicator_code: NY.GDP.MKTP.CD
     year: 2023
     expected_value: 4562207532490.28
     tolerance_pct: 1.0
@@ -190,8 +205,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: internet_users_pct
+    indicator_code: IT.NET.USER.ZS
     year: 2023
     expected_value: 94.14530182
     tolerance_abs: 0.25
@@ -203,8 +220,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: internet_users_pct
+    indicator_code: IT.NET.USER.ZS
     year: 2023
     expected_value: 92.4763763
     tolerance_abs: 0.25
@@ -216,8 +235,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: labor_participation_pct
+    indicator_code: SL.TLF.CACT.ZS
     year: 2023
     expected_value: 65.361
     tolerance_abs: 0.25
@@ -229,8 +250,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: labor_participation_pct
+    indicator_code: SL.TLF.CACT.ZS
     year: 2023
     expected_value: 61.05
     tolerance_abs: 0.25
@@ -242,8 +265,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: life_expectancy_female
+    indicator_code: SP.DYN.LE00.FE.IN
     year: 2023
     expected_value: 83.88
     tolerance_abs: 0.1
@@ -255,8 +280,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: life_expectancy_female
+    indicator_code: SP.DYN.LE00.FE.IN
     year: 2023
     expected_value: 83.5
     tolerance_abs: 0.1
@@ -268,8 +295,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: life_expectancy_male
+    indicator_code: SP.DYN.LE00.MA.IN
     year: 2023
     expected_value: 79.48
     tolerance_abs: 0.1
@@ -281,8 +310,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: life_expectancy_male
+    indicator_code: SP.DYN.LE00.MA.IN
     year: 2023
     expected_value: 78.7
     tolerance_abs: 0.1
@@ -294,8 +325,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: population_growth_pct
+    indicator_code: SP.POP.GROW
     year: 2023
     expected_value: 2.90468017061162
     tolerance_abs: 0.25
@@ -307,8 +340,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: population_growth_pct
+    indicator_code: SP.POP.GROW
     year: 2023
     expected_value: 0.131511079477747
     tolerance_abs: 0.25
@@ -320,8 +355,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: rnd_expenditure_pct_gdp
+    indicator_code: GB.XPD.RSDV.GD.ZS
     year: 2023
     expected_value: 1.81048
     tolerance_abs: 0.25
@@ -333,8 +370,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: rnd_expenditure_pct_gdp
+    indicator_code: GB.XPD.RSDV.GD.ZS
     year: 2023
     expected_value: 3.1539
     tolerance_abs: 0.25
@@ -346,8 +385,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: unemployment_pct
+    indicator_code: SL.UEM.TOTL.ZS
     year: 2023
     expected_value: 5.415
     tolerance_abs: 0.25
@@ -359,8 +400,10 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: unemployment_pct
+    indicator_code: SL.UEM.TOTL.ZS
     year: 2023
     expected_value: 3.071
     tolerance_abs: 0.25
@@ -372,3 +415,4 @@ release_dataset:
     source_url_contains:
     - worldbank.org
     review_status: needs_source_verification
+    verified_at: "2026-08-23"
