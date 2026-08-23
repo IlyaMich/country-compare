@@ -24,7 +24,7 @@ from country_compare.prediction.llm.forecasters import (
     set_llm_forecast_client_override,
 )
 from country_compare.prediction.registry import clear_forecasters, list_forecasters
-
+from country_compare.prediction.llm import forecasters as llm_forecasters
 
 @dataclass
 class FakeLLMForecastClient:
@@ -41,6 +41,11 @@ class FakeLLMForecastClient:
             raise RuntimeError("fake client response was not configured")
 
         return self.response
+
+
+class _UnavailableLLMServiceClient:
+    def is_available(self) -> bool:
+        raise RuntimeError("simulated unavailable private LLM service")
 
 
 @pytest.fixture(autouse=True)
@@ -124,6 +129,30 @@ def test_llm_forecast_is_hidden_and_rejected_when_disabled() -> None:
 
     assert exc_info.value.code == PredictionErrorCode.UNSUPPORTED_METHOD
     assert fake_client.calls == []
+
+
+@pytest.mark.parametrize(
+    ("service_url", "service_token"),
+    [
+        ("", "test-token"),
+        ("http://llm-service:8001", ""),
+    ],
+)
+def test_llm_02_enabled_but_incomplete_remote_config_hides_llm_forecast(
+    monkeypatch: pytest.MonkeyPatch,
+    service_url: str,
+    service_token: str,
+) -> None:
+    monkeypatch.setenv("COUNTRY_COMPARE_ENABLE_LLM_FORECAST", "true")
+    monkeypatch.setenv("COUNTRY_COMPARE_LLM_SERVICE_URL", service_url)
+    monkeypatch.setenv("COUNTRY_COMPARE_LLM_SERVICE_TOKEN", service_token)
+
+    clear_forecasters()
+
+    available_methods = list_forecasters()
+
+    assert "llm_forecast" not in available_methods
+    assert "last_observed" in available_methods
 
 
 def test_llm_forecast_accepts_valid_mocked_response(
@@ -309,3 +338,31 @@ def test_llm_response_from_json_parses_valid_payload() -> None:
 def test_llm_response_from_json_rejects_invalid_json() -> None:
     with pytest.raises(LLMForecastResponseParseError):
         llm_response_from_json("{not json")
+
+
+def test_llm_03_unavailable_service_hides_llm_but_preserves_deterministic_methods(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COUNTRY_COMPARE_ENABLE_LLM_FORECAST", "true")
+    monkeypatch.setenv(
+        "COUNTRY_COMPARE_LLM_SERVICE_URL",
+        "http://llm-service:8001",
+    )
+    monkeypatch.setenv(
+        "COUNTRY_COMPARE_LLM_SERVICE_TOKEN",
+        "test-token",
+    )
+
+    monkeypatch.setattr(
+        llm_forecasters,
+        "_remote_client_from_settings",
+        lambda *args, **kwargs: _UnavailableLLMServiceClient(),
+    )
+
+    clear_forecasters()
+
+    available_methods = list_forecasters()
+
+    assert "llm_forecast" not in available_methods
+    assert "last_observed" in available_methods
+    assert "linear_trend" in available_methods

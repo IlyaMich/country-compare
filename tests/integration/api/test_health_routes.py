@@ -28,6 +28,96 @@ class FakeFacade:
         return self.overview
 
 
+def _ready_payload(
+    *,
+    status: str,
+    dataset_exists: bool,
+    config_valid: bool,
+    warnings: list[str],
+    config_messages: list[str] | None = None,
+    manifest_valid: bool | None = True,
+) -> dict[str, object]:
+    return {
+        "status": status,
+        "dataset": {
+            "exists": dataset_exists,
+            "backend": "parquet",
+            "dataset_path": "data/processed/metrics.parquet",
+            "row_count": 0,
+            "country_count": 0,
+            "metric_count": 0,
+            "year_min": None,
+            "year_max": None,
+            "dataset_versions": [],
+            "dataset_checksum": None,
+            "dataset_size_bytes": None,
+            "dataset_modified_at": None,
+            "manifest_path": "data/processed/metrics_manifest.json",
+            "manifest_exists": dataset_exists,
+            "manifest_valid": manifest_valid if dataset_exists else False,
+            "manifest_issue_count": 0,
+            "manifest_issues": [],
+            "manifest_dataset_version": None,
+            "manifest_created_at": None,
+            "manifest_schema_version": None,
+            "schema_valid": None,
+            "schema_issue_count": 0,
+            "schema_issues": [],
+            "error": None,
+        },
+        "config": {
+            "valid": config_valid,
+            "validated_against_dataset": True,
+            "metrics_count": 0,
+            "profile_count": 0,
+            "messages": config_messages or [],
+            "error": None,
+        },
+        "warnings": warnings,
+    }
+
+
+def _client_for(facade: FakeFacade) -> TestClient:
+    app = create_app()
+    app.dependency_overrides[get_app_facade] = lambda: facade
+    return TestClient(app)
+
+
+def _overview(
+    *,
+    dataset_exists: bool,
+    config_valid: bool,
+    warnings: tuple[str, ...] = (),
+    validation_messages: tuple[str, ...] = (),
+    manifest_valid: bool | None = True,
+    manifest_issues: tuple[str, ...] = (),
+) -> OverviewStatus:
+    return OverviewStatus(
+        dataset=DatasetSummary(
+            exists=dataset_exists,
+            backend="parquet",
+            dataset_path="data/processed/metrics.parquet",
+            manifest_path="data/processed/metrics_manifest.json",
+            manifest_exists=dataset_exists,
+            manifest_valid=manifest_valid if dataset_exists else False,
+            manifest_issue_count=len(manifest_issues),
+            manifest_issues=manifest_issues,
+        ),
+        config=ConfigStatus(
+            metrics_config_path="config/metrics.yaml",
+            scoring_config_path="config/scoring_profiles.yaml",
+            metrics_config_exists=True,
+            scoring_config_exists=True,
+            validation=ValidationReport(
+                valid=config_valid,
+                messages=validation_messages,
+            ),
+        ),
+        warnings=warnings,
+    )
+
+
+
 def test_health_returns_process_liveness_without_facade() -> None:
     app = create_app()
 
@@ -157,90 +247,26 @@ def test_ready_returns_503_when_manifest_invalid() -> None:
     assert payload["warnings"] == ["Dataset hash does not match manifest sha256."]
 
 
-def _ready_payload(
-    *,
-    status: str,
-    dataset_exists: bool,
-    config_valid: bool,
-    warnings: list[str],
-    config_messages: list[str] | None = None,
-    manifest_valid: bool | None = True,
-) -> dict[str, object]:
-    return {
-        "status": status,
-        "dataset": {
-            "exists": dataset_exists,
-            "backend": "parquet",
-            "dataset_path": "data/processed/metrics.parquet",
-            "row_count": 0,
-            "country_count": 0,
-            "metric_count": 0,
-            "year_min": None,
-            "year_max": None,
-            "dataset_versions": [],
-            "dataset_checksum": None,
-            "dataset_size_bytes": None,
-            "dataset_modified_at": None,
-            "manifest_path": "data/processed/metrics_manifest.json",
-            "manifest_exists": dataset_exists,
-            "manifest_valid": manifest_valid if dataset_exists else False,
-            "manifest_issue_count": 0,
-            "manifest_issues": [],
-            "manifest_dataset_version": None,
-            "manifest_created_at": None,
-            "manifest_schema_version": None,
-            "schema_valid": None,
-            "schema_issue_count": 0,
-            "schema_issues": [],
-            "error": None,
-        },
-        "config": {
-            "valid": config_valid,
-            "validated_against_dataset": True,
-            "metrics_count": 0,
-            "profile_count": 0,
-            "messages": config_messages or [],
-            "error": None,
-        },
-        "warnings": warnings,
-    }
+def test_llm_02_normal_backend_readiness_does_not_depend_on_optional_llm(
+    monkeypatch,
+) -> None:
+    from country_compare.api.routes import health as health_routes
 
+    def fail_if_called():
+        raise AssertionError("/ready must not perform optional LLM readiness")
 
-def _client_for(facade: FakeFacade) -> TestClient:
-    app = create_app()
-    app.dependency_overrides[get_app_facade] = lambda: facade
-    return TestClient(app)
-
-
-def _overview(
-    *,
-    dataset_exists: bool,
-    config_valid: bool,
-    warnings: tuple[str, ...] = (),
-    validation_messages: tuple[str, ...] = (),
-    manifest_valid: bool | None = True,
-    manifest_issues: tuple[str, ...] = (),
-) -> OverviewStatus:
-    return OverviewStatus(
-        dataset=DatasetSummary(
-            exists=dataset_exists,
-            backend="parquet",
-            dataset_path="data/processed/metrics.parquet",
-            manifest_path="data/processed/metrics_manifest.json",
-            manifest_exists=dataset_exists,
-            manifest_valid=manifest_valid if dataset_exists else False,
-            manifest_issue_count=len(manifest_issues),
-            manifest_issues=manifest_issues,
-        ),
-        config=ConfigStatus(
-            metrics_config_path="config/metrics.yaml",
-            scoring_config_path="config/scoring_profiles.yaml",
-            metrics_config_exists=True,
-            scoring_config_exists=True,
-            validation=ValidationReport(
-                valid=config_valid,
-                messages=validation_messages,
-            ),
-        ),
-        warnings=warnings,
+    monkeypatch.setattr(
+        health_routes,
+        "_build_llm_ready_response",
+        fail_if_called,
     )
+
+    overview = _overview(dataset_exists=True, config_valid=True)
+    facade = FakeFacade(overview)
+    client = _client_for(facade)
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    assert facade.validate_config_against_dataset_calls == [True]
