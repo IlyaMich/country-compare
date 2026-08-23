@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from datetime import date
 from typing import Any
 
 import pandas as pd
@@ -207,6 +208,102 @@ def test_golden_values_match_expected_reference_rows(data_correctness_context) -
                     "reason": "source_url_mismatch",
                     "expected_contains_any": source_url_contains,
                     "actual": row["source_url"],
+                }
+            )
+
+    assert failures == []
+
+
+def test_release_golden_values_are_source_verified(data_correctness_context) -> None:
+    if data_correctness_context.is_example_dataset:
+        pytest.skip("Source-verification metadata applies only to the release dataset.")
+
+    golden_values = _golden_values_for_active_dataset(data_correctness_context)
+
+    failures: list[dict[str, object]] = []
+
+    for golden_value in golden_values:
+        country_code = str(golden_value["country_code"])
+        metric_id = str(golden_value["metric_id"])
+        year = int(golden_value["year"])
+
+        if golden_value.get("review_status") != "verified":
+            failures.append(
+                {
+                    "country_code": country_code,
+                    "metric_id": metric_id,
+                    "year": year,
+                    "reason": "not_source_verified",
+                    "review_status": golden_value.get("review_status"),
+                }
+            )
+
+        indicator_code = golden_value.get("indicator_code")
+        if not indicator_code:
+            failures.append(
+                {
+                    "country_code": country_code,
+                    "metric_id": metric_id,
+                    "year": year,
+                    "reason": "missing_indicator_code",
+                }
+            )
+
+        verified_at = golden_value.get("verified_at")
+        if not verified_at:
+            failures.append(
+                {
+                    "country_code": country_code,
+                    "metric_id": metric_id,
+                    "year": year,
+                    "reason": "missing_verified_at",
+                }
+            )
+        else:
+            try:
+                date.fromisoformat(str(verified_at))
+            except ValueError:
+                failures.append(
+                    {
+                        "country_code": country_code,
+                        "metric_id": metric_id,
+                        "year": year,
+                        "reason": "invalid_verified_at",
+                        "verified_at": verified_at,
+                    }
+                )
+
+    assert failures == []
+
+
+def test_release_golden_indicator_codes_match_authoritative_mappings(
+    data_correctness_context,
+) -> None:
+    if data_correctness_context.is_example_dataset:
+        pytest.skip("Indicator-code checks apply only to the release dataset.")
+
+    golden_values = _golden_values_for_active_dataset(data_correctness_context)
+    mapping_fixture = load_yaml_fixture("world_bank_metric_mappings.yaml")
+
+    mappings = {
+        str(item["metric_id"]): str(item["indicator_code"])
+        for item in mapping_fixture["mappings"]
+    }
+
+    failures: list[dict[str, object]] = []
+
+    for golden_value in golden_values:
+        metric_id = str(golden_value["metric_id"])
+        actual_code = str(golden_value.get("indicator_code", ""))
+        expected_code = mappings.get(metric_id)
+
+        if expected_code is None or actual_code != expected_code:
+            failures.append(
+                {
+                    "metric_id": metric_id,
+                    "reason": "golden_indicator_mapping_mismatch",
+                    "expected": expected_code,
+                    "actual": actual_code,
                 }
             )
 
