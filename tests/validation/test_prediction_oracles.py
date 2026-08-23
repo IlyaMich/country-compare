@@ -14,8 +14,10 @@ from country_compare.prediction import (
     SingleMetricPredictionRequest,
     list_available_prediction_methods,
     predict_single_metric,
+    predict_single_metric_for_countries
 )
 from country_compare.prediction.ml_forecasters import is_elasticnet_available
+import country_compare.prediction.multi_metric as prediction_multi_metric
 
 
 def _prediction_oracle_dataframe(
@@ -61,6 +63,57 @@ def _prediction_oracle_request(
         method=method,
         fallback_method=PredictionMethod.LAST_OBSERVED,
     )
+
+
+def _multi_country_prediction_oracle_dataframe() -> pd.DataFrame:
+    series = {
+        "AAA": {
+            "country_name": "Alpha",
+            "years": (2020, 2021, 2022, 2023),
+            "values": (10.0, 20.0, 30.0, 40.0),
+        },
+        "BBB": {
+            "country_name": "Beta",
+            "years": (2020, 2021, 2022, 2023),
+            "values": (100.0, 85.0, 70.0, 55.0),
+        },
+        # Deliberately insufficient for linear_trend.
+        "CCC": {
+            "country_name": "Gamma",
+            "years": (2023,),
+            "values": (500.0,),
+        },
+    }
+
+    rows: list[dict[str, object]] = []
+
+    for country_code, definition in series.items():
+        country_name = str(definition["country_name"])
+        years = definition["years"]
+        values = definition["values"]
+
+        for year, value in zip(years, values, strict=True):
+            rows.append(
+                {
+                    "country_code": country_code,
+                    "country_name": country_name,
+                    "metric_id": "oracle_metric",
+                    "metric_name": "Oracle Metric",
+                    "value": float(value),
+                    "year": int(year),
+                    "unit": "oracle_unit",
+                    "source_name": "Validation oracle",
+                    "source_url": "https://example.test/validation-oracle",
+                    "higher_is_better": True,
+                    "category": "validation",
+                    "dataset_version": "oracle-v1",
+                    "region": "Oracle Region",
+                    "income_group": "Oracle Income",
+                    "notes": None,
+                }
+            )
+
+    return pd.DataFrame(rows)
 
 
 def test_pred_01_last_observed_matches_independent_oracle() -> None:
@@ -788,3 +841,247 @@ def test_pred_09_insufficient_history_uses_configured_fallback_with_diagnostics(
         "fallback" in message
         for message in result.forecast_df["diagnostic_messages"].tolist()
     )
+
+
+def test_pred_10_partial_failure_keeps_successful_country_forecasts() -> None:
+    dataframe = _multi_country_prediction_oracle_dataframe()
+
+    result = predict_single_metric_for_countries(
+        dataframe,
+        metric_id="oracle_metric",
+        country_codes=["AAA", "CCC", "BBB"],
+        horizon_years=2,
+        method=PredictionMethod.LINEAR_TREND,
+        fallback_method=None,
+        include_actuals=False,
+        fail_fast=False,
+    )
+
+    # AAA and BBB are forecastable; CCC is not.
+    assert result.metadata["successful_series_count"] == 2
+    assert result.metadata["failed_series_count"] == 1
+    assert result.metadata["all_series_failed"] is False
+
+    assert result.metadata["successful_pairs"] == [
+        {
+            "country_code": "AAA",
+            "metric_id": "oracle_metric",
+        },
+        {
+            "country_code": "BBB",
+            "metric_id": "oracle_metric",
+        },
+    ]
+
+    assert result.metadata["failed_pairs"] == [
+        {
+            "country_code": "CCC",
+            "metric_id": "oracle_metric",
+        }
+    ]
+
+    # Independent forecast oracles:
+    #
+    # AAA:
+    #   y increases by 10/year
+    #   2024 -> 50
+    #   2025 -> 60
+    #
+    # BBB:
+    #   y decreases by 15/year
+    #   2024 -> 40
+    #   2025 -> 25
+    #
+    # CCC must produce no forecast rows.
+
+    aaa = result.forecast_df.loc[
+        result.forecast_df["country_code"].eq("AAA")
+    ]
+
+    assert aaa["year"].tolist() == [2024, 2025]
+    assert aaa["value"].tolist() == pytest.approx(
+        [50.0, 60.0],
+        abs=1e-9,
+    )
+
+    bbb = result.forecast_df.loc[
+        result.forecast_df["country_code"].eq("BBB")
+    ]
+
+    assert bbb["year"].tolist() == [2024, 2025]
+    assert bbb["value"].tolist() == pytest.approx(
+        [40.0, 25.0],
+        abs=1e-9,
+    )
+
+    assert "CCC" not in set(result.forecast_df["country_code"])
+
+    failed = [
+        diagnostic
+        for diagnostic in result.diagnostics
+        if diagnostic.status == PredictionDiagnosticStatus.FAILED
+    ]
+
+    assert len(failed) == 1
+
+    diagnostic = failed[0]
+
+    assert diagnostic.country_code == "CCC"
+    assert diagnostic.metric_id == "oracle_metric"
+    assert diagnostic.method_requested == "linear_trend"
+    assert diagnostic.method_used is None
+    assert diagnostic.fallback_used is False
+
+    assert len(diagnostic.errors) == 1
+
+    error = diagnostic.errors[0]
+
+    assert error.code == PredictionErrorCode.INSUFFICIENT_HISTORY
+    assert error.country_code == "CCC"
+    assert error.metric_id == "oracle_metric"
+
+    assert "requires at least three observations" in error.message
+
+
+def test_pred_11_fail_fast_stops_after_first_failed_series(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataframe = _multi_country_prediction_oracle_dataframe()
+
+    original_predict_single_metric = prediction_multi_metric.predict_single_metric
+
+    attempted_countries: list[str] = []
+
+    def recording_predict_single_metric(
+        canonical_df: pd.DataFrame,
+        request: SingleMetricPredictionRequest,
+        *,
+        options: ForecastOptions | None = None,
+    ):
+        attempted_countries.append(request.country_code)
+
+        return original_predict_single_metric(
+            canonical_df,
+            request,
+            options=options,
+        )
+
+    monkeypatch.setattr(
+        prediction_multi_metric,
+        "predict_single_metric",
+        recording_predict_single_metric,
+    )
+
+    with pytest.raises(PredictionException) as exc_info:
+        predict_single_metric_for_countries(
+            dataframe,
+            metric_id="oracle_metric",
+            country_codes=["AAA", "CCC", "BBB"],
+            horizon_years=2,
+            method=PredictionMethod.LINEAR_TREND,
+            fallback_method=None,
+            include_actuals=False,
+            fail_fast=True,
+        )
+
+    # AAA succeeds first.
+    # CCC then fails.
+    # BBB must never be attempted.
+    assert attempted_countries == ["AAA", "CCC"]
+
+    exc = exc_info.value
+
+    assert exc.code == PredictionErrorCode.INSUFFICIENT_HISTORY
+    assert exc.country_code == "CCC"
+    assert exc.metric_id == "oracle_metric"
+
+    assert "linear_trend requires at least three observations" in exc.message
+
+
+def test_pred_12_multi_country_forecasts_match_independent_per_country_oracles() -> None:
+    dataframe = _multi_country_prediction_oracle_dataframe()
+
+    result = predict_single_metric_for_countries(
+        dataframe,
+        metric_id="oracle_metric",
+        country_codes=["AAA", "BBB"],
+        horizon_years=3,
+        method=PredictionMethod.LINEAR_TREND,
+        fallback_method=None,
+        include_actuals=False,
+        fail_fast=True,
+    )
+
+    assert result.metadata["successful_series_count"] == 2
+    assert result.metadata["failed_series_count"] == 0
+    assert result.metadata["failed_pairs"] == []
+    assert result.metadata["all_series_failed"] is False
+
+    # Independent AAA oracle:
+    #
+    # 2020 -> 10
+    # 2021 -> 20
+    # 2022 -> 30
+    # 2023 -> 40
+    #
+    # slope = +10
+    #
+    # 2024 -> 50
+    # 2025 -> 60
+    # 2026 -> 70
+    aaa = result.forecast_df.loc[
+        result.forecast_df["country_code"].eq("AAA")
+    ]
+
+    assert aaa["year"].tolist() == [2024, 2025, 2026]
+    assert aaa["forecast_horizon"].tolist() == [1, 2, 3]
+    assert aaa["value"].tolist() == pytest.approx(
+        [50.0, 60.0, 70.0],
+        abs=1e-9,
+    )
+
+    # Independent BBB oracle:
+    #
+    # 2020 -> 100
+    # 2021 ->  85
+    # 2022 ->  70
+    # 2023 ->  55
+    #
+    # slope = -15
+    #
+    # 2024 -> 40
+    # 2025 -> 25
+    # 2026 -> 10
+    bbb = result.forecast_df.loc[
+        result.forecast_df["country_code"].eq("BBB")
+    ]
+
+    assert bbb["year"].tolist() == [2024, 2025, 2026]
+    assert bbb["forecast_horizon"].tolist() == [1, 2, 3]
+    assert bbb["value"].tolist() == pytest.approx(
+        [40.0, 25.0, 10.0],
+        abs=1e-9,
+    )
+
+    diagnostics_by_country = {
+        diagnostic.country_code: diagnostic
+        for diagnostic in result.diagnostics
+    }
+
+    assert set(diagnostics_by_country) == {"AAA", "BBB"}
+
+    for country_code in ("AAA", "BBB"):
+        diagnostic = diagnostics_by_country[country_code]
+
+        assert diagnostic.status == PredictionDiagnosticStatus.OK
+        assert diagnostic.method_requested == "linear_trend"
+        assert diagnostic.method_used == "linear_trend"
+        assert diagnostic.fallback_used is False
+        assert diagnostic.history_observation_count == 4
+        assert diagnostic.training_start_year == 2020
+        assert diagnostic.training_end_year == 2023
+        assert diagnostic.forecast_origin_year == 2023
+
+    # Every successful series in one batch should share the batch-level
+    # prediction run identity.
+    assert result.forecast_df["prediction_run_id"].nunique() == 1
