@@ -5,6 +5,7 @@ import math
 import pandas as pd
 import pytest
 
+import country_compare.prediction.multi_metric as prediction_multi_metric
 from country_compare.prediction import (
     ForecastOptions,
     PredictionDiagnosticStatus,
@@ -12,12 +13,12 @@ from country_compare.prediction import (
     PredictionException,
     PredictionMethod,
     SingleMetricPredictionRequest,
+    backtest_series,
     list_available_prediction_methods,
     predict_single_metric,
-    predict_single_metric_for_countries
+    predict_single_metric_for_countries,
 )
 from country_compare.prediction.ml_forecasters import is_elasticnet_available
-import country_compare.prediction.multi_metric as prediction_multi_metric
 
 
 def _prediction_oracle_dataframe(
@@ -114,6 +115,28 @@ def _multi_country_prediction_oracle_dataframe() -> pd.DataFrame:
             )
 
     return pd.DataFrame(rows)
+
+
+def _backtest_oracle_dataframe(
+    *,
+    holdout_values: tuple[float, float] = (50.0, 70.0),
+) -> pd.DataFrame:
+    return _prediction_oracle_dataframe(
+        years=(2018, 2019, 2020, 2021, 2022),
+        values=(10.0, 20.0, 30.0, *holdout_values),
+    )
+
+
+def _run_backtest_oracle():
+    return backtest_series(
+        _backtest_oracle_dataframe(),
+        country_code="AAA",
+        metric_id="oracle_metric",
+        method=PredictionMethod.LAST_OBSERVED,
+        fallback_method=None,
+        holdout_years=2,
+        scenario_id="validation-backtest",
+    )
 
 
 def test_pred_01_last_observed_matches_independent_oracle() -> None:
@@ -894,9 +917,7 @@ def test_pred_10_partial_failure_keeps_successful_country_forecasts() -> None:
     #
     # CCC must produce no forecast rows.
 
-    aaa = result.forecast_df.loc[
-        result.forecast_df["country_code"].eq("AAA")
-    ]
+    aaa = result.forecast_df.loc[result.forecast_df["country_code"].eq("AAA")]
 
     assert aaa["year"].tolist() == [2024, 2025]
     assert aaa["value"].tolist() == pytest.approx(
@@ -904,9 +925,7 @@ def test_pred_10_partial_failure_keeps_successful_country_forecasts() -> None:
         abs=1e-9,
     )
 
-    bbb = result.forecast_df.loc[
-        result.forecast_df["country_code"].eq("BBB")
-    ]
+    bbb = result.forecast_df.loc[result.forecast_df["country_code"].eq("BBB")]
 
     assert bbb["year"].tolist() == [2024, 2025]
     assert bbb["value"].tolist() == pytest.approx(
@@ -998,7 +1017,9 @@ def test_pred_11_fail_fast_stops_after_first_failed_series(
     assert "linear_trend requires at least three observations" in exc.message
 
 
-def test_pred_12_multi_country_forecasts_match_independent_per_country_oracles() -> None:
+def test_pred_12_multi_country_forecasts_match_independent_per_country_oracles() -> (
+    None
+):
     dataframe = _multi_country_prediction_oracle_dataframe()
 
     result = predict_single_metric_for_countries(
@@ -1029,9 +1050,7 @@ def test_pred_12_multi_country_forecasts_match_independent_per_country_oracles()
     # 2024 -> 50
     # 2025 -> 60
     # 2026 -> 70
-    aaa = result.forecast_df.loc[
-        result.forecast_df["country_code"].eq("AAA")
-    ]
+    aaa = result.forecast_df.loc[result.forecast_df["country_code"].eq("AAA")]
 
     assert aaa["year"].tolist() == [2024, 2025, 2026]
     assert aaa["forecast_horizon"].tolist() == [1, 2, 3]
@@ -1052,9 +1071,7 @@ def test_pred_12_multi_country_forecasts_match_independent_per_country_oracles()
     # 2024 -> 40
     # 2025 -> 25
     # 2026 -> 10
-    bbb = result.forecast_df.loc[
-        result.forecast_df["country_code"].eq("BBB")
-    ]
+    bbb = result.forecast_df.loc[result.forecast_df["country_code"].eq("BBB")]
 
     assert bbb["year"].tolist() == [2024, 2025, 2026]
     assert bbb["forecast_horizon"].tolist() == [1, 2, 3]
@@ -1064,8 +1081,7 @@ def test_pred_12_multi_country_forecasts_match_independent_per_country_oracles()
     )
 
     diagnostics_by_country = {
-        diagnostic.country_code: diagnostic
-        for diagnostic in result.diagnostics
+        diagnostic.country_code: diagnostic for diagnostic in result.diagnostics
     }
 
     assert set(diagnostics_by_country) == {"AAA", "BBB"}
@@ -1085,3 +1101,176 @@ def test_pred_12_multi_country_forecasts_match_independent_per_country_oracles()
     # Every successful series in one batch should share the batch-level
     # prediction run identity.
     assert result.forecast_df["prediction_run_id"].nunique() == 1
+
+
+def test_pred_14_backtest_split_has_no_future_leakage() -> None:
+    result = _run_backtest_oracle()
+
+    dataframe = result.actual_vs_predicted_df
+
+    assert dataframe["year"].tolist() == [2021, 2022]
+    assert dataframe["actual_value"].tolist() == pytest.approx(
+        [50.0, 70.0],
+        abs=1e-12,
+    )
+
+    # Independent oracle:
+    # the final TRAINING value is 30, so last_observed must forecast 30
+    # for both held-out years. If holdout observations leaked into training,
+    # this would not hold.
+    assert dataframe["predicted_value"].tolist() == pytest.approx(
+        [30.0, 30.0],
+        abs=1e-12,
+    )
+
+    diagnostic = result.diagnostics[0]
+
+    assert diagnostic.history_observation_count == 3
+    assert diagnostic.training_start_year == 2018
+    assert diagnostic.training_end_year == 2020
+    assert diagnostic.forecast_origin_year == 2020
+
+    assert result.metrics["n_train_observations"] == 3
+    assert result.metrics["n_test_observations"] == 2
+    assert result.metrics["train_start_year"] == 2018
+    assert result.metrics["train_end_year"] == 2020
+    assert result.metrics["test_start_year"] == 2021
+    assert result.metrics["test_end_year"] == 2022
+
+    assert result.metadata["holdout_years"] == [2021, 2022]
+    assert result.metadata["forecast_origin_year"] == 2020
+
+    assert dataframe["training_start_year"].tolist() == [2018, 2018]
+    assert dataframe["training_end_year"].tolist() == [2020, 2020]
+    assert dataframe["forecast_origin_year"].tolist() == [2020, 2020]
+
+
+def test_pred_15_backtest_mae_matches_independent_oracle() -> None:
+    result = _run_backtest_oracle()
+
+    dataframe = result.actual_vs_predicted_df
+
+    # predicted - actual:
+    #
+    # 2021: 30 - 50 = -20
+    # 2022: 30 - 70 = -40
+    #
+    # absolute errors:
+    #   20, 40
+    #
+    # MAE:
+    #   (20 + 40) / 2 = 30
+
+    assert dataframe["error"].tolist() == pytest.approx(
+        [-20.0, -40.0],
+        abs=1e-12,
+    )
+    assert dataframe["absolute_error"].tolist() == pytest.approx(
+        [20.0, 40.0],
+        abs=1e-12,
+    )
+
+    assert result.metrics["mae"] == pytest.approx(
+        30.0,
+        abs=1e-12,
+    )
+
+
+def test_pred_16_backtest_rmse_matches_independent_oracle() -> None:
+    result = _run_backtest_oracle()
+
+    dataframe = result.actual_vs_predicted_df
+
+    # Squared errors:
+    #
+    #   (-20)^2 = 400
+    #   (-40)^2 = 1600
+    #
+    # Mean squared error:
+    #
+    #   (400 + 1600) / 2 = 1000
+    #
+    # RMSE:
+    #
+    #   sqrt(1000)
+    #   = 31.622776601683793
+
+    assert dataframe["squared_error"].tolist() == pytest.approx(
+        [400.0, 1600.0],
+        abs=1e-12,
+    )
+
+    assert result.metrics["rmse"] == pytest.approx(
+        math.sqrt(1000.0),
+        abs=1e-12,
+    )
+
+
+def test_pred_17_backtest_mape_matches_oracle_and_handles_zero_actual() -> None:
+    result = _run_backtest_oracle()
+
+    dataframe = result.actual_vs_predicted_df
+
+    # Absolute percentage errors:
+    #
+    # 2021:
+    #   |30 - 50| / |50|
+    #   = 20 / 50
+    #   = 0.4
+    #
+    # 2022:
+    #   |30 - 70| / |70|
+    #   = 40 / 70
+    #   = 4 / 7
+    #
+    # MAPE:
+    #
+    #   (0.4 + 4/7) / 2
+    #   = 17/35
+    #   = 0.485714285714...
+
+    expected_ape = [
+        0.4,
+        4.0 / 7.0,
+    ]
+
+    assert dataframe["absolute_percentage_error"].tolist() == pytest.approx(
+        expected_ape,
+        abs=1e-12,
+    )
+
+    assert result.metrics["mape"] == pytest.approx(
+        17.0 / 35.0,
+        abs=1e-12,
+    )
+
+    zero_actual_result = backtest_series(
+        _backtest_oracle_dataframe(
+            holdout_values=(0.0, 60.0),
+        ),
+        country_code="AAA",
+        metric_id="oracle_metric",
+        method=PredictionMethod.LAST_OBSERVED,
+        fallback_method=None,
+        holdout_years=2,
+    )
+
+    zero_dataframe = zero_actual_result.actual_vs_predicted_df
+
+    # Training still ends at:
+    #   2020 -> 30
+    #
+    # Forecast:
+    #   2021 -> 30, actual = 0
+    #   2022 -> 30, actual = 60
+    #
+    # Division by zero must never occur. The per-row APE for 2021 is
+    # missing, and the current aggregate contract marks MAPE undefined
+    # for the complete backtest if any held-out actual equals zero.
+
+    ape = zero_dataframe["absolute_percentage_error"].tolist()
+
+    assert pd.isna(ape[0])
+    assert ape[1] == pytest.approx(0.5, abs=1e-12)
+
+    assert zero_actual_result.metrics["mape"] is None

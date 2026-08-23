@@ -170,6 +170,119 @@ class FakeFacade:
         )
 
 
+class RichPredictionDiagnosticsFacade(FakeFacade):
+    def predict_single_metric_for_countries(
+        self,
+        **kwargs: Any,
+    ) -> PredictionServiceResult:
+        self.single_metric_requests.append(dict(kwargs))
+
+        forecast = pd.DataFrame(
+            [
+                {
+                    "country_code": "AAA",
+                    "metric_id": kwargs["metric_id"],
+                    "year": 2024,
+                    "value": 50.0,
+                    "forecast_horizon": 1,
+                    "prediction_method": "linear_trend",
+                    "scenario_id": kwargs["scenario_id"],
+                }
+            ]
+        )
+
+        warning = "method 'linear_trend' was unsupported for one selected series"
+
+        diagnostics = {
+            "count": 2,
+            "status_counts": {
+                "ok": 1,
+                "failed": 1,
+            },
+            "warnings": [warning],
+            "errors": [
+                {
+                    "code": "insufficient_history",
+                    "message": "linear_trend requires at least three observations",
+                    "severity": "error",
+                    "country_code": "CCC",
+                    "metric_id": kwargs["metric_id"],
+                    "year": None,
+                    "details": {
+                        "method": "linear_trend",
+                    },
+                }
+            ],
+            "items": [
+                {
+                    "status": "ok",
+                    "country_code": "AAA",
+                    "metric_id": kwargs["metric_id"],
+                    "method_requested": "linear_trend",
+                    "method_used": "linear_trend",
+                    "fallback_used": False,
+                    "history_observation_count": 4,
+                    "training_start_year": 2020,
+                    "training_end_year": 2023,
+                    "forecast_origin_year": 2023,
+                    "missing_years": [],
+                    "warnings": [],
+                    "errors": [],
+                    "messages": [],
+                },
+                {
+                    "status": "failed",
+                    "country_code": "CCC",
+                    "metric_id": kwargs["metric_id"],
+                    "method_requested": "linear_trend",
+                    "method_used": None,
+                    "fallback_used": False,
+                    "history_observation_count": 1,
+                    "training_start_year": 2023,
+                    "training_end_year": 2023,
+                    "forecast_origin_year": 2023,
+                    "missing_years": [],
+                    "warnings": [],
+                    "errors": [
+                        {
+                            "code": "insufficient_history",
+                            "message": (
+                                "linear_trend requires at least three observations"
+                            ),
+                            "severity": "error",
+                            "country_code": "CCC",
+                            "metric_id": kwargs["metric_id"],
+                            "year": None,
+                            "details": {
+                                "method": "linear_trend",
+                            },
+                        }
+                    ],
+                    "messages": ["linear_trend requires at least three observations"],
+                },
+            ],
+        }
+
+        return PredictionServiceResult(
+            mode="single_metric_countries_prediction",
+            request=kwargs,
+            dataframe=forecast,
+            summary={
+                "result_type": "prediction",
+                "request": {
+                    "scenario_id": kwargs["scenario_id"],
+                },
+            },
+            metadata={
+                "successful_series_count": 1,
+                "failed_series_count": 1,
+                "scenario_id": kwargs["scenario_id"],
+            },
+            diagnostics=diagnostics,
+            warnings=[warning],
+        )
+
+
 def test_single_metric_prediction_returns_result_envelope() -> None:
     facade = FakeFacade()
     client = _client_for(facade)
@@ -697,3 +810,54 @@ def test_pred_08_reversed_history_window_returns_422_before_service_call() -> No
     assert payload["error"]["code"] == "validation_failed"
 
     assert facade.single_metric_requests == []
+
+
+def test_pred_13_api_preserves_nested_prediction_diagnostics() -> None:
+    facade = RichPredictionDiagnosticsFacade()
+    client = _client_for(facade)
+
+    response = client.post(
+        "/api/v1/prediction/single-metric",
+        json={
+            "country_codes": ["AAA", "CCC"],
+            "metric_id": "oracle_metric",
+            "horizon_years": 1,
+            "method": "linear_trend",
+            "fallback_method": None,
+            "fail_fast": False,
+            "scenario_id": "validation-api",
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["ok"] is True
+    assert payload["diagnostics"]["status_counts"] == {
+        "ok": 1,
+        "failed": 1,
+    }
+
+    failed = payload["diagnostics"]["items"][1]
+
+    assert failed["country_code"] == "CCC"
+    assert failed["status"] == "failed"
+    assert failed["method_requested"] == "linear_trend"
+    assert failed["method_used"] is None
+    assert failed["fallback_used"] is False
+    assert failed["training_start_year"] == 2023
+    assert failed["training_end_year"] == 2023
+
+    assert failed["errors"][0]["code"] == "insufficient_history"
+    assert failed["errors"][0]["country_code"] == "CCC"
+    assert failed["errors"][0]["details"] == {
+        "method": "linear_trend",
+    }
+
+    assert failed["messages"] == ["linear_trend requires at least three observations"]
+
+    assert payload["metadata"]["scenario_id"] == "validation-api"
+    assert payload["warnings"] == [
+        "method 'linear_trend' was unsupported for one selected series"
+    ]
