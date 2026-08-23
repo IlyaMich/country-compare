@@ -99,7 +99,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: consumer_price_index
@@ -114,7 +114,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: crude_death_rate
@@ -129,7 +129,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: crude_death_rate
@@ -144,7 +144,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: SGP
     metric_id: education_spending_pct_gdp
@@ -159,7 +159,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: education_spending_pct_gdp
@@ -174,7 +174,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: gdp_current_usd
@@ -189,7 +189,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: gdp_current_usd
@@ -204,7 +204,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: internet_users_pct
@@ -219,7 +219,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: internet_users_pct
@@ -234,7 +234,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: labor_participation_pct
@@ -249,7 +249,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: labor_participation_pct
@@ -264,7 +264,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: life_expectancy_female
@@ -279,7 +279,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: life_expectancy_female
@@ -294,7 +294,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: life_expectancy_male
@@ -309,7 +309,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: life_expectancy_male
@@ -324,7 +324,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: population_growth_pct
@@ -339,7 +339,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: population_growth_pct
@@ -354,7 +354,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: rnd_expenditure_pct_gdp
@@ -369,7 +369,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: rnd_expenditure_pct_gdp
@@ -384,7 +384,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: CAN
     metric_id: unemployment_pct
@@ -399,7 +399,7 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
   - country_code: DEU
     metric_id: unemployment_pct
@@ -414,5 +414,5 @@ release_dataset:
     - World Bank
     source_url_contains:
     - worldbank.org
-    review_status: needs_source_verification
+    review_status: verified
     verified_at: "2026-08-23"
