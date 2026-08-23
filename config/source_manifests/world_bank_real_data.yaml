@@ -22,7 +22,7 @@ sources:
     expected_indicator_code: GC.XPN.COMP.CN
     unit: LCU
     category: fiscal
-    higher_is_better: false # TODO_REVIEW_DIRECTION
+    higher_is_better: false
     read_options:
       skiprows: 4
 
@@ -33,7 +33,7 @@ sources:
     expected_indicator_code: GC.TAX.GSRV.CN
     unit: LCU
     category: fiscal
-    higher_is_better: false # TODO_REVIEW_DIRECTION
+    higher_is_better: false
     read_options:
       skiprows: 4
 
@@ -88,7 +88,7 @@ sources:
     expected_indicator_code: MS.MIL.XPND.GD.ZS
     unit: percent
     category: defense
-    higher_is_better: false # TODO_REVIEW_DIRECTION
+    higher_is_better: false
     read_options:
       skiprows: 4
 
@@ -121,7 +121,7 @@ sources:
     expected_indicator_code: NE.IMP.GNFS.KD.ZG
     unit: percent
     category: trade
-    higher_is_better: true # TODO_REVIEW_DIRECTION
+    higher_is_better: true
     read_options:
       skiprows: 4
 
@@ -187,7 +187,7 @@ sources:
     expected_indicator_code: SE.XPD.TOTL.GD.ZS
     unit: percent
     category: education
-    higher_is_better: true # TODO_REVIEW_DIRECTION
+    higher_is_better: true
     read_options:
       skiprows: 4
 
@@ -231,7 +231,7 @@ sources:
     expected_indicator_code: SP.POP.GROW
     unit: percent
     category: demographics
-    higher_is_better: true # TODO_REVIEW_DIRECTION
+    higher_is_better: true
     read_options:
       skiprows: 4
 
