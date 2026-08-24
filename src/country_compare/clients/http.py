@@ -33,6 +33,8 @@ from country_compare.services.results import (
     ComparisonResult,
     PredictionServiceResult,
     PresentationResult,
+    AppMessage,
+    MessageLevel,
 )
 
 
@@ -826,7 +828,9 @@ def _presentation_from_envelope(
         metadata=dict(payload.get("metadata") or {}),
         diagnostics=dict(payload.get("diagnostics") or {}),
         warnings=[str(item) for item in payload.get("warnings", []) or []],
-        messages=[],
+        messages=_app_messages_from_payload(
+            payload.get("messages")
+        ),
         error=error,
     )
 
@@ -1203,6 +1207,47 @@ def _app_error_from_payload(value: Any) -> AppError | None:
         ),
         field_errors=field_errors,
     )
+
+
+def _app_messages_from_payload(value: Any) -> list[AppMessage]:
+    if not isinstance(value, list):
+        return []
+
+    messages: list[AppMessage] = []
+
+    for item in value:
+        if isinstance(item, Mapping):
+            raw_level = str(item.get("level") or "info")
+
+            level: MessageLevel = (
+                cast(MessageLevel, raw_level)
+                if raw_level in {"info", "success", "warning", "error"}
+                else "info"
+            )
+
+            detail_value = item.get("detail")
+
+            messages.append(
+                AppMessage(
+                    level=level,
+                    text=str(item.get("text") or ""),
+                    detail=(
+                        None
+                        if detail_value is None
+                        else str(detail_value)
+                    ),
+                )
+            )
+            continue
+
+        messages.append(
+            AppMessage(
+                level="info",
+                text=str(item),
+            )
+        )
+
+    return messages
 
 
 def _drop_none(payload: Mapping[str, Any]) -> dict[str, Any]:
