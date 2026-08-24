@@ -46,6 +46,53 @@ def _as_list(value: Iterable[Any] | None) -> list[Any]:
     return list(value)
 
 
+def _single_metric_selection_signature(
+    *,
+    selected_countries: list[str],
+    metric_id: str,
+    year_strategy: YearStrategy,
+    target_year: int | None,
+) -> dict[str, Any]:
+    return {
+        "countries": list(selected_countries),
+        "metric_id": str(metric_id or "").strip(),
+        "year_strategy": year_strategy.value,
+        "target_year": (
+            target_year if year_strategy == YearStrategy.TARGET_YEAR else None
+        ),
+    }
+
+
+def _multi_metric_selection_signature(
+    *,
+    selected_countries: list[str],
+    metric_ids: list[str],
+    year_strategy: YearStrategy,
+    target_year: int | None,
+) -> dict[str, Any]:
+    return {
+        "countries": list(selected_countries),
+        "metric_ids": list(metric_ids),
+        "year_strategy": year_strategy.value,
+        "target_year": (
+            target_year if year_strategy == YearStrategy.TARGET_YEAR else None
+        ),
+    }
+
+
+def _weighted_score_selection_signature(
+    *,
+    selected_countries: list[str],
+    profile_name: str,
+    target_year: int | None,
+) -> dict[str, Any]:
+    return {
+        "countries": list(selected_countries),
+        "profile_name": str(profile_name or "").strip(),
+        "target_year": target_year,
+    }
+
+
 def render_compare_view(context: AppContext) -> None:
     st.title("Compare")
     st.caption("Run single-metric, multi-metric, and weighted-score comparisons.")
@@ -119,6 +166,13 @@ def render_compare_view(context: AppContext) -> None:
         )
         set_selection_state({"single_metric_id": metric_id})
 
+        single_signature = _single_metric_selection_signature(
+            selected_countries=selected_countries,
+            metric_id=metric_id,
+            year_strategy=year_strategy,
+            target_year=target_year,
+        )
+
         if st.button(
             "Run single-metric comparison", type="primary", key="run_single_metric"
         ):
@@ -132,8 +186,14 @@ def render_compare_view(context: AppContext) -> None:
                 presentation_service=presentation_service,
             )
 
-        latest_presentation = get_latest_compare_presentation(mode="single_metric")
-        latest_result = get_latest_compare_result(mode="single_metric")
+        latest_presentation = get_latest_compare_presentation(
+            mode="single_metric",
+            selection_signature=single_signature,
+        )
+        latest_result = get_latest_compare_result(
+            mode="single_metric",
+            selection_signature=single_signature,
+        )
 
         render_comparison_result(
             latest_presentation,
@@ -157,6 +217,13 @@ def render_compare_view(context: AppContext) -> None:
         )
         set_selection_state({"multi_metric_ids": metric_ids})
 
+        multi_signature = _multi_metric_selection_signature(
+            selected_countries=selected_countries,
+            metric_ids=metric_ids,
+            year_strategy=year_strategy,
+            target_year=target_year,
+        )
+
         if st.button(
             "Run multi-metric comparison", type="primary", key="run_multi_metric"
         ):
@@ -170,8 +237,15 @@ def render_compare_view(context: AppContext) -> None:
                 presentation_service=presentation_service,
             )
 
-        latest_presentation = get_latest_compare_presentation(mode="multi_metric")
-        latest_result = get_latest_compare_result(mode="multi_metric")
+        latest_presentation = get_latest_compare_presentation(
+            mode="multi_metric",
+            selection_signature=multi_signature,
+        )
+
+        latest_result = get_latest_compare_result(
+            mode="multi_metric",
+            selection_signature=multi_signature,
+        )
 
         render_comparison_result(
             latest_presentation,
@@ -195,6 +269,12 @@ def render_compare_view(context: AppContext) -> None:
         )
         set_selection_state({"weighted_profile_name": profile_name})
 
+        weighted_signature = _weighted_score_selection_signature(
+            selected_countries=selected_countries,
+            profile_name=profile_name,
+            target_year=target_year,
+        )
+
         if st.button(
             "Run weighted-score comparison", type="primary", key="run_weighted_score"
         ):
@@ -207,8 +287,15 @@ def render_compare_view(context: AppContext) -> None:
                 presentation_service=presentation_service,
             )
 
-        latest_presentation = get_latest_compare_presentation(mode="weighted_score")
-        latest_result = get_latest_compare_result(mode="weighted_score")
+        latest_presentation = get_latest_compare_presentation(
+            mode="weighted_score",
+            selection_signature=weighted_signature,
+        )
+
+        latest_result = get_latest_compare_result(
+            mode="weighted_score",
+            selection_signature=weighted_signature,
+        )
 
         render_comparison_result(
             latest_presentation,
@@ -281,6 +368,14 @@ def _run_single_metric_flow(
             compare_result=compare_result,
             presentation=presentation,
             mode="single_metric",
+            selection_signature=(
+                _single_metric_selection_signature(
+                    selected_countries=selected_countries,
+                    metric_id=normalized_metric_id,
+                    year_strategy=year_strategy,
+                    target_year=target_year,
+                )
+            ),
         )
         set_compare_error(None, mode="single_metric")
     else:
@@ -335,6 +430,14 @@ def _run_multi_metric_flow(
             compare_result=compare_result,
             presentation=presentation,
             mode="multi_metric",
+            selection_signature=(
+                _multi_metric_selection_signature(
+                    selected_countries=selected_countries,
+                    metric_ids=metric_ids,
+                    year_strategy=year_strategy,
+                    target_year=target_year,
+                )
+            ),
         )
         set_compare_error(None, mode="multi_metric")
     else:
@@ -391,6 +494,13 @@ def _run_weighted_score_flow(
             compare_result=compare_result,
             presentation=presentation,
             mode="weighted_score",
+            selection_signature=(
+                _weighted_score_selection_signature(
+                    selected_countries=selected_countries,
+                    profile_name=normalized_profile_name,
+                    target_year=target_year,
+                )
+            ),
         )
         set_compare_error(None, mode="weighted_score")
     else:

@@ -146,6 +146,76 @@ def _render_prediction_page_header(catalog_state: dict[str, Any]) -> None:
         render_prediction_catalog_summary(methods, debug=get_debug_mode())
 
 
+def _single_forecast_selection_signature(
+    *,
+    country_code: str,
+    metric_id: str,
+    method_id: str,
+    horizon_years: int,
+) -> dict[str, Any]:
+    return {
+        "country_code": str(country_code or ""),
+        "metric_id": str(metric_id or ""),
+        "method_id": str(method_id or ""),
+        "horizon_years": int(horizon_years),
+    }
+
+
+def _multi_country_forecast_selection_signature(
+    *,
+    country_codes: list[str],
+    metric_id: str,
+    method_id: str,
+    horizon_years: int,
+) -> dict[str, Any]:
+    return {
+        "country_codes": list(country_codes),
+        "metric_id": str(metric_id or ""),
+        "method_id": str(method_id or ""),
+        "horizon_years": int(horizon_years),
+    }
+
+
+def _predicted_comparison_selection_signature(
+    *,
+    mode: str,
+    country_codes: list[str],
+    metric_id: str,
+    metric_ids: list[str],
+    profile_name: str,
+    method_id: str,
+    horizon_years: int,
+    forecast_horizon: int | None,
+    forecast_year: int | None,
+) -> dict[str, Any]:
+    return {
+        "mode": mode,
+        "country_codes": list(country_codes),
+        "metric_id": str(metric_id or ""),
+        "metric_ids": list(metric_ids),
+        "profile_name": str(profile_name or ""),
+        "method_id": str(method_id or ""),
+        "horizon_years": int(horizon_years),
+        "forecast_horizon": forecast_horizon,
+        "forecast_year": forecast_year,
+    }
+
+
+def _backtest_selection_signature(
+    *,
+    country_code: str,
+    metric_id: str,
+    method_id: str,
+    holdout_years: int,
+) -> dict[str, Any]:
+    return {
+        "country_code": str(country_code or ""),
+        "metric_id": str(metric_id or ""),
+        "method_id": str(method_id or ""),
+        "holdout_years": int(holdout_years),
+    }
+
+
 def _render_single_forecast_tab(
     catalog_state: dict[str, Any], prediction_service
 ) -> None:
@@ -190,6 +260,13 @@ def _render_single_forecast_tab(
             }
         )
 
+        selection_signature = _single_forecast_selection_signature(
+            country_code=country_code,
+            metric_id=metric_id,
+            method_id=method_id,
+            horizon_years=horizon_years,
+        )
+
         if st.button(
             ui_text.RUN_SINGLE_FORECAST_BUTTON_LABEL,
             type="primary",
@@ -208,7 +285,10 @@ def _render_single_forecast_tab(
         render_app_error(error, debug=get_debug_mode())
 
     render_prediction_service_result(
-        get_latest_prediction_result(mode="single_forecast"),
+        get_latest_prediction_result(
+            mode="single_forecast",
+            selection_signature=selection_signature,
+        ),
         debug=get_debug_mode(),
         empty_message=ui_text.SINGLE_FORECAST_EMPTY_MESSAGE,
         key_prefix="prediction_tab_single_forecast",
@@ -259,6 +339,13 @@ def _render_multi_country_forecast_tab(
             }
         )
 
+        selection_signature = _multi_country_forecast_selection_signature(
+            country_codes=country_codes,
+            metric_id=metric_id,
+            method_id=method_id,
+            horizon_years=horizon_years,
+        )
+
         if st.button(
             ui_text.RUN_MULTI_COUNTRY_FORECAST_BUTTON_LABEL,
             type="primary",
@@ -277,7 +364,10 @@ def _render_multi_country_forecast_tab(
         render_app_error(error, debug=get_debug_mode())
 
     render_prediction_service_result(
-        get_latest_prediction_result(mode="multi_country_forecast"),
+        get_latest_prediction_result(
+            mode="multi_country_forecast",
+            selection_signature=selection_signature,
+        ),
         debug=get_debug_mode(),
         empty_message=ui_text.MULTI_COUNTRY_FORECAST_EMPTY_MESSAGE,
         key_prefix="prediction_tab_multi_country_forecast",
@@ -407,6 +497,18 @@ def _render_predicted_comparison_tab(
             }
         )
 
+        selection_signature = _predicted_comparison_selection_signature(
+            mode=selected_mode,
+            country_codes=country_codes,
+            metric_id=metric_id,
+            metric_ids=metric_ids,
+            profile_name=profile_name,
+            method_id=method_id,
+            horizon_years=horizon_years,
+            forecast_horizon=forecast_horizon,
+            forecast_year=forecast_year,
+        )
+
         if st.button(
             ui_text.RUN_PREDICTED_COMPARISON_BUTTON_LABEL,
             type="primary",
@@ -434,7 +536,10 @@ def _render_predicted_comparison_tab(
         render_app_error(error, debug=get_debug_mode())
 
     render_prediction_service_result(
-        get_latest_prediction_result(mode=active_prediction_mode),
+        get_latest_prediction_result(
+            mode=active_prediction_mode,
+            selection_signature=selection_signature,
+        ),
         debug=get_debug_mode(),
         empty_message=ui_text.PREDICTED_COMPARISON_EMPTY_MESSAGE,
         key_prefix=f"prediction_tab_{active_prediction_mode}",
@@ -483,6 +588,13 @@ def _render_backtest_tab(catalog_state: dict[str, Any], prediction_service) -> N
             }
         )
 
+        selection_signature = _backtest_selection_signature(
+            country_code=country_code,
+            metric_id=metric_id,
+            method_id=method_id,
+            holdout_years=holdout_years,
+        )
+
         if st.button(
             ui_text.RUN_BACKTEST_BUTTON_LABEL, type="primary", key="run_backtest"
         ):
@@ -499,7 +611,10 @@ def _render_backtest_tab(catalog_state: dict[str, Any], prediction_service) -> N
         render_app_error(error, debug=get_debug_mode())
 
     render_prediction_service_result(
-        get_latest_prediction_result(mode="backtest"),
+        get_latest_prediction_result(
+            mode="backtest",
+            selection_signature=selection_signature,
+        ),
         debug=get_debug_mode(),
         empty_message=ui_text.BACKTEST_EMPTY_MESSAGE,
         key_prefix="prediction_tab_backtest",
@@ -520,7 +635,18 @@ def _run_single_forecast(
         method=method_id,
         horizon_years=int(horizon_years),
     )
-    _store_prediction_service_result(result, mode="single_forecast")
+    _store_prediction_service_result(
+        result,
+        mode="single_forecast",
+        selection_signature=(
+            _single_forecast_selection_signature(
+                country_code=country_code,
+                metric_id=metric_id,
+                method_id=method_id,
+                horizon_years=horizon_years,
+            )
+        ),
+    )
 
 
 def _run_multi_country_forecast(
@@ -566,6 +692,14 @@ def _run_multi_country_forecast(
         _store_prediction_service_result(
             result,
             mode="multi_country_forecast",
+            selection_signature=(
+                _multi_country_forecast_selection_signature(
+                    country_codes=country_codes,
+                    metric_id=metric_id,
+                    method_id=method_id,
+                    horizon_years=horizon_years,
+                )
+            ),
         )
 
 
@@ -609,7 +743,23 @@ def _run_predicted_comparison(
             forecast_horizon=forecast_horizon,
             forecast_year=forecast_year,
         )
-    _store_prediction_service_result(result, mode=mode)
+    _store_prediction_service_result(
+        result,
+        mode=mode,
+        selection_signature=(
+            _predicted_comparison_selection_signature(
+                mode=mode,
+                country_codes=country_codes,
+                metric_id=metric_id,
+                metric_ids=metric_ids,
+                profile_name=profile_name,
+                method_id=method_id,
+                horizon_years=horizon_years,
+                forecast_horizon=forecast_horizon,
+                forecast_year=forecast_year,
+            )
+        ),
+    )
 
 
 def _run_backtest(
@@ -626,7 +776,18 @@ def _run_backtest(
         method=method_id,
         holdout_years=int(holdout_years),
     )
-    _store_prediction_service_result(result, mode="backtest")
+    _store_prediction_service_result(
+        result,
+        mode="backtest",
+        selection_signature=(
+            _backtest_selection_signature(
+                country_code=country_code,
+                metric_id=metric_id,
+                method_id=method_id,
+                holdout_years=holdout_years,
+            )
+        ),
+    )
 
 
 def _store_prediction_client_error(exc: ClientError, *, mode: str) -> None:
@@ -642,12 +803,27 @@ def _store_prediction_client_error(exc: ClientError, *, mode: str) -> None:
     set_prediction_error(error, mode=mode)
 
 
-def _store_prediction_service_result(result, *, mode: str) -> None:
+def _store_prediction_service_result(
+    result,
+    *,
+    mode: str,
+    selection_signature: dict[str, Any],
+) -> None:
     if getattr(result, "ok", False):
-        set_prediction_result(result, mode=mode)
-        set_prediction_error(None, mode=mode)
+        set_prediction_result(
+            result,
+            mode=mode,
+            selection_signature=selection_signature,
+        )
+        set_prediction_error(
+            None,
+            mode=mode,
+        )
     else:
-        set_prediction_error(getattr(result, "error", None), mode=mode)
+        set_prediction_error(
+            getattr(result, "error", None),
+            mode=mode,
+        )
 
 
 def _get_dataset_availability_error(dataset_service) -> AppError | None:

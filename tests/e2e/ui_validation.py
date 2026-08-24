@@ -527,6 +527,143 @@ def _find_predicted_single_metric_reference_case() -> tuple[
     )
 
 
+def _find_alternate_single_metric_id(
+    *,
+    country_codes: list[str],
+    excluded_metric_id: str,
+) -> str:
+    metrics_payload = _api_get_json("/api/v1/metadata/metrics")
+
+    metrics = metrics_payload.get("metrics")
+    assert isinstance(metrics, list)
+
+    for metric in metrics:
+        if not isinstance(metric, dict):
+            continue
+
+        metric_id = str(metric.get("metric_id") or metric.get("id") or "").strip()
+
+        if not metric_id or metric_id == excluded_metric_id:
+            continue
+
+        status_code, envelope = _api_post_json(
+            "/api/v1/compare/single-metric",
+            {
+                "country_codes": country_codes,
+                "metric_id": metric_id,
+                "year_strategy": "latest_per_metric",
+            },
+        )
+
+        if status_code != 200 or envelope.get("ok") is not True:
+            continue
+
+        table = _main_table_dataframe(envelope)
+
+        if len(table.index) < 2:
+            continue
+
+        returned = set(table["country_code"].astype(str).tolist())
+
+        if set(country_codes).issubset(returned):
+            return metric_id
+
+    pytest.fail("Could not find an alternate metric " "for the UI-17 comparison case.")
+
+
+def _find_alternate_prediction_method(
+    *,
+    country_code: str,
+    metric_id: str,
+    excluded_method: str,
+    horizon_years: int,
+) -> tuple[str, str]:
+    payload = _api_get_json("/api/v1/metadata/prediction-methods")
+
+    methods = payload.get("methods")
+    assert isinstance(methods, list)
+
+    for method in methods:
+        if not isinstance(method, dict):
+            continue
+
+        method_id = str(method.get("method_id") or method.get("id") or "").strip()
+
+        if not method_id or method_id == excluded_method or method_id == "llm_forecast":
+            continue
+
+        status_code, envelope = _api_post_json(
+            "/api/v1/prediction/single-metric",
+            {
+                "country_codes": [country_code],
+                "metric_id": metric_id,
+                "horizon_years": horizon_years,
+                "method": method_id,
+                "fallback_method": "last_observed",
+                "scenario_id": "baseline",
+            },
+        )
+
+        if status_code != 200 or envelope.get("ok") is not True:
+            continue
+
+        diagnostics = _prediction_diagnostic_items(envelope)
+
+        if len(diagnostics) != 1:
+            continue
+
+        diagnostic = diagnostics[0]
+
+        if (
+            diagnostic.get("method_used") != method_id
+            or diagnostic.get("fallback_used") is not False
+        ):
+            continue
+
+        display_name = str(
+            method.get("display_name") or method.get("name") or method_id
+        ).strip()
+
+        description = str(method.get("description") or "").strip()
+
+        label = f"{display_name} — {description}" if description else display_name
+
+        return method_id, label
+
+    pytest.fail(
+        "Could not find an alternate " "deterministic prediction method " "for UI-17."
+    )
+
+
+def _metric_option_label(
+    metric_id: str,
+) -> str:
+    payload = _api_get_json("/api/v1/metadata/metrics")
+
+    metrics = payload.get("metrics")
+    assert isinstance(metrics, list)
+
+    for metric in metrics:
+        if not isinstance(metric, dict):
+            continue
+
+        candidate = str(metric.get("metric_id") or metric.get("id") or "").strip()
+
+        if candidate != metric_id:
+            continue
+
+        display_name = str(
+            metric.get("display_name") or metric.get("metric_name") or metric_id
+        ).strip()
+
+        if display_name != metric_id:
+            return f"{display_name} ({metric_id})"
+
+        return metric_id
+
+    raise AssertionError(f"Unknown metric_id: {metric_id}")
+
+
 def _prediction_diagnostics_by_country(
     diagnostics: dict[str, object],
 ) -> dict[str, dict[str, object]]:
@@ -5662,6 +5799,216 @@ def test_ui_16_multi_country_prediction_requires_countries(
         message=("Please select at least one country " "before running the forecast."),
     )
 
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Forecast table",
+            exact=True,
+        )
+    ).not_to_be_visible()
+
+
+@pytest.mark.e2e
+def test_ui_17_compare_selection_change_does_not_show_stale_result(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        first_metric_id,
+        _api_envelope,
+    ) = _find_single_metric_reference_case()
+
+    second_metric_id = _find_alternate_single_metric_id(
+        country_codes=country_codes,
+        excluded_metric_id=first_metric_id,
+    )
+
+    page.goto(
+        _compare_url(
+            countries=country_codes,
+            mode="single_metric",
+            metric=first_metric_id,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run single-metric comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(timeout=20_000)
+    run_button.click()
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Main result table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_streamlit_combobox_option(
+        page,
+        label="Metric",
+        option=_metric_option_label(second_metric_id),
+    )
+
+    # Once the input no longer matches the
+    # request that produced the result, the
+    # old result must not appear current.
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Main result table",
+            exact=True,
+        )
+    ).not_to_be_visible(timeout=20_000)
+
+
+@pytest.mark.e2e
+def test_ui_17_prediction_method_change_does_not_show_stale_result(
+    page: Page,
+) -> None:
+    (
+        country_code,
+        metric_id,
+        method,
+        horizon_years,
+        _api_envelope,
+    ) = _find_single_forecast_reference_case()
+
+    (
+        alternate_method,
+        alternate_label,
+    ) = _find_alternate_prediction_method(
+        country_code=country_code,
+        metric_id=metric_id,
+        excluded_method=method,
+        horizon_years=horizon_years,
+    )
+
+    assert alternate_method != method
+
+    page.goto(
+        _prediction_url(
+            mode="single_forecast",
+            country=country_code,
+            metric=metric_id,
+            method=method,
+            horizon_years=horizon_years,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run single forecast",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(timeout=20_000)
+    run_button.click()
+
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Forecast table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_streamlit_combobox_option(
+        page,
+        label="Prediction method",
+        option=alternate_label,
+    )
+
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Forecast table",
+            exact=True,
+        )
+    ).not_to_be_visible(timeout=20_000)
+
+
+@pytest.mark.e2e
+def test_ui_17_prediction_deep_link_restores_selection(
+    page: Page,
+) -> None:
+    (
+        country_code,
+        metric_id,
+        method,
+        horizon_years,
+        _api_envelope,
+    ) = _find_single_forecast_reference_case()
+
+    page.goto(
+        _prediction_url(
+            mode="single_forecast",
+            country=country_code,
+            metric=metric_id,
+            method=method,
+            horizon_years=horizon_years,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    expect(
+        page.get_by_role(
+            "combobox",
+            name="Metric",
+            exact=True,
+        )
+    ).to_have_value(
+        _metric_option_label(metric_id),
+        timeout=20_000,
+    )
+
+    horizon_input = page.get_by_role(
+        "spinbutton",
+        name="Forecast horizon (years)",
+        exact=True,
+    )
+
+    expect(horizon_input).to_have_value(str(horizon_years))
+
+    # Fresh query-restored state must not
+    # fabricate an old result.
     expect(
         page.get_by_role(
             "heading",

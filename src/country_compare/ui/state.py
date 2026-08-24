@@ -48,21 +48,6 @@ DEFAULT_SELECTION_STATE: dict[str, Any] = {
     "prediction_holdout_years": 2,
 }
 
-DEFAULT_RESULT_STATE: dict[str, Any] = {
-    "latest_mode": "single_metric",
-    "compare_result": None,
-    "compare_presentation": None,
-    "compare_error": None,
-    "compare_results_by_mode": {},
-    "compare_presentations_by_mode": {},
-    "compare_errors_by_mode": {},
-    "latest_prediction_mode": "single_forecast",
-    "prediction_result": None,
-    "prediction_error": None,
-    "prediction_results_by_mode": {},
-    "prediction_errors_by_mode": {},
-}
-
 DEFAULT_CONFIG_EDITOR_STATE: dict[str, Any] = {
     "loaded_metrics_data": None,
     "loaded_scoring_data": None,
@@ -78,9 +63,38 @@ DEFAULT_CONFIG_EDITOR_STATE: dict[str, Any] = {
     "save_error": None,
 }
 
+DEFAULT_RESULT_STATE: dict[str, Any] = {
+    "latest_mode": "single_metric",
+    "compare_result": None,
+    "compare_presentation": None,
+    "compare_error": None,
+    "compare_results_by_mode": {},
+    "compare_presentations_by_mode": {},
+    "compare_errors_by_mode": {},
+    "compare_result_signatures_by_mode": {},
+    "compare_error_signatures_by_mode": {},
+    "latest_prediction_mode": ("single_forecast"),
+    "prediction_result": None,
+    "prediction_error": None,
+    "prediction_results_by_mode": {},
+    "prediction_errors_by_mode": {},
+    "prediction_result_signatures_by_mode": {},
+    "prediction_error_signatures_by_mode": {},
+}
+
 
 def _session_state() -> dict[str, Any]:
     return cast(dict[str, Any], st.session_state)
+
+
+def _signature_matches(
+    stored: dict[str, Any] | None,
+    current: dict[str, Any] | None,
+) -> bool:
+    if current is None:
+        return True
+
+    return stored == current
 
 
 def _get_result_state() -> dict[str, Any]:
@@ -200,37 +214,80 @@ def set_selection_state(update: dict[str, Any]) -> None:
     _session_state()[StateKey.SELECTION_STATE] = current
 
 
-def get_latest_compare_presentation(mode: str | None = None):
+def get_latest_compare_presentation(
+    mode: str | None = None,
+    *,
+    selection_signature: dict[str, Any] | None = None,
+):
     result_state = _get_result_state()
-    presentations_by_mode = result_state.get("compare_presentations_by_mode", {})
-    if mode is not None:
-        return presentations_by_mode.get(mode)
 
-    latest_mode = result_state.get("latest_mode")
-    if latest_mode in presentations_by_mode:
-        return presentations_by_mode.get(latest_mode)
+    presentations_by_mode = result_state.get(
+        "compare_presentations_by_mode",
+        {},
+    )
+
+    signatures_by_mode = result_state.get(
+        "compare_result_signatures_by_mode",
+        {},
+    )
+
+    resolved_mode = mode
+
+    if resolved_mode is None:
+        resolved_mode = result_state.get("latest_mode")
+
+    if selection_signature is not None and not _signature_matches(
+        signatures_by_mode.get(resolved_mode),
+        selection_signature,
+    ):
+        return None
+
+    if resolved_mode in presentations_by_mode:
+        return presentations_by_mode.get(resolved_mode)
+
     return result_state.get("compare_presentation")
 
 
-def get_latest_compare_result(mode: str | None = None):
+def get_latest_compare_result(
+    mode: str | None = None,
+    *,
+    selection_signature: dict[str, Any] | None = None,
+):
     result_state = _get_result_state()
+
     results_by_mode = result_state.get(
         "compare_results_by_mode",
         {},
     )
 
-    if mode is not None:
-        return results_by_mode.get(mode)
+    signatures_by_mode = result_state.get(
+        "compare_result_signatures_by_mode",
+        {},
+    )
 
-    latest_mode = result_state.get("latest_mode")
-    if latest_mode in results_by_mode:
-        return results_by_mode.get(latest_mode)
+    resolved_mode = mode
+
+    if resolved_mode is None:
+        resolved_mode = result_state.get("latest_mode")
+
+    if selection_signature is not None and not _signature_matches(
+        signatures_by_mode.get(resolved_mode),
+        selection_signature,
+    ):
+        return None
+
+    if resolved_mode in results_by_mode:
+        return results_by_mode.get(resolved_mode)
 
     return result_state.get("compare_result")
 
 
 def set_compare_presentation(
-    *, compare_result, presentation, mode: str | None = None
+    *,
+    compare_result,
+    presentation,
+    mode: str | None = None,
+    selection_signature: dict[str, Any] | None = None,
 ) -> None:
     initialize_session_state()
     current = dict(_get_result_state())
@@ -244,7 +301,14 @@ def set_compare_presentation(
     results_by_mode = dict(current.get("compare_results_by_mode", {}))
     presentations_by_mode = dict(current.get("compare_presentations_by_mode", {}))
     errors_by_mode = dict(current.get("compare_errors_by_mode", {}))
+    signatures_by_mode = dict(
+        current.get(
+            "compare_result_signatures_by_mode",
+            {},
+        )
+    )
 
+    signatures_by_mode[resolved_mode] = deepcopy(selection_signature)
     results_by_mode[resolved_mode] = compare_result
     presentations_by_mode[resolved_mode] = presentation
     errors_by_mode[resolved_mode] = None
@@ -258,6 +322,7 @@ def set_compare_presentation(
             "compare_results_by_mode": results_by_mode,
             "compare_presentations_by_mode": presentations_by_mode,
             "compare_errors_by_mode": errors_by_mode,
+            "compare_result_signatures_by_mode": (signatures_by_mode),
         }
     )
     _session_state()[StateKey.RESULT_STATE] = current
@@ -302,39 +367,93 @@ def get_compare_error(mode: str | None = None):
     return result_state.get("compare_error")
 
 
-def get_latest_prediction_result(mode: str | None = None):
+def get_latest_prediction_result(
+    mode: str | None = None,
+    *,
+    selection_signature: dict[str, Any] | None = None,
+):
     result_state = _get_result_state()
-    results_by_mode = result_state.get("prediction_results_by_mode", {})
-    if mode is not None:
-        return results_by_mode.get(mode)
 
-    latest_mode = result_state.get("latest_prediction_mode")
-    if latest_mode in results_by_mode:
-        return results_by_mode.get(latest_mode)
+    results_by_mode = result_state.get(
+        "prediction_results_by_mode",
+        {},
+    )
+
+    signatures_by_mode = result_state.get(
+        "prediction_result_signatures_by_mode",
+        {},
+    )
+
+    resolved_mode = mode
+
+    if resolved_mode is None:
+        resolved_mode = result_state.get("latest_prediction_mode")
+
+    if selection_signature is not None and not _signature_matches(
+        signatures_by_mode.get(resolved_mode),
+        selection_signature,
+    ):
+        return None
+
+    if resolved_mode in results_by_mode:
+        return results_by_mode.get(resolved_mode)
+
     return result_state.get("prediction_result")
 
 
-def set_prediction_result(result, *, mode: str | None = None) -> None:
+def set_prediction_result(
+    result,
+    *,
+    mode: str | None = None,
+    selection_signature: dict[str, Any] | None = None,
+) -> None:
     initialize_session_state()
     current = dict(_get_result_state())
 
-    resolved_mode = _resolve_prediction_mode(mode=mode, result=result)
+    resolved_mode = _resolve_prediction_mode(
+        mode=mode,
+        result=result,
+    )
 
-    results_by_mode = dict(current.get("prediction_results_by_mode", {}))
-    errors_by_mode = dict(current.get("prediction_errors_by_mode", {}))
+    results_by_mode = dict(
+        current.get(
+            "prediction_results_by_mode",
+            {},
+        )
+    )
+
+    errors_by_mode = dict(
+        current.get(
+            "prediction_errors_by_mode",
+            {},
+        )
+    )
+
+    signatures_by_mode = dict(
+        current.get(
+            "prediction_result_signatures_by_mode",
+            {},
+        )
+    )
+
     results_by_mode[resolved_mode] = result
     errors_by_mode[resolved_mode] = None
+
+    signatures_by_mode[resolved_mode] = deepcopy(selection_signature)
 
     current.update(
         {
             "latest_prediction_mode": resolved_mode,
             "prediction_result": result,
             "prediction_error": None,
-            "prediction_results_by_mode": results_by_mode,
-            "prediction_errors_by_mode": errors_by_mode,
+            "prediction_results_by_mode": (results_by_mode),
+            "prediction_errors_by_mode": (errors_by_mode),
+            "prediction_result_signatures_by_mode": (signatures_by_mode),
         }
     )
+
     _session_state()[StateKey.RESULT_STATE] = current
+
     set_last_error_code(None)
 
 
