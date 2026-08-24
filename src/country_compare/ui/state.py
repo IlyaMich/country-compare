@@ -212,6 +212,23 @@ def get_latest_compare_presentation(mode: str | None = None):
     return result_state.get("compare_presentation")
 
 
+def get_latest_compare_result(mode: str | None = None):
+    result_state = _get_result_state()
+    results_by_mode = result_state.get(
+        "compare_results_by_mode",
+        {},
+    )
+
+    if mode is not None:
+        return results_by_mode.get(mode)
+
+    latest_mode = result_state.get("latest_mode")
+    if latest_mode in results_by_mode:
+        return results_by_mode.get(latest_mode)
+
+    return result_state.get("compare_result")
+
+
 def set_compare_presentation(
     *, compare_result, presentation, mode: str | None = None
 ) -> None:

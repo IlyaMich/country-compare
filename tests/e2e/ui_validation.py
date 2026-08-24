@@ -981,6 +981,157 @@ def _download_table_csv(page: Page) -> bytes:
     return download_path.read_bytes()
 
 
+def _download_summary_markdown(
+    page: Page,
+) -> str:
+    download_button = page.get_by_role(
+        "button",
+        name="Download summary Markdown",
+        exact=True,
+    )
+
+    expect(download_button).to_be_visible(
+        timeout=20_000
+    )
+
+    with page.expect_download(
+        timeout=20_000
+    ) as download_info:
+        download_button.click()
+
+    download_path = (
+        download_info.value.path()
+    )
+
+    assert isinstance(download_path, Path)
+
+    return download_path.read_text(
+        encoding="utf-8"
+    )
+
+
+def _assert_exports_contain_no_secrets(
+    *payloads: bytes | str,
+) -> None:
+    combined = "\n".join(
+        payload.decode(
+            "utf-8",
+            errors="replace",
+        )
+        if isinstance(payload, bytes)
+        else payload
+        for payload in payloads
+    )
+
+    secret_env_names = (
+        "COUNTRY_COMPARE_E2E_API_KEY",
+        "COUNTRY_COMPARE_API_KEY",
+        "COUNTRY_COMPARE_LLM_SERVICE_TOKEN",
+        "MISTRAL_API_KEY",
+    )
+
+    for env_name in secret_env_names:
+        secret = os.getenv(env_name)
+
+        if secret and secret in combined:
+            pytest.fail(
+                "Export payload leaked a "
+                f"configured secret from {env_name}."
+            )
+
+
+def _assert_export_csv_matches_api_columns(
+    *,
+    csv_payload: bytes,
+    api_table: pd.DataFrame,
+    sort_columns: tuple[str, ...],
+) -> None:
+    actual = pd.read_csv(
+        BytesIO(csv_payload),
+    )
+
+    assert not actual.empty
+
+    missing_api_columns = [
+        column
+        for column in actual.columns
+        if column not in api_table.columns
+    ]
+
+    assert not missing_api_columns, (
+        "Export contains columns that cannot "
+        "be matched to the API table: "
+        f"{missing_api_columns}"
+    )
+
+    expected = api_table.loc[
+        :,
+        list(actual.columns),
+    ].copy()
+
+    usable_sort_columns = [
+        column
+        for column in sort_columns
+        if (
+            column in actual.columns
+            and column in expected.columns
+        )
+    ]
+
+    if usable_sort_columns:
+        actual = actual.sort_values(
+            usable_sort_columns,
+            kind="stable",
+        )
+        expected = expected.sort_values(
+            usable_sort_columns,
+            kind="stable",
+        )
+
+    actual = actual.reset_index(drop=True)
+    expected = expected.reset_index(drop=True)
+
+    # CSV parsing converts empty fields to NaN,
+    # while the API may represent the same
+    # missing value as None or pd.NA.
+    actual = (
+        actual.astype(object)
+        .where(pd.notna(actual), pd.NA)
+    )
+
+    expected = (
+        expected.astype(object)
+        .where(pd.notna(expected), pd.NA)
+    )
+
+    pd.testing.assert_frame_equal(
+        actual,
+        expected,
+        check_dtype=False,
+        check_exact=False,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+
+
+def _prediction_method_available(
+    method_id: str,
+) -> bool:
+    payload = _api_get_json(
+        "/api/v1/metadata/prediction-methods"
+    )
+
+    methods = payload.get("methods")
+    assert isinstance(methods, list)
+
+    return any(
+        isinstance(method, dict)
+        and method.get("method_id")
+        == method_id
+        for method in methods
+    )
+
+
 def _find_single_metric_reference_case() -> tuple[
     list[str],
     str,
@@ -4975,4 +5126,666 @@ def test_ui_14_warnings_fallback_and_failed_series_are_visible(
             )
 
 
-        
+@pytest.mark.e2e
+def test_ui_15_comparison_exports_preserve_api_result(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        metric_id,
+        api_envelope,
+    ) = _find_single_metric_reference_case()
+
+    api_table = _main_table_dataframe(
+        api_envelope
+    )
+
+    page.goto(
+        _compare_url(
+            countries=country_codes,
+            mode="single_metric",
+            metric=metric_id,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Compare",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run single-metric comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+    run_button.click()
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Main result table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    csv_payload = _download_table_csv(page)
+    json_payload = _download_diagnostics_json(
+        page
+    )
+    markdown_payload = (
+        _download_summary_markdown(page)
+    )
+
+    _assert_export_csv_matches_api_columns(
+        csv_payload=csv_payload,
+        api_table=api_table,
+        sort_columns=(
+            "rank",
+            "country_code",
+        ),
+    )
+
+    assert (
+        json_payload.get("mode")
+        == api_envelope.get("mode")
+    )
+
+    metadata = json_payload.get("metadata")
+    assert isinstance(metadata, dict)
+
+    selection = metadata.get("Selection")
+    assert isinstance(selection, dict)
+
+    assert (
+        selection.get("Metric ID")
+        == metric_id
+    )
+    assert selection.get(
+        "Countries"
+    ) == country_codes
+
+    data_metadata = metadata.get("Data")
+    assert isinstance(data_metadata, dict)
+
+    assert (
+        data_metadata.get("Rows returned")
+        == len(api_table.index)
+    )
+
+    assert (
+        f"Rows: {len(api_table.index)}"
+        in markdown_payload
+    )
+
+    assert (
+        f"Columns: {len(api_table.columns)}"
+        in markdown_payload
+    )
+
+    _assert_exports_contain_no_secrets(
+        csv_payload,
+        json.dumps(
+            json_payload,
+            sort_keys=True,
+        ),
+        markdown_payload,
+    )
+
+
+@pytest.mark.e2e
+def test_ui_15_scoring_exports_preserve_api_result(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        profile_name,
+        api_envelope,
+    ) = _find_weighted_score_reference_case()
+
+    api_table = _main_table_dataframe(
+        api_envelope
+    )
+
+    page.goto(
+        _compare_url(
+            countries=country_codes,
+            mode="weighted_score",
+            profile=profile_name,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Compare",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_compare_tab(
+        page,
+        "Weighted Score",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run weighted-score comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+    run_button.click()
+
+    _select_compare_tab(
+        page,
+        "Weighted Score",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Main result table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    csv_payload = _download_table_csv(page)
+    json_payload = _download_diagnostics_json(
+        page
+    )
+    markdown_payload = (
+        _download_summary_markdown(page)
+    )
+
+    _assert_export_csv_matches_api_columns(
+        csv_payload=csv_payload,
+        api_table=api_table,
+        sort_columns=(
+            "score_rank",
+            "country_code",
+        ),
+    )
+
+    metadata = json_payload.get("metadata")
+    assert isinstance(metadata, dict)
+
+    selection = metadata.get("Selection")
+    assert isinstance(selection, dict)
+
+    assert (
+        selection.get("Profile")
+        == profile_name
+    )
+    assert selection.get(
+        "Countries"
+    ) == country_codes
+
+    data_metadata = metadata.get("Data")
+    assert isinstance(data_metadata, dict)
+
+    assert (
+        data_metadata.get("Rows returned")
+        == len(api_table.index)
+    )
+
+    assert (
+        f"Rows: {len(api_table.index)}"
+        in markdown_payload
+    )
+
+    _assert_exports_contain_no_secrets(
+        csv_payload,
+        json.dumps(
+            json_payload,
+            sort_keys=True,
+        ),
+        markdown_payload,
+    )
+
+
+@pytest.mark.e2e
+def test_ui_15_prediction_exports_preserve_api_result(
+    page: Page,
+) -> None:
+    (
+        country_code,
+        metric_id,
+        method,
+        horizon_years,
+        api_envelope,
+    ) = _find_single_forecast_reference_case()
+
+    expected_table = (
+        _expected_forecast_ui_table(
+            api_envelope
+        )
+    )
+
+    expected_csv = _csv_bytes(
+        expected_table
+    )
+
+    expected_summary = api_envelope.get(
+        "summary"
+    )
+    assert isinstance(expected_summary, dict)
+
+    expected_diagnostics = (
+        expected_summary.get("diagnostics")
+    )
+    assert isinstance(
+        expected_diagnostics,
+        dict,
+    )
+
+    page.goto(
+        _prediction_url(
+            mode="single_forecast",
+            country=country_code,
+            metric=metric_id,
+            method=method,
+            horizon_years=horizon_years,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run single forecast",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+    run_button.click()
+
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Forecast table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    csv_payload = _download_table_csv(page)
+    json_payload = _download_diagnostics_json(
+        page
+    )
+    markdown_payload = (
+        _download_summary_markdown(page)
+    )
+
+    _assert_prediction_run_metadata(
+        csv_payload
+    )
+
+    assert (
+        _csv_without_columns(
+            csv_payload,
+            _PREDICTION_RUN_SPECIFIC_COLUMNS,
+        )
+        == _csv_without_columns(
+            expected_csv,
+            _PREDICTION_RUN_SPECIFIC_COLUMNS,
+        )
+    )
+
+    exported_summary = json_payload.get(
+        "summary"
+    )
+    assert isinstance(exported_summary, dict)
+
+    assert (
+        exported_summary.get("diagnostics")
+        == expected_diagnostics
+    )
+
+    assert (
+        "# Country Compare Prediction Result"
+        in markdown_payload
+    )
+    assert (
+        f"Rows: {len(expected_table.index)}"
+        in markdown_payload
+    )
+    assert (
+        f"Columns: {len(expected_table.columns)}"
+        in markdown_payload
+    )
+
+    _assert_exports_contain_no_secrets(
+        csv_payload,
+        json.dumps(
+            json_payload,
+            sort_keys=True,
+        ),
+        markdown_payload,
+    )
+
+
+@pytest.mark.e2e
+def test_ui_15_backtest_exports_preserve_api_result(
+    page: Page,
+) -> None:
+    (
+        country_code,
+        metric_id,
+        method,
+        holdout_years,
+        api_envelope,
+    ) = _find_backtest_reference_case()
+
+    expected_table = (
+        _named_table_dataframe(
+            api_envelope,
+            "actual_vs_predicted",
+        )
+    )
+
+    expected_summary = api_envelope.get(
+        "summary"
+    )
+    assert isinstance(expected_summary, dict)
+
+    expected_metrics = (
+        expected_summary.get("metrics")
+    )
+    expected_diagnostics = (
+        expected_summary.get("diagnostics")
+    )
+
+    assert isinstance(
+        expected_metrics,
+        dict,
+    )
+    assert isinstance(
+        expected_diagnostics,
+        dict,
+    )
+
+    page.goto(
+        _prediction_url(
+            mode="backtest",
+            country=country_code,
+            metric=metric_id,
+            method=method,
+            holdout_years=holdout_years,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Backtest",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run backtest",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+    run_button.click()
+
+    _select_prediction_tab(
+        page,
+        "Backtest",
+    )
+
+    expect(
+        page.get_by_text(
+            "Actual vs predicted",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    csv_payload = _download_table_csv(page)
+    json_payload = _download_diagnostics_json(
+        page
+    )
+    markdown_payload = (
+        _download_summary_markdown(page)
+    )
+
+    expected_csv = _csv_bytes(
+        expected_table
+    )
+
+    _assert_prediction_run_metadata(
+        csv_payload
+    )
+
+    assert (
+        _csv_without_columns(
+            csv_payload,
+            _PREDICTION_RUN_SPECIFIC_COLUMNS,
+        )
+        == _csv_without_columns(
+            expected_csv,
+            _PREDICTION_RUN_SPECIFIC_COLUMNS,
+        )
+    )
+
+    assert (
+        json_payload.get("metrics")
+        == expected_metrics
+    )
+
+    exported_summary = json_payload.get(
+        "summary"
+    )
+    assert isinstance(exported_summary, dict)
+
+    assert (
+        exported_summary.get("diagnostics")
+        == expected_diagnostics
+    )
+
+    assert (
+        "# Country Compare Backtest Result"
+        in markdown_payload
+    )
+
+    _assert_exports_contain_no_secrets(
+        csv_payload,
+        json.dumps(
+            json_payload,
+            sort_keys=True,
+        ),
+        markdown_payload,
+    )
+
+
+@pytest.mark.e2e
+def test_ui_15_llm_exports_are_safe_when_available(
+    page: Page,
+) -> None:
+    if not _prediction_method_available(
+        "llm_forecast"
+    ):
+        pytest.skip(
+            "llm_forecast is not advertised "
+            "by this runtime."
+        )
+
+    (
+        country_code,
+        metric_id,
+        _deterministic_method,
+        _,
+        _,
+    ) = _find_single_forecast_reference_case()
+
+    horizon_years = 1
+
+    page.goto(
+        _prediction_url(
+            mode="single_forecast",
+            country=country_code,
+            metric=metric_id,
+            method="llm_forecast",
+            horizon_years=horizon_years,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run single forecast",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+    run_button.click()
+
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Forecast table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=60_000)
+
+    csv_payload = _download_table_csv(page)
+    json_payload = _download_diagnostics_json(
+        page
+    )
+    markdown_payload = (
+        _download_summary_markdown(page)
+    )
+
+    dataframe = pd.read_csv(
+        BytesIO(csv_payload)
+    )
+
+    assert len(dataframe.index) == 1
+
+    assert (
+        dataframe["country_code"]
+        .astype(str)
+        .eq(country_code)
+        .all()
+    )
+
+    assert (
+        dataframe["metric_id"]
+        .astype(str)
+        .eq(metric_id)
+        .all()
+    )
+
+    predicted_values = pd.to_numeric(
+        dataframe["predicted_value"],
+        errors="raise",
+    )
+
+    assert predicted_values.notna().all()
+
+    exported_summary = json_payload.get(
+        "summary"
+    )
+    assert isinstance(exported_summary, dict)
+
+    diagnostics = exported_summary.get(
+        "diagnostics"
+    )
+    assert isinstance(diagnostics, dict)
+
+    items = diagnostics.get("items")
+    assert isinstance(items, list)
+    assert len(items) == 1
+
+    item = items[0]
+    assert isinstance(item, dict)
+
+    assert (
+        item.get("method_requested")
+        == "llm_forecast"
+    )
+    assert (
+        item.get("method_used")
+        == "llm_forecast"
+    )
+    assert item.get(
+        "fallback_used"
+    ) is False
+
+    assert (
+        "# Country Compare Prediction Result"
+        in markdown_payload
+    )
+
+    _assert_exports_contain_no_secrets(
+        csv_payload,
+        json.dumps(
+            json_payload,
+            sort_keys=True,
+        ),
+        markdown_payload,
+    )
