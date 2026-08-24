@@ -5,6 +5,8 @@ from fastapi.testclient import TestClient
 from country_compare import __version__
 from country_compare.api.dependencies import get_app_facade
 from country_compare.api.main import create_app
+from country_compare.api.routes import health as health_routes
+from country_compare.api.schemas.health import LLMReadyResponse
 from country_compare.api.settings import ApiSettings
 from country_compare.services.models import (
     ConfigStatus,
@@ -269,3 +271,98 @@ def test_llm_02_normal_backend_readiness_does_not_depend_on_optional_llm(
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
     assert facade.validate_config_against_dataset_calls == [True]
+
+
+def test_api_02_llm_ready_returns_503_when_disabled(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        health_routes,
+        "_build_llm_ready_response",
+        lambda: LLMReadyResponse(
+            status="not_ready",
+            enabled=False,
+            service_url_configured=False,
+            service_token_configured=False,
+            warnings=["LLM forecast is disabled."],
+        ),
+    )
+
+    client = _client_for(FakeFacade(_overview(dataset_exists=True, config_valid=True)))
+
+    response = client.get("/ready/llm")
+
+    assert response.status_code == 503
+
+    payload = response.json()
+
+    assert payload["status"] == "not_ready"
+    assert payload["enabled"] is False
+    assert payload["service_url_configured"] is False
+    assert payload["service_token_configured"] is False
+
+
+def test_api_02_llm_ready_returns_503_when_service_is_unavailable(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        health_routes,
+        "_build_llm_ready_response",
+        lambda: LLMReadyResponse(
+            status="not_ready",
+            enabled=True,
+            service_url_configured=True,
+            service_token_configured=True,
+            provider="mistral",
+            model="mistral-large-latest",
+            error="LLM readiness check failed.",
+        ),
+    )
+
+    client = _client_for(FakeFacade(_overview(dataset_exists=True, config_valid=True)))
+
+    response = client.get("/ready/llm")
+
+    assert response.status_code == 503
+
+    payload = response.json()
+
+    assert payload["status"] == "not_ready"
+    assert payload["enabled"] is True
+    assert payload["error"] == "LLM readiness check failed."
+
+
+def test_api_02_llm_ready_returns_200_when_capability_gate_succeeds(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        health_routes,
+        "_build_llm_ready_response",
+        lambda: LLMReadyResponse(
+            status="ready",
+            enabled=True,
+            service_url_configured=True,
+            service_token_configured=True,
+            provider="mistral",
+            model="mistral-large-latest",
+            capabilities={
+                "supports_structured_output": True,
+                "supports_bounded_adjustment": True,
+                "max_series_per_request": 1,
+            },
+        ),
+    )
+
+    client = _client_for(FakeFacade(_overview(dataset_exists=True, config_valid=True)))
+
+    response = client.get("/ready/llm")
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["status"] == "ready"
+    assert payload["enabled"] is True
+    assert payload["provider"] == "mistral"
+    assert payload["capabilities"]["supports_structured_output"] is True
+    assert payload["capabilities"]["supports_bounded_adjustment"] is True
