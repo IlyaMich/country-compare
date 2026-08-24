@@ -4,6 +4,8 @@ import os
 from collections.abc import Iterator
 from pathlib import Path
 from urllib.parse import urlencode
+import json
+from io import BytesIO
 
 import httpx
 import pandas as pd
@@ -21,6 +23,676 @@ API_BASE_URL = os.getenv(
 )
 
 API_KEY = os.getenv("COUNTRY_COMPARE_E2E_API_KEY", "")
+
+_FORECAST_UI_PREFERRED_COLUMNS = (
+    "country_code",
+    "country_name",
+    "metric_id",
+    "metric_name",
+    "forecast_year",
+    "forecast_horizon",
+    "predicted_value",
+    "unit",
+    "prediction_method",
+    "forecast_origin_year",
+    "confidence_lower",
+    "confidence_upper",
+    "scenario_id",
+    "diagnostic_status",
+)
+
+_PREDICTION_RUN_SPECIFIC_COLUMNS = (
+    "prediction_run_id",
+    "prediction_created_at",
+)
+
+
+def _csv_without_columns(
+    payload: bytes,
+    columns: tuple[str, ...],
+) -> bytes:
+    dataframe = pd.read_csv(
+        BytesIO(payload),
+        dtype=str,
+        keep_default_na=False,
+    )
+
+    removable = [
+        column
+        for column in columns
+        if column in dataframe.columns
+    ]
+
+    dataframe = dataframe.drop(columns=removable)
+
+    return dataframe.to_csv(
+        index=False,
+        lineterminator="\n",
+    ).encode("utf-8")
+
+
+def _assert_prediction_run_metadata(
+    payload: bytes,
+) -> None:
+    dataframe = pd.read_csv(
+        BytesIO(payload),
+        dtype=str,
+        keep_default_na=False,
+    )
+
+    assert "prediction_run_id" in dataframe.columns
+    assert "prediction_created_at" in dataframe.columns
+
+    run_ids = dataframe["prediction_run_id"]
+    created_at_values = dataframe["prediction_created_at"]
+
+    assert run_ids.ne("").all()
+    assert created_at_values.ne("").all()
+
+    # Every row in this exported result must belong to one run.
+    assert run_ids.nunique() == 1
+    assert created_at_values.nunique() == 1
+
+    parsed_created_at = pd.to_datetime(
+        created_at_values.iloc[0],
+        utc=True,
+        errors="raise",
+    )
+
+    assert not pd.isna(parsed_created_at)
+
+
+def _find_single_forecast_reference_case(
+) -> tuple[
+    str,
+    str,
+    str,
+    int,
+    dict[str, object],
+]:
+    method = "last_observed"
+    horizon_years = 3
+
+    countries_payload = _api_get_json(
+        "/api/v1/metadata/countries"
+    )
+    metrics_payload = _api_get_json(
+        "/api/v1/metadata/metrics"
+    )
+
+    countries = countries_payload.get("countries")
+    metrics = metrics_payload.get("metrics")
+
+    assert isinstance(countries, list)
+    assert isinstance(metrics, list)
+
+    country_codes = [
+        str(item.get("code") or item.get("country_code") or "")
+        .strip()
+        .upper()
+        for item in countries
+        if isinstance(item, dict)
+    ]
+
+    metric_ids = [
+        str(item.get("metric_id") or item.get("id") or "")
+        .strip()
+        for item in metrics
+        if isinstance(item, dict)
+    ]
+
+    country_codes = [
+        value for value in country_codes if value
+    ]
+    metric_ids = [
+        value for value in metric_ids if value
+    ]
+
+    for metric_id in metric_ids:
+        for country_code in country_codes:
+            status_code, envelope = _api_post_json(
+                "/api/v1/prediction/single-metric",
+                {
+                    "country_codes": [country_code],
+                    "metric_id": metric_id,
+                    "horizon_years": horizon_years,
+                    "method": method,
+                    "fallback_method": "last_observed",
+                    "scenario_id": "baseline",
+                },
+            )
+
+            if status_code != 200:
+                continue
+
+            if envelope.get("ok") is not True:
+                continue
+
+            try:
+                forecast = _named_table_dataframe(
+                    envelope,
+                    "forecast",
+                )
+                diagnostics = (
+                    _prediction_diagnostic_items(
+                        envelope
+                    )
+                )
+            except AssertionError:
+                continue
+
+            if len(forecast.index) != horizon_years:
+                continue
+
+            if len(diagnostics) != 1:
+                continue
+
+            diagnostic = diagnostics[0]
+
+            if (
+                diagnostic.get("country_code")
+                != country_code
+            ):
+                continue
+
+            if diagnostic.get("metric_id") != metric_id:
+                continue
+
+            if (
+                diagnostic.get("method_requested")
+                != method
+            ):
+                continue
+
+            if diagnostic.get("method_used") != method:
+                continue
+
+            if diagnostic.get("fallback_used") is not False:
+                continue
+
+            return (
+                country_code,
+                metric_id,
+                method,
+                horizon_years,
+                envelope,
+            )
+
+    pytest.fail(
+        "Could not find a release-dataset series suitable "
+        "for the deterministic UI-06 forecast reference case."
+    )
+
+
+def _find_multi_country_forecast_reference_case(
+) -> tuple[
+    list[str],
+    str,
+    str,
+    int,
+    dict[str, object],
+]:
+    method = "last_observed"
+    horizon_years = 3
+
+    countries_payload = _api_get_json(
+        "/api/v1/metadata/countries"
+    )
+    metrics_payload = _api_get_json(
+        "/api/v1/metadata/metrics"
+    )
+
+    countries = countries_payload.get("countries")
+    metrics = metrics_payload.get("metrics")
+
+    assert isinstance(countries, list)
+    assert isinstance(metrics, list)
+
+    country_codes = [
+        str(
+            item.get("code")
+            or item.get("country_code")
+            or ""
+        )
+        .strip()
+        .upper()
+        for item in countries
+        if isinstance(item, dict)
+    ]
+
+    metric_ids = [
+        str(
+            item.get("metric_id")
+            or item.get("id")
+            or ""
+        ).strip()
+        for item in metrics
+        if isinstance(item, dict)
+    ]
+
+    country_codes = [
+        value
+        for value in country_codes
+        if value
+    ]
+    metric_ids = [
+        value
+        for value in metric_ids
+        if value
+    ]
+
+    for metric_id in metric_ids:
+        successful_countries: list[str] = []
+
+        for country_code in country_codes:
+            status_code, single_envelope = _api_post_json(
+                "/api/v1/prediction/single-metric",
+                {
+                    "country_codes": [country_code],
+                    "metric_id": metric_id,
+                    "horizon_years": horizon_years,
+                    "method": method,
+                    "fallback_method": "last_observed",
+                    "scenario_id": "baseline",
+                },
+            )
+
+            if status_code != 200:
+                continue
+
+            if single_envelope.get("ok") is not True:
+                continue
+
+            try:
+                forecast = _named_table_dataframe(
+                    single_envelope,
+                    "forecast",
+                )
+                diagnostics = (
+                    _prediction_diagnostic_items(
+                        single_envelope
+                    )
+                )
+            except AssertionError:
+                continue
+
+            if len(forecast.index) != horizon_years:
+                continue
+
+            if len(diagnostics) != 1:
+                continue
+
+            diagnostic = diagnostics[0]
+
+            if (
+                diagnostic.get("country_code")
+                != country_code
+            ):
+                continue
+
+            if diagnostic.get("metric_id") != metric_id:
+                continue
+
+            if (
+                diagnostic.get("method_requested")
+                != method
+            ):
+                continue
+
+            if diagnostic.get("method_used") != method:
+                continue
+
+            if diagnostic.get("fallback_used") is not False:
+                continue
+
+            successful_countries.append(country_code)
+
+            if len(successful_countries) < 2:
+                continue
+
+            selected_countries = successful_countries[:2]
+
+            status_code, batch_envelope = _api_post_json(
+                "/api/v1/prediction/single-metric",
+                {
+                    "country_codes": selected_countries,
+                    "metric_id": metric_id,
+                    "horizon_years": horizon_years,
+                    "method": method,
+                    "fallback_method": "last_observed",
+                    "fail_fast": False,
+                    "scenario_id": "baseline",
+                },
+            )
+
+            if status_code != 200:
+                continue
+
+            if batch_envelope.get("ok") is not True:
+                continue
+
+            try:
+                batch_forecast = _named_table_dataframe(
+                    batch_envelope,
+                    "forecast",
+                )
+                batch_diagnostics = (
+                    _prediction_diagnostic_items(
+                        batch_envelope
+                    )
+                )
+            except AssertionError:
+                continue
+
+            if (
+                len(batch_forecast.index)
+                != len(selected_countries)
+                * horizon_years
+            ):
+                continue
+
+            if len(batch_diagnostics) != len(
+                selected_countries
+            ):
+                continue
+
+            forecast_country_codes = set(
+                batch_forecast["country_code"]
+                .astype(str)
+                .tolist()
+            )
+
+            if forecast_country_codes != set(
+                selected_countries
+            ):
+                continue
+
+            diagnostics_by_country = {
+                str(item.get("country_code")): item
+                for item in batch_diagnostics
+            }
+
+            if set(diagnostics_by_country) != set(
+                selected_countries
+            ):
+                continue
+
+            valid = True
+
+            for code in selected_countries:
+                diagnostic = diagnostics_by_country[code]
+
+                if diagnostic.get("metric_id") != metric_id:
+                    valid = False
+                    break
+
+                if (
+                    diagnostic.get("method_requested")
+                    != method
+                ):
+                    valid = False
+                    break
+
+                if diagnostic.get("method_used") != method:
+                    valid = False
+                    break
+
+                if (
+                    diagnostic.get("fallback_used")
+                    is not False
+                ):
+                    valid = False
+                    break
+
+            if not valid:
+                continue
+
+            return (
+                selected_countries,
+                metric_id,
+                method,
+                horizon_years,
+                batch_envelope,
+            )
+
+    pytest.fail(
+        "Could not find two release-dataset countries "
+        "suitable for the deterministic UI-07 "
+        "multi-country forecast reference case."
+    )
+
+
+def _prediction_diagnostics_by_country(
+    diagnostics: dict[str, object],
+) -> dict[str, dict[str, object]]:
+    items = diagnostics.get("items")
+    assert isinstance(items, list)
+
+    result: dict[str, dict[str, object]] = {}
+
+    for item in items:
+        assert isinstance(item, dict)
+
+        country_code = item.get("country_code")
+        assert isinstance(country_code, str)
+        assert country_code
+
+        assert country_code not in result
+        result[country_code] = dict(item)
+
+    return result
+
+
+def _expected_forecast_ui_table(
+    envelope: dict[str, object],
+) -> pd.DataFrame:
+    dataframe = _named_table_dataframe(
+        envelope,
+        "forecast",
+    ).copy()
+
+    if "row_type" in dataframe.columns:
+        dataframe = dataframe.loc[
+            dataframe["row_type"]
+            .astype("string")
+            .eq("predicted")
+        ].copy()
+
+    assert "year" in dataframe.columns
+    assert "value" in dataframe.columns
+
+    dataframe["forecast_year"] = pd.to_numeric(
+        dataframe["year"],
+        errors="coerce",
+    ).astype("Int64")
+
+    dataframe["predicted_value"] = pd.to_numeric(
+        dataframe["value"],
+        errors="coerce",
+    ).astype("float64")
+
+    for column in _FORECAST_UI_PREFERRED_COLUMNS:
+        if column in dataframe.columns:
+            continue
+
+        if column in {
+            "forecast_year",
+            "forecast_horizon",
+            "forecast_origin_year",
+        }:
+            dataframe[column] = pd.Series(
+                pd.NA,
+                index=dataframe.index,
+                dtype="Int64",
+            )
+        elif column in {
+            "predicted_value",
+            "confidence_lower",
+            "confidence_upper",
+        }:
+            dataframe[column] = pd.Series(
+                float("nan"),
+                index=dataframe.index,
+                dtype="float64",
+            )
+        else:
+            dataframe[column] = pd.NA
+
+    sort_columns = [
+        column
+        for column in (
+            "country_code",
+            "metric_id",
+            "forecast_year",
+            "forecast_horizon",
+        )
+        if column in dataframe.columns
+    ]
+
+    if sort_columns:
+        dataframe = dataframe.sort_values(
+            sort_columns,
+            kind="mergesort",
+            na_position="last",
+        )
+
+    dataframe = dataframe.reset_index(drop=True)
+
+    extras = [
+        column
+        for column in dataframe.columns
+        if column not in _FORECAST_UI_PREFERRED_COLUMNS
+    ]
+
+    return dataframe.loc[
+        :,
+        [
+            *_FORECAST_UI_PREFERRED_COLUMNS,
+            *extras,
+        ],
+    ]
+
+
+def _named_table_dataframe(
+    envelope: dict[str, object],
+    table_name: str,
+) -> pd.DataFrame:
+    tables = envelope.get("tables")
+    assert isinstance(tables, dict)
+
+    table = tables.get(table_name)
+    assert isinstance(table, dict)
+
+    columns = table.get("columns")
+    records = table.get("records")
+
+    assert isinstance(columns, list)
+    assert isinstance(records, list)
+
+    return pd.DataFrame(
+        records,
+        columns=[str(column) for column in columns],
+    )
+
+
+def _prediction_diagnostic_items(
+    envelope: dict[str, object],
+) -> list[dict[str, object]]:
+    summary = envelope.get("summary")
+    assert isinstance(summary, dict)
+
+    diagnostics = summary.get("diagnostics")
+    assert isinstance(diagnostics, dict)
+
+    items = diagnostics.get("items")
+    assert isinstance(items, list)
+
+    result: list[dict[str, object]] = []
+
+    for item in items:
+        assert isinstance(item, dict)
+        result.append(dict(item))
+
+    return result
+
+
+def _prediction_url(
+    *,
+    mode: str,
+    method: str,
+    metric: str,
+    horizon_years: int | None = None,
+    holdout_years: int | None = None,
+    country: str | None = None,
+    countries: list[str] | None = None,
+) -> str:
+    params: dict[str, str] = {
+        "page": "Prediction",
+        "prediction_mode": mode,
+        "prediction_method": method,
+        "prediction_metric": metric,
+    }
+
+    if country is not None:
+        params["prediction_country"] = country
+
+    if countries:
+        params["prediction_countries"] = ",".join(countries)
+
+    if horizon_years is not None:
+        params["prediction_horizon_years"] = str(horizon_years)
+
+    if holdout_years is not None:
+        params["prediction_holdout_years"] = str(holdout_years)
+
+    return f"{UI_BASE_URL}/?{urlencode(params)}"
+
+
+def _select_prediction_tab(
+    page: Page,
+    tab_name: str,
+) -> None:
+    tab = page.get_by_role(
+        "tab",
+        name=tab_name,
+        exact=True,
+    )
+
+    expect(tab).to_be_visible(timeout=20_000)
+    tab.click()
+
+    expect(tab).to_have_attribute(
+        "aria-selected",
+        "true",
+        timeout=20_000,
+    )
+
+
+def _download_diagnostics_json(
+    page: Page,
+) -> dict[str, object]:
+    download_button = page.get_by_role(
+        "button",
+        name="Download diagnostics JSON",
+        exact=True,
+    )
+
+    expect(download_button).to_be_visible(
+        timeout=20_000
+    )
+
+    with page.expect_download(timeout=20_000) as download_info:
+        download_button.click()
+
+    download_path = download_info.value.path()
+    assert isinstance(download_path, Path)
+
+    payload = json.loads(
+        download_path.read_text(encoding="utf-8")
+    )
+
+    assert isinstance(payload, dict)
+    return payload
 
 
 def _select_sidebar_page(
@@ -989,30 +1661,30 @@ def test_ui_05_weighted_score_csv_matches_backend_result(
     api_table = _main_table_dataframe(
         api_envelope
     )
-    
+
     required_columns = {
         "country_code",
         "weighted_score",
         "score_rank",
     }
-    
+
     assert required_columns.issubset(
         api_table.columns
     )
-    
+
     for column in (
         "metric_count_used",
         "metric_count_expected",
         "weight_sum_used",
     ):
         assert column in api_table.columns
-    
+
     expected_table = (
         _expected_weighted_score_ui_table(
             api_table
         )
     )
-    
+
     expected_csv = _csv_bytes(
         expected_table
     )
@@ -1073,4 +1745,286 @@ def test_ui_05_weighted_score_csv_matches_backend_result(
 
     actual_csv = _download_table_csv(page)
 
-    assert actual_csv == expected_csv    
+    assert actual_csv == expected_csv
+
+
+@pytest.mark.e2e
+def test_ui_06_single_country_forecast_matches_backend_result(
+    page: Page,
+) -> None:
+    (
+        country_code,
+        metric_id,
+        method,
+        horizon_years,
+        api_envelope,
+    ) = _find_single_forecast_reference_case()
+
+    expected_table = _expected_forecast_ui_table(
+        api_envelope
+    )
+    expected_csv = _csv_bytes(expected_table)
+
+    expected_summary = api_envelope.get("summary")
+    assert isinstance(expected_summary, dict)
+
+    expected_diagnostics = expected_summary.get(
+        "diagnostics"
+    )
+    assert isinstance(expected_diagnostics, dict)
+
+    expected_items = expected_diagnostics.get("items")
+    assert isinstance(expected_items, list)
+    assert len(expected_items) == 1
+
+    expected_diagnostic = expected_items[0]
+    assert isinstance(expected_diagnostic, dict)
+
+    assert (
+        expected_diagnostic["method_requested"]
+        == method
+    )
+    assert expected_diagnostic["method_used"] == method
+    assert expected_diagnostic["fallback_used"] is False
+
+    page.goto(
+        _prediction_url(
+            mode="single_forecast",
+            country=country_code,
+            metric=metric_id,
+            method=method,
+            horizon_years=horizon_years,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run single forecast",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+
+    run_button.click()
+
+    # Streamlit reruns can reset the visible tab.
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Forecast table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction quality",
+            exact=True,
+        )
+    ).to_be_visible(timeout=20_000)
+
+    actual_csv = _download_table_csv(page)
+
+    _assert_prediction_run_metadata(expected_csv)
+    _assert_prediction_run_metadata(actual_csv)
+
+    expected_comparable_csv = _csv_without_columns(
+        expected_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    )
+
+    actual_comparable_csv = _csv_without_columns(
+        actual_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    )
+
+    assert actual_comparable_csv == expected_comparable_csv
+
+    actual_diagnostics_payload = (
+        _download_diagnostics_json(page)
+    )
+
+    actual_summary = actual_diagnostics_payload.get(
+        "summary"
+    )
+    assert isinstance(actual_summary, dict)
+
+    actual_diagnostics = actual_summary.get(
+        "diagnostics"
+    )
+
+    assert actual_diagnostics == expected_diagnostics
+
+
+@pytest.mark.e2e
+def test_ui_07_multi_country_forecast_matches_backend_result(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        metric_id,
+        method,
+        horizon_years,
+        api_envelope,
+    ) = _find_multi_country_forecast_reference_case()
+
+    assert len(country_codes) == 2
+
+    expected_table = _expected_forecast_ui_table(
+        api_envelope
+    )
+    expected_csv = _csv_bytes(expected_table)
+
+    expected_summary = api_envelope.get("summary")
+    assert isinstance(expected_summary, dict)
+
+    expected_diagnostics = expected_summary.get(
+        "diagnostics"
+    )
+    assert isinstance(expected_diagnostics, dict)
+
+    expected_by_country = (
+        _prediction_diagnostics_by_country(
+            expected_diagnostics
+        )
+    )
+
+    assert set(expected_by_country) == set(
+        country_codes
+    )
+
+    for country_code in country_codes:
+        diagnostic = expected_by_country[country_code]
+
+        assert diagnostic["country_code"] == country_code
+        assert diagnostic["metric_id"] == metric_id
+        assert diagnostic["method_requested"] == method
+        assert diagnostic["method_used"] == method
+        assert diagnostic["fallback_used"] is False
+
+    page.goto(
+        _prediction_url(
+            mode="multi_country_forecast",
+            countries=country_codes,
+            metric=metric_id,
+            method=method,
+            horizon_years=horizon_years,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Multi-Country Forecast",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run multi-country forecast",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+
+    run_button.click()
+
+    # Streamlit reruns can reset the visible tab.
+    _select_prediction_tab(
+        page,
+        "Multi-Country Forecast",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Forecast table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction quality",
+            exact=True,
+        )
+    ).to_be_visible(timeout=20_000)
+
+    actual_csv = _download_table_csv(page)
+
+    _assert_prediction_run_metadata(
+        expected_csv
+    )
+    _assert_prediction_run_metadata(
+        actual_csv
+    )
+
+    expected_comparable_csv = _csv_without_columns(
+        expected_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    )
+    actual_comparable_csv = _csv_without_columns(
+        actual_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    )
+
+    assert (
+        actual_comparable_csv
+        == expected_comparable_csv
+    )
+
+    actual_diagnostics_payload = (
+        _download_diagnostics_json(page)
+    )
+
+    actual_summary = actual_diagnostics_payload.get(
+        "summary"
+    )
+    assert isinstance(actual_summary, dict)
+
+    actual_diagnostics = actual_summary.get(
+        "diagnostics"
+    )
+    assert isinstance(actual_diagnostics, dict)
+
+    actual_by_country = (
+        _prediction_diagnostics_by_country(
+            actual_diagnostics
+        )
+    )
+
+    assert actual_by_country == expected_by_country
