@@ -255,11 +255,12 @@ jobs:
             exit 1
           fi
 
-          Set it to the public UI URL, for example:
-          https://country-compare-ui.onrender.com
-          EOF
-            exit 1
-          fi
+          python scripts/smoke_api_container.py \
+            --base-url "${API_BASE_URL}" \
+            --api-key "${API_KEY}" \
+            --timeout-seconds 30 \
+            --wait-seconds 420 \
+            --operational-only
 
           python scripts/smoke_ui_container.py \
             --base-url "${UI_BASE_URL}" \
