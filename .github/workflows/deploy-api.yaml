@@ -233,3 +233,27 @@ jobs:
             --api-key "${API_KEY:-}" \
             --timeout-seconds 30 \
             --wait-seconds 420
+
+      - name: Run OPS-02 deployed API reference pack
+        if: inputs.run_smoke_test == 'true'
+        env:
+          API_BASE_URL: ${{ secrets.COUNTRY_COMPARE_API_BASE_URL }}
+          API_KEY: ${{ secrets.COUNTRY_COMPARE_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${API_BASE_URL}" ]; then
+            echo "COUNTRY_COMPARE_API_BASE_URL is not configured." >&2
+            exit 1
+          fi
+
+          if [ -z "${API_KEY}" ]; then
+            echo "COUNTRY_COMPARE_API_KEY is not configured." >&2
+            exit 1
+          fi
+
+          python scripts/smoke_api_reference_pack.py \
+            --base-url "${API_BASE_URL}" \
+            --api-key "${API_KEY}" \
+            --timeout-seconds 30          

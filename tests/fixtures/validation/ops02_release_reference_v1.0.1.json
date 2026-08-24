@@ -1,0 +1,523 @@
+{
+  "reference_pack_version": "1.0",
+  "release_version": "1.0.1",
+  "reference_status": "reviewed_frozen",
+  "comparison_policy": {
+    "relative_tolerance": 1e-12,
+    "absolute_tolerance": 1e-09,
+    "dict_comparison": "expected_subset",
+    "list_comparison": "exact_order_and_length"
+  },
+  "dataset": {
+    "dataset_checksum": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1",
+    "row_count": 152260,
+    "country_count": 215,
+    "metric_count": 21,
+    "year_min": 1960,
+    "year_max": 2025,
+    "schema_valid": true
+  },
+  "cases": [
+    {
+      "name": "comparison",
+      "method": "POST",
+      "path": "/api/v1/compare/single-metric",
+      "request": {
+        "country_codes": [
+          "AFG",
+          "ALB"
+        ],
+        "metric_id": "compensation_employees_lcu",
+        "target_year": null,
+        "top_n": null,
+        "year_strategy": "latest_per_metric"
+      },
+      "expected": {
+        "ok": true,
+        "mode": "single_metric",
+        "metadata": {
+          "dataset": {
+            "dataset_sha256": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1"
+          }
+        },
+        "summary": {
+          "top_country": "Albania",
+          "top_rank": 1,
+          "top_value": 138365270000.0
+        },
+        "tables": {
+          "main": {
+            "row_count": 2,
+            "records": [
+              {
+                "country_code": "ALB",
+                "country_name": "Albania",
+                "value": 138365270000.0,
+                "normalized_value": 1.0,
+                "year": 2024,
+                "rank": 1,
+                "unit": "LCU",
+                "normalization_method": "log-minmax"
+              },
+              {
+                "country_code": "AFG",
+                "country_name": "Afghanistan",
+                "value": 171165920815.0,
+                "normalized_value": 0.0,
+                "year": 2017,
+                "rank": 2,
+                "unit": "LCU",
+                "normalization_method": "log-minmax"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "weighted_score",
+      "method": "POST",
+      "path": "/api/v1/score/profile",
+      "request": {
+        "country_codes": [
+          "BHR",
+          "CYM"
+        ],
+        "profile_name": "balanced_world_bank",
+        "target_year": null,
+        "top_n": null,
+        "year_strategy": "latest_per_metric"
+      },
+      "expected": {
+        "ok": true,
+        "mode": "weighted_score",
+        "metadata": {
+          "dataset": {
+            "dataset_sha256": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1"
+          }
+        },
+        "summary": {
+          "top_country": "Bahrain",
+          "top_rank": 1,
+          "top_value": 0.7752808988764046
+        },
+        "tables": {
+          "main": {
+            "row_count": 2,
+            "records": [
+              {
+                "country_code": "BHR",
+                "country_name": "Bahrain",
+                "weighted_score": 0.7752808988764046,
+                "metric_count_used": 10,
+                "metric_count_expected": 11,
+                "missing_metric_count": 1,
+                "missing_metrics": "top10_income_share",
+                "weight_sum_used": 1.0,
+                "missing_data_policy": "renormalize_weights",
+                "score_rank": 1,
+                "score_rank_method": "competition_min",
+                "profile_name": "balanced_world_bank",
+                "year_strategy": "latest_per_metric"
+              },
+              {
+                "country_code": "CYM",
+                "country_name": "Cayman Islands",
+                "weighted_score": 0.15873015873015872,
+                "metric_count_used": 7,
+                "metric_count_expected": 11,
+                "missing_metric_count": 4,
+                "missing_metrics": "rnd_expenditure_pct_gdp, unemployment_pct, labor_participation_pct, top10_income_share",
+                "weight_sum_used": 0.9999999999999999,
+                "missing_data_policy": "renormalize_weights",
+                "score_rank": 2,
+                "score_rank_method": "competition_min",
+                "profile_name": "balanced_world_bank",
+                "year_strategy": "latest_per_metric"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "deterministic_forecast",
+      "method": "POST",
+      "path": "/api/v1/prediction/single-metric",
+      "request": {
+        "country_codes": [
+          "AFG"
+        ],
+        "fallback_method": "last_observed",
+        "history_end_year": null,
+        "history_start_year": null,
+        "horizon_years": 3,
+        "method": "last_observed",
+        "metric_id": "compensation_employees_lcu",
+        "scenario_id": "baseline"
+      },
+      "expected": {
+        "ok": true,
+        "mode": "single_metric_countries_prediction",
+        "metadata": {
+          "dataset": {
+            "dataset_sha256": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1"
+          },
+          "successful_series_count": 1,
+          "failed_series_count": 0
+        },
+        "diagnostics": {
+          "status_counts": {
+            "ok": 1
+          },
+          "items": [
+            {
+              "country_code": "AFG",
+              "metric_id": "compensation_employees_lcu",
+              "status": "ok",
+              "fallback_used": false,
+              "forecast_origin_year": 2017,
+              "history_observation_count": 12,
+              "method_requested": "last_observed",
+              "method_used": "last_observed",
+              "training_start_year": 2006,
+              "training_end_year": 2017,
+              "missing_years": []
+            }
+          ]
+        },
+        "summary": {
+          "forecast_horizons": [
+            1,
+            2,
+            3
+          ],
+          "forecast_years": [
+            2018,
+            2019,
+            2020
+          ],
+          "methods_used": [
+            "last_observed"
+          ]
+        },
+        "tables": {
+          "main": {
+            "row_count": 3,
+            "records": [
+              {
+                "country_code": "AFG",
+                "metric_id": "compensation_employees_lcu",
+                "value": 171165920815.0,
+                "year": 2018,
+                "row_type": "predicted",
+                "is_predicted": true,
+                "forecast_horizon": 1,
+                "forecast_origin_year": 2017,
+                "prediction_method": "last_observed",
+                "training_start_year": 2006,
+                "training_end_year": 2017,
+                "history_observation_count": 12,
+                "diagnostic_status": "ok",
+                "scenario_id": "baseline"
+              },
+              {
+                "country_code": "AFG",
+                "metric_id": "compensation_employees_lcu",
+                "value": 171165920815.0,
+                "year": 2019,
+                "row_type": "predicted",
+                "is_predicted": true,
+                "forecast_horizon": 2,
+                "forecast_origin_year": 2017,
+                "prediction_method": "last_observed",
+                "training_start_year": 2006,
+                "training_end_year": 2017,
+                "history_observation_count": 12,
+                "diagnostic_status": "ok",
+                "scenario_id": "baseline"
+              },
+              {
+                "country_code": "AFG",
+                "metric_id": "compensation_employees_lcu",
+                "value": 171165920815.0,
+                "year": 2020,
+                "row_type": "predicted",
+                "is_predicted": true,
+                "forecast_horizon": 3,
+                "forecast_origin_year": 2017,
+                "prediction_method": "last_observed",
+                "training_start_year": 2006,
+                "training_end_year": 2017,
+                "history_observation_count": 12,
+                "diagnostic_status": "ok",
+                "scenario_id": "baseline"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "backtest",
+      "method": "POST",
+      "path": "/api/v1/prediction/backtest",
+      "request": {
+        "country_codes": [
+          "AFG"
+        ],
+        "fallback_method": "last_observed",
+        "holdout_years": 3,
+        "method": "last_observed",
+        "metric_id": "compensation_employees_lcu",
+        "scenario_id": "baseline"
+      },
+      "expected": {
+        "ok": true,
+        "mode": "prediction_backtest",
+        "metadata": {
+          "dataset": {
+            "dataset_sha256": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1"
+          },
+          "forecast_origin_year": 2014,
+          "holdout_years": [
+            2015,
+            2016,
+            2017
+          ]
+        },
+        "diagnostics": {
+          "status_counts": {
+            "ok": 1
+          },
+          "items": [
+            {
+              "country_code": "AFG",
+              "metric_id": "compensation_employees_lcu",
+              "status": "ok",
+              "fallback_used": false,
+              "forecast_origin_year": 2014,
+              "history_observation_count": 9,
+              "method_requested": "last_observed",
+              "method_used": "last_observed",
+              "training_start_year": 2006,
+              "training_end_year": 2014,
+              "missing_years": []
+            }
+          ]
+        },
+        "summary": {
+          "metrics": {
+            "fallback_used": false,
+            "mae": 11854156887.195984,
+            "mape": 0.07122049482240732,
+            "method_requested": "last_observed",
+            "method_used": "last_observed",
+            "n_test_observations": 3,
+            "n_train_observations": 9,
+            "rmse": 14083206981.947746,
+            "test_end_year": 2017,
+            "test_start_year": 2015,
+            "train_end_year": 2014,
+            "train_start_year": 2006
+          }
+        },
+        "tables": {
+          "main": {
+            "row_count": 3,
+            "records": [
+              {
+                "country_code": "AFG",
+                "metric_id": "compensation_employees_lcu",
+                "year": 2015,
+                "actual_value": 152542429759.943,
+                "predicted_value": 149929495789.855,
+                "error": -2612933970.087982,
+                "absolute_error": 2612933970.087982,
+                "squared_error": 6.827423932039745e+18,
+                "absolute_percentage_error": 0.01712922741692245,
+                "forecast_horizon": 1,
+                "forecast_origin_year": 2014,
+                "prediction_method": "last_observed",
+                "training_start_year": 2006,
+                "training_end_year": 2014,
+                "scenario_id": "baseline",
+                "diagnostic_status": "ok"
+              },
+              {
+                "country_code": "AFG",
+                "metric_id": "compensation_employees_lcu",
+                "year": 2016,
+                "actual_value": 161642607456.21,
+                "predicted_value": 149929495789.855,
+                "error": -11713111666.35498,
+                "absolute_error": 11713111666.35498,
+                "squared_error": 1.3719698490850114e+20,
+                "absolute_percentage_error": 0.07246302104801258,
+                "forecast_horizon": 2,
+                "forecast_origin_year": 2014,
+                "prediction_method": "last_observed",
+                "training_start_year": 2006,
+                "training_end_year": 2014,
+                "scenario_id": "baseline",
+                "diagnostic_status": "ok"
+              },
+              {
+                "country_code": "AFG",
+                "metric_id": "compensation_employees_lcu",
+                "year": 2017,
+                "actual_value": 171165920815.0,
+                "predicted_value": 149929495789.855,
+                "error": -21236425025.14499,
+                "absolute_error": 21236425025.14499,
+                "squared_error": 4.5098574784860435e+20,
+                "absolute_percentage_error": 0.12406923600228692,
+                "forecast_horizon": 3,
+                "forecast_origin_year": 2014,
+                "prediction_method": "last_observed",
+                "training_start_year": 2006,
+                "training_end_year": 2014,
+                "scenario_id": "baseline",
+                "diagnostic_status": "ok"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "predicted_comparison",
+      "method": "POST",
+      "path": "/api/v1/prediction/compare/single-metric",
+      "request": {
+        "comparison_options": {
+          "top_n": null
+        },
+        "country_codes": [
+          "AFG",
+          "ALB"
+        ],
+        "fallback_method": "last_observed",
+        "forecast_horizon": 1,
+        "forecast_year": null,
+        "horizon_years": 3,
+        "method": "last_observed",
+        "metric_id": "compensation_employees_lcu"
+      },
+      "expected": {
+        "ok": true,
+        "mode": "predicted_single_metric_comparison",
+        "metadata": {
+          "dataset": {
+            "dataset_sha256": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1"
+          },
+          "selection_mode": "forecast_horizon",
+          "selected_forecast_horizon": 1,
+          "selected_prediction_horizons": [
+            1
+          ],
+          "selected_prediction_years": [
+            2018,
+            2025
+          ]
+        },
+        "diagnostics": {
+          "status_counts": {
+            "ok": 1,
+            "warning": 1
+          },
+          "items": [
+            {
+              "country_code": "AFG",
+              "metric_id": "compensation_employees_lcu",
+              "status": "ok",
+              "fallback_used": false,
+              "forecast_origin_year": 2017,
+              "history_observation_count": 12,
+              "method_requested": "last_observed",
+              "method_used": "last_observed",
+              "training_start_year": 2006,
+              "training_end_year": 2017,
+              "missing_years": []
+            },
+            {
+              "country_code": "ALB",
+              "metric_id": "compensation_employees_lcu",
+              "status": "warning",
+              "fallback_used": false,
+              "forecast_origin_year": 2024,
+              "history_observation_count": 20,
+              "method_requested": "last_observed",
+              "method_used": "last_observed",
+              "training_start_year": 1995,
+              "training_end_year": 2024,
+              "missing_years": [
+                1997,
+                1999,
+                2000,
+                2001,
+                2005,
+                2006,
+                2007,
+                2008,
+                2009,
+                2010
+              ]
+            }
+          ]
+        },
+        "tables": {
+          "main": {
+            "row_count": 2,
+            "records": [
+              {
+                "country_code": "ALB",
+                "country_name": "Albania",
+                "metric_id": "compensation_employees_lcu",
+                "value": 138365270000.0,
+                "year": 2025,
+                "row_type": "predicted",
+                "is_predicted": true,
+                "forecast_horizon": 1,
+                "forecast_origin_year": 2024,
+                "prediction_method": "last_observed",
+                "training_start_year": 1995,
+                "training_end_year": 2024,
+                "history_observation_count": 20,
+                "diagnostic_status": "warning",
+                "scenario_id": "baseline",
+                "normalized_value": 1.0,
+                "normalization_method": "log-minmax",
+                "normalization_basis": "metric_slice",
+                "rank": 1,
+                "rank_method": "competition_min"
+              },
+              {
+                "country_code": "AFG",
+                "country_name": "Afghanistan",
+                "metric_id": "compensation_employees_lcu",
+                "value": 171165920815.0,
+                "year": 2018,
+                "row_type": "predicted",
+                "is_predicted": true,
+                "forecast_horizon": 1,
+                "forecast_origin_year": 2017,
+                "prediction_method": "last_observed",
+                "training_start_year": 2006,
+                "training_end_year": 2017,
+                "history_observation_count": 12,
+                "diagnostic_status": "ok",
+                "scenario_id": "baseline",
+                "normalized_value": 0.0,
+                "normalization_method": "log-minmax",
+                "normalization_basis": "metric_slice",
+                "rank": 2,
+                "rank_method": "competition_min"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
