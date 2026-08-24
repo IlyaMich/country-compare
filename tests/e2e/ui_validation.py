@@ -1551,6 +1551,294 @@ def _find_backtest_reference_case(
     )
 
 
+def _find_predicted_multi_metric_reference_case(
+) -> tuple[
+    list[str],
+    list[str],
+    str,
+    int,
+    int,
+    dict[str, object],
+]:
+    (
+        country_codes,
+        first_metric_id,
+        method,
+        horizon_years,
+        _,
+    ) = _find_multi_country_forecast_reference_case()
+
+    forecast_horizon = 1
+
+    metrics_payload = _api_get_json(
+        "/api/v1/metadata/metrics"
+    )
+    metrics = metrics_payload.get("metrics")
+    assert isinstance(metrics, list)
+
+    metric_ids = [
+        str(
+            item.get("metric_id")
+            or item.get("id")
+            or ""
+        ).strip()
+        for item in metrics
+        if isinstance(item, dict)
+    ]
+
+    metric_ids = [
+        metric_id
+        for metric_id in metric_ids
+        if metric_id
+        and metric_id != first_metric_id
+    ]
+
+    for second_metric_id in metric_ids:
+        selected_metric_ids = [
+            first_metric_id,
+            second_metric_id,
+        ]
+
+        status_code, envelope = _api_post_json(
+            "/api/v1/prediction/compare/multi-metric",
+            {
+                "country_codes": country_codes,
+                "metric_ids": selected_metric_ids,
+                "horizon_years": horizon_years,
+                "forecast_horizon": forecast_horizon,
+                "method": method,
+                "fallback_method": "last_observed",
+                "comparison_options": {},
+            },
+        )
+
+        if status_code != 200:
+            continue
+
+        if envelope.get("ok") is not True:
+            continue
+
+        try:
+            comparison = _named_table_dataframe(
+                envelope,
+                "predicted_comparison",
+            )
+            diagnostics = (
+                _prediction_diagnostic_items(
+                    envelope
+                )
+            )
+        except AssertionError:
+            continue
+
+        summary = envelope.get("summary")
+        if not isinstance(summary, dict):
+            continue
+
+        if (
+            summary.get("selected_forecast_horizon")
+            != forecast_horizon
+        ):
+            continue
+
+        required_columns = {
+            "country_code",
+            "metric_id",
+            "year",
+            "value",
+            "normalized_value",
+            "rank",
+        }
+
+        if not required_columns.issubset(
+            set(comparison.columns)
+        ):
+            continue
+
+        # Require a complete 2-country x 2-metric result.
+        if len(comparison.index) != 4:
+            continue
+
+        if set(
+            comparison["country_code"]
+            .astype(str)
+            .tolist()
+        ) != set(country_codes):
+            continue
+
+        if set(
+            comparison["metric_id"]
+            .astype(str)
+            .tolist()
+        ) != set(selected_metric_ids):
+            continue
+
+        pair_counts = (
+            comparison.groupby(
+                ["country_code", "metric_id"],
+                dropna=False,
+            )
+            .size()
+        )
+
+        if not (pair_counts == 1).all():
+            continue
+
+        if len(pair_counts.index) != 4:
+            continue
+
+        if comparison["value"].isna().any():
+            continue
+
+        if comparison["normalized_value"].isna().any():
+            continue
+
+        if comparison["rank"].isna().any():
+            continue
+
+        # Require one clean diagnostic for every
+        # country/metric forecast series.
+        if len(diagnostics) != 4:
+            continue
+
+        diagnostics_by_series: dict[
+            tuple[str, str],
+            dict[str, object],
+        ] = {}
+
+        valid = True
+
+        for diagnostic in diagnostics:
+            country_code = diagnostic.get(
+                "country_code"
+            )
+            metric_id = diagnostic.get(
+                "metric_id"
+            )
+
+            if not isinstance(country_code, str):
+                valid = False
+                break
+
+            if not isinstance(metric_id, str):
+                valid = False
+                break
+
+            key = (country_code, metric_id)
+
+            if key in diagnostics_by_series:
+                valid = False
+                break
+
+            diagnostics_by_series[key] = diagnostic
+
+            if (
+                diagnostic.get("method_requested")
+                != method
+            ):
+                valid = False
+                break
+
+            if (
+                diagnostic.get("method_used")
+                != method
+            ):
+                valid = False
+                break
+
+            if (
+                diagnostic.get("fallback_used")
+                is not False
+            ):
+                valid = False
+                break
+
+        expected_series = {
+            (country_code, metric_id)
+            for country_code in country_codes
+            for metric_id in selected_metric_ids
+        }
+
+        if not valid:
+            continue
+
+        if (
+            set(diagnostics_by_series)
+            != expected_series
+        ):
+            continue
+
+        metadata = summary.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+
+        selected_prediction_years = metadata.get(
+            "selected_prediction_years"
+        )
+
+        if not isinstance(
+            selected_prediction_years,
+            list,
+        ):
+            continue
+
+        if not selected_prediction_years:
+            continue
+
+        return (
+            country_codes,
+            selected_metric_ids,
+            method,
+            horizon_years,
+            forecast_horizon,
+            envelope,
+        )
+
+    pytest.fail(
+        "Could not find two release-dataset metrics "
+        "and two countries suitable for the "
+        "deterministic UI-09 predicted multi-metric "
+        "comparison reference case."
+    )
+
+
+def _prediction_diagnostics_by_series(
+    diagnostics: dict[str, object],
+) -> dict[
+    tuple[str, str],
+    dict[str, object],
+]:
+    items = diagnostics.get("items")
+    assert isinstance(items, list)
+
+    result: dict[
+        tuple[str, str],
+        dict[str, object],
+    ] = {}
+
+    for item in items:
+        assert isinstance(item, dict)
+
+        country_code = item.get("country_code")
+        metric_id = item.get("metric_id")
+
+        assert isinstance(country_code, str)
+        assert country_code
+
+        assert isinstance(metric_id, str)
+        assert metric_id
+
+        key = (
+            country_code,
+            metric_id,
+        )
+
+        assert key not in result
+        result[key] = dict(item)
+
+    return result
+
+
 def _ui_metric_value(value: object) -> str:
     if value is None or value == "":
         return "—"
@@ -2556,7 +2844,7 @@ def test_ui_08_predicted_single_metric_comparison_matches_backend_result(
         "metadata"
     )
     assert isinstance(actual_metadata, dict)
-    
+
     assert (
         actual_metadata.get(
             "selected_prediction_years"
@@ -2574,7 +2862,284 @@ def test_ui_08_predicted_single_metric_comparison_matches_backend_result(
         == expected_diagnostics
     )
 
-    
+
+@pytest.mark.e2e
+def test_ui_09_predicted_multi_metric_comparison_matches_backend_result(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        metric_ids,
+        method,
+        horizon_years,
+        forecast_horizon,
+        api_envelope,
+    ) = _find_predicted_multi_metric_reference_case()
+
+    assert len(country_codes) == 2
+    assert len(metric_ids) == 2
+
+    expected_table = _named_table_dataframe(
+        api_envelope,
+        "predicted_comparison",
+    )
+    expected_csv = _csv_bytes(expected_table)
+
+    expected_summary = api_envelope.get("summary")
+    assert isinstance(expected_summary, dict)
+
+    selected_forecast_year = (
+        expected_summary.get(
+            "selected_forecast_year"
+        )
+    )
+    selected_forecast_horizon = (
+        expected_summary.get(
+            "selected_forecast_horizon"
+        )
+    )
+
+    assert (
+        selected_forecast_year is None
+        or isinstance(selected_forecast_year, int)
+    )
+
+    assert (
+        selected_forecast_horizon
+        == forecast_horizon
+    )
+
+    expected_metadata = expected_summary.get(
+        "metadata"
+    )
+    assert isinstance(expected_metadata, dict)
+
+    expected_prediction_years = (
+        expected_metadata.get(
+            "selected_prediction_years"
+        )
+    )
+
+    assert isinstance(
+        expected_prediction_years,
+        list,
+    )
+    assert expected_prediction_years
+
+    expected_diagnostics = (
+        expected_summary.get("diagnostics")
+    )
+    assert isinstance(
+        expected_diagnostics,
+        dict,
+    )
+
+    expected_by_series = (
+        _prediction_diagnostics_by_series(
+            expected_diagnostics
+        )
+    )
+
+    expected_series = {
+        (country_code, metric_id)
+        for country_code in country_codes
+        for metric_id in metric_ids
+    }
+
+    assert set(expected_by_series) == expected_series
+
+    for diagnostic in expected_by_series.values():
+        assert (
+            diagnostic["method_requested"]
+            == method
+        )
+        assert diagnostic["method_used"] == method
+        assert diagnostic["fallback_used"] is False
+
+    # Prove the API reference result itself contains
+    # exactly one comparison row per country/metric pair.
+    actual_pairs = {
+        (
+            str(row.country_code),
+            str(row.metric_id),
+        )
+        for row in expected_table.itertuples(
+            index=False
+        )
+    }
+
+    assert actual_pairs == expected_series
+
+    assert expected_table[
+        "value"
+    ].notna().all()
+
+    assert expected_table[
+        "normalized_value"
+    ].notna().all()
+
+    assert expected_table[
+        "rank"
+    ].notna().all()
+
+    page.goto(
+        _prediction_url(
+            mode="predicted_multi_metric_comparison",
+            countries=country_codes,
+            metrics=metric_ids,
+            method=method,
+            horizon_years=horizon_years,
+            forecast_horizon=forecast_horizon,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Predicted Comparison",
+    )
+
+    multi_metric_radio = page.get_by_role(
+        "radio",
+        name="Multi Metric",
+        exact=True,
+    )
+
+    expect(
+        multi_metric_radio
+    ).to_be_checked(timeout=20_000)
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run predicted comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+
+    run_button.click()
+
+    _select_prediction_tab(
+        page,
+        "Predicted Comparison",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Predicted comparison table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _assert_streamlit_metric(
+        page,
+        label="Rows",
+        value=len(expected_table.index),
+    )
+
+    _assert_streamlit_metric(
+        page,
+        label="Forecast year",
+        value=selected_forecast_year,
+    )
+
+    _assert_streamlit_metric(
+        page,
+        label="Forecast horizon",
+        value=selected_forecast_horizon,
+    )
+
+    actual_csv = _download_table_csv(page)
+
+    _assert_prediction_run_metadata(
+        expected_csv
+    )
+    _assert_prediction_run_metadata(
+        actual_csv
+    )
+
+    expected_comparable_csv = (
+        _csv_without_columns(
+            expected_csv,
+            _PREDICTION_RUN_SPECIFIC_COLUMNS,
+        )
+    )
+
+    actual_comparable_csv = (
+        _csv_without_columns(
+            actual_csv,
+            _PREDICTION_RUN_SPECIFIC_COLUMNS,
+        )
+    )
+
+    assert (
+        actual_comparable_csv
+        == expected_comparable_csv
+    )
+
+    actual_diagnostics_payload = (
+        _download_diagnostics_json(page)
+    )
+
+    actual_summary = (
+        actual_diagnostics_payload.get(
+            "summary"
+        )
+    )
+    assert isinstance(actual_summary, dict)
+
+    assert (
+        actual_summary.get(
+            "selected_forecast_year"
+        )
+        == selected_forecast_year
+    )
+
+    assert (
+        actual_summary.get(
+            "selected_forecast_horizon"
+        )
+        == selected_forecast_horizon
+    )
+
+    actual_metadata = actual_summary.get(
+        "metadata"
+    )
+    assert isinstance(actual_metadata, dict)
+
+    assert (
+        actual_metadata.get(
+            "selected_prediction_years"
+        )
+        == expected_prediction_years
+    )
+
+    actual_diagnostics = actual_summary.get(
+        "diagnostics"
+    )
+    assert isinstance(actual_diagnostics, dict)
+
+    actual_by_series = (
+        _prediction_diagnostics_by_series(
+            actual_diagnostics
+        )
+    )
+
+    assert actual_by_series == expected_by_series
+
+        
 @pytest.mark.e2e
 def test_ui_11_backtest_matches_backend_result(
     page: Page,
