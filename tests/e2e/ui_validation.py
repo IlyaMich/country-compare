@@ -2930,7 +2930,7 @@ def test_ui_05_weighted_score_csv_matches_backend_result(
     ).to_be_visible(timeout=30_000)
 
     actual_csv = _download_table_csv(page)
-    
+
     _assert_export_csv_matches_api_columns(
         csv_payload=actual_csv,
         api_table=api_table,
@@ -6068,38 +6068,23 @@ def test_ui_18_llm_visibility_matches_runtime_capability(
         label="Prediction method",
     )
 
-    llm_method = method_by_id.get(
-        "llm_forecast"
-    )
-    
+    llm_method = method_by_id.get("llm_forecast")
+
     if llm_method is None:
-        assert not any(
-            "llm" in label.casefold()
-            for label in option_labels
-        )
+        assert not any("llm" in label.casefold() for label in option_labels)
         return
-    
-    expected_label = _prediction_method_label(
-        llm_method
-    )
-    
+
+    expected_label = _prediction_method_label(llm_method)
+
     assert expected_label in option_labels
-    
-    assert (
-        "experimental"
-        in expected_label.casefold()
-    )
-    
+
+    assert "experimental" in expected_label.casefold()
+
     catalog = _open_streamlit_expander(
         page,
         "Prediction method catalog",
     )
-    
-    expect(catalog).to_contain_text(
-        expected_label
-    )
-    
-    assert (
-        "experimental"
-        in catalog.inner_text().casefold()
-    )
+
+    expect(catalog).to_contain_text(expected_label)
+
+    assert "experimental" in catalog.inner_text().casefold()
