@@ -113,6 +113,22 @@ def _csv_without_columns(
     ).encode("utf-8")
 
 
+def _prediction_method_label(
+    method: dict[str, object],
+) -> str:
+    method_id = str(method.get("method_id") or method.get("id") or "").strip()
+
+    assert method_id
+
+    display_name = str(
+        method.get("display_name") or method.get("name") or method_id
+    ).strip()
+
+    description = str(method.get("description") or "").strip()
+
+    return f"{display_name} — {description}" if description else display_name
+
+
 def _assert_prediction_run_metadata(
     payload: bytes,
 ) -> None:
@@ -2509,6 +2525,36 @@ def _assert_numeric_streamlit_metric(
     expected_value = float(expected)
 
     assert actual_value == pytest.approx(expected_value)
+
+
+def _streamlit_combobox_options(
+    page: Page,
+    *,
+    label: str,
+) -> list[str]:
+    combobox = page.get_by_role(
+        "combobox",
+        name=label,
+        exact=True,
+    )
+
+    expect(combobox).to_be_visible(timeout=20_000)
+
+    combobox.click()
+
+    options = page.get_by_role("option")
+
+    expect(options.first).to_be_visible(timeout=20_000)
+
+    option_texts = [
+        options.nth(index).inner_text().strip() for index in range(options.count())
+    ]
+
+    # Close the dropdown so later interactions
+    # are not obscured by the portal.
+    page.keyboard.press("Escape")
+
+    return option_texts
 
 
 def _compare_url(
@@ -6016,3 +6062,122 @@ def test_ui_17_prediction_deep_link_restores_selection(
             exact=True,
         )
     ).not_to_be_visible()
+
+
+@pytest.mark.e2e
+def test_ui_18_prediction_method_selector_matches_backend_metadata(
+    page: Page,
+) -> None:
+    payload = _api_get_json("/api/v1/metadata/prediction-methods")
+
+    methods = payload.get("methods")
+    assert isinstance(methods, list)
+    assert methods
+
+    advertised_methods = [method for method in methods if isinstance(method, dict)]
+
+    advertised_ids = {
+        str(method.get("method_id") or method.get("id") or "").strip()
+        for method in advertised_methods
+    }
+
+    advertised_ids.discard("")
+
+    expected_labels = {
+        _prediction_method_label(method) for method in advertised_methods
+    }
+
+    page.goto(
+        _prediction_url(
+            mode="single_forecast",
+            method=(next(iter(advertised_ids))),
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    actual_labels = set(
+        _streamlit_combobox_options(
+            page,
+            label="Prediction method",
+        )
+    )
+
+    assert actual_labels == expected_labels
+
+
+@pytest.mark.e2e
+def test_ui_18_llm_visibility_matches_runtime_capability(
+    page: Page,
+) -> None:
+    payload = _api_get_json("/api/v1/metadata/prediction-methods")
+
+    methods = payload.get("methods")
+    assert isinstance(methods, list)
+
+    method_by_id = {
+        str(method.get("method_id") or method.get("id") or "").strip(): method
+        for method in methods
+        if isinstance(method, dict)
+    }
+
+    page.goto(
+        _prediction_url(
+            mode="single_forecast",
+            method="last_observed",
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    option_labels = _streamlit_combobox_options(
+        page,
+        label="Prediction method",
+    )
+
+    llm_method = method_by_id.get("llm_forecast")
+
+    if llm_method is None:
+        assert not any("llm" in label.casefold() for label in option_labels)
+        return
+
+    expected_label = _prediction_method_label(llm_method)
+
+    assert expected_label in option_labels
+
+    assert "experimental" in expected_label.casefold()
+
+    catalog = _open_streamlit_expander(
+        page,
+        "Prediction method catalog",
+    )
+
+    expect(catalog).to_contain_text(expected_label)
+
+    assert "experimental" in catalog.inner_text().casefold()
