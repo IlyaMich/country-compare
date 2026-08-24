@@ -1247,6 +1247,188 @@ def _find_weighted_score_reference_case() -> tuple[
     )
 
 
+def _find_backtest_reference_case(
+) -> tuple[
+    str,
+    str,
+    str,
+    int,
+    dict[str, object],
+]:
+    method = "last_observed"
+    holdout_years = 3
+
+    countries_payload = _api_get_json(
+        "/api/v1/metadata/countries"
+    )
+    metrics_payload = _api_get_json(
+        "/api/v1/metadata/metrics"
+    )
+
+    countries = countries_payload.get("countries")
+    metrics = metrics_payload.get("metrics")
+
+    assert isinstance(countries, list)
+    assert isinstance(metrics, list)
+
+    country_codes = [
+        str(
+            item.get("code")
+            or item.get("country_code")
+            or ""
+        )
+        .strip()
+        .upper()
+        for item in countries
+        if isinstance(item, dict)
+    ]
+
+    metric_ids = [
+        str(
+            item.get("metric_id")
+            or item.get("id")
+            or ""
+        ).strip()
+        for item in metrics
+        if isinstance(item, dict)
+    ]
+
+    country_codes = [
+        value for value in country_codes if value
+    ]
+    metric_ids = [
+        value for value in metric_ids if value
+    ]
+
+    for metric_id in metric_ids:
+        for country_code in country_codes:
+            status_code, envelope = _api_post_json(
+                "/api/v1/prediction/backtest",
+                {
+                    "country_codes": [country_code],
+                    "metric_id": metric_id,
+                    "method": method,
+                    "fallback_method": "last_observed",
+                    "holdout_years": holdout_years,
+                    "scenario_id": "baseline",
+                },
+            )
+
+            if status_code != 200:
+                continue
+
+            if envelope.get("ok") is not True:
+                continue
+
+            try:
+                actual_vs_predicted = (
+                    _named_table_dataframe(
+                        envelope,
+                        "actual_vs_predicted",
+                    )
+                )
+            except AssertionError:
+                continue
+
+            summary = envelope.get("summary")
+            if not isinstance(summary, dict):
+                continue
+
+            metrics_summary = summary.get("metrics")
+            if not isinstance(metrics_summary, dict):
+                continue
+
+            diagnostics = summary.get("diagnostics")
+            if not isinstance(diagnostics, dict):
+                continue
+
+            items = diagnostics.get("items")
+            if not isinstance(items, list):
+                continue
+
+            if len(actual_vs_predicted.index) != holdout_years:
+                continue
+
+            if len(items) != 1:
+                continue
+
+            diagnostic = items[0]
+            if not isinstance(diagnostic, dict):
+                continue
+
+            if diagnostic.get("country_code") != country_code:
+                continue
+
+            if diagnostic.get("metric_id") != metric_id:
+                continue
+
+            if (
+                diagnostic.get("method_requested")
+                != method
+            ):
+                continue
+
+            if diagnostic.get("method_used") != method:
+                continue
+
+            if diagnostic.get("fallback_used") is not False:
+                continue
+
+            if metrics_summary.get("method_used") != method:
+                continue
+
+            # UI-11 explicitly validates all three metrics.
+            if metrics_summary.get("mae") is None:
+                continue
+            if metrics_summary.get("rmse") is None:
+                continue
+            if metrics_summary.get("mape") is None:
+                continue
+
+            return (
+                country_code,
+                metric_id,
+                method,
+                holdout_years,
+                envelope,
+            )
+
+    pytest.fail(
+        "Could not find a release-dataset series "
+        "suitable for the deterministic UI-11 "
+        "backtest reference case."
+    )
+
+
+def _ui_metric_value(value: object) -> str:
+    if value is None or value == "":
+        return "—"
+
+    if isinstance(value, float):
+        return f"{value:.4g}"
+
+    return str(value)
+
+
+def _assert_streamlit_metric(
+    page: Page,
+    *,
+    label: str,
+    value: object,
+) -> None:
+    metric = page.locator(
+        '[data-testid="stMetric"]'
+    ).filter(
+        has_text=label
+    ).first
+
+    expect(metric).to_be_visible(timeout=20_000)
+    expect(metric).to_contain_text(label)
+    expect(metric).to_contain_text(
+        _ui_metric_value(value)
+    )
+
+
 def _compare_url(
     *,
     countries: list[str],
@@ -2028,3 +2210,156 @@ def test_ui_07_multi_country_forecast_matches_backend_result(
     )
 
     assert actual_by_country == expected_by_country
+
+
+@pytest.mark.e2e
+def test_ui_11_backtest_matches_backend_result(
+    page: Page,
+) -> None:
+    (
+        country_code,
+        metric_id,
+        method,
+        holdout_years,
+        api_envelope,
+    ) = _find_backtest_reference_case()
+
+    expected_table = _named_table_dataframe(
+        api_envelope,
+        "actual_vs_predicted",
+    )
+    expected_csv = _csv_bytes(expected_table)
+
+    expected_summary = api_envelope.get("summary")
+    assert isinstance(expected_summary, dict)
+
+    expected_metrics = expected_summary.get("metrics")
+    assert isinstance(expected_metrics, dict)
+
+    expected_diagnostics = expected_summary.get(
+        "diagnostics"
+    )
+    assert isinstance(expected_diagnostics, dict)
+
+    assert expected_metrics["method_used"] == method
+    assert expected_metrics["fallback_used"] is False
+    assert expected_metrics["mae"] is not None
+    assert expected_metrics["rmse"] is not None
+    assert expected_metrics["mape"] is not None
+
+    assert (
+        expected_metrics["n_test_observations"]
+        == holdout_years
+    )
+
+    page.goto(
+        _prediction_url(
+            mode="backtest",
+            country=country_code,
+            metric=metric_id,
+            method=method,
+            holdout_years=holdout_years,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Backtest",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run backtest",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+    run_button.click()
+
+    # Streamlit reruns can restore the first tab.
+    _select_prediction_tab(
+        page,
+        "Backtest",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Actual vs predicted",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _assert_streamlit_metric(
+        page,
+        label="Method used",
+        value=expected_metrics["method_used"],
+    )
+    _assert_streamlit_metric(
+        page,
+        label="MAE",
+        value=expected_metrics["mae"],
+    )
+    _assert_streamlit_metric(
+        page,
+        label="RMSE",
+        value=expected_metrics["rmse"],
+    )
+    _assert_streamlit_metric(
+        page,
+        label="MAPE",
+        value=expected_metrics["mape"],
+    )
+
+    actual_csv = _download_table_csv(page)
+
+    # A separate browser-triggered backtest receives a
+    # fresh UUID/timestamp, just like UI-06/UI-07.
+    _assert_prediction_run_metadata(expected_csv)
+    _assert_prediction_run_metadata(actual_csv)
+
+    expected_comparable_csv = _csv_without_columns(
+        expected_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    )
+    actual_comparable_csv = _csv_without_columns(
+        actual_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    )
+
+    assert (
+        actual_comparable_csv
+        == expected_comparable_csv
+    )
+
+    actual_diagnostics_payload = (
+        _download_diagnostics_json(page)
+    )
+
+    actual_summary = actual_diagnostics_payload.get(
+        "summary"
+    )
+    assert isinstance(actual_summary, dict)
+
+    actual_metrics = actual_summary.get("metrics")
+    assert isinstance(actual_metrics, dict)
+
+    actual_diagnostics = actual_summary.get(
+        "diagnostics"
+    )
+    assert isinstance(actual_diagnostics, dict)
+
+    assert actual_metrics == expected_metrics
+    assert actual_diagnostics == expected_diagnostics    
