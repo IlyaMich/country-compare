@@ -69,6 +69,176 @@ def _main_table_dataframe(
     )
 
 
+def _csv_bytes(dataframe: pd.DataFrame) -> bytes:
+    return dataframe.to_csv(
+        index=False,
+        lineterminator="\n",
+    ).encode("utf-8")
+
+
+def _expected_multi_metric_ui_table(
+    api_table: pd.DataFrame,
+) -> pd.DataFrame:
+    presentation_columns = [
+        "metric_id",
+        "metric_name",
+        "country_code",
+        "country_name",
+        "value",
+        "normalized_value",
+        "rank",
+        "year",
+        "unit",
+        "category",
+        "normalization_method",
+        "normalization_basis",
+        "rank_method",
+    ]
+
+    required_columns = {
+        "metric_id",
+        "metric_name",
+        "country_code",
+        "country_name",
+        "value",
+        "normalized_value",
+        "rank",
+        "year",
+    }
+
+    assert required_columns.issubset(api_table.columns)
+
+    columns = [
+        column
+        for column in presentation_columns
+        if column in api_table.columns
+    ]
+
+    result = api_table.loc[:, columns].copy()
+
+    result = result.sort_values(
+        by=[
+            "metric_id",
+            "rank",
+            "country_name",
+        ],
+        ascending=[
+            True,
+            True,
+            True,
+        ],
+    ).reset_index(drop=True)
+
+    numeric_columns = result.select_dtypes(
+        include="number"
+    ).columns
+
+    result.loc[:, numeric_columns] = (
+        result.loc[:, numeric_columns].round(3)
+    )
+
+    return result
+
+
+def _expected_weighted_score_ui_table(
+    api_table: pd.DataFrame,
+) -> pd.DataFrame:
+    presentation_columns = [
+        "country_code",
+        "country_name",
+        "weighted_score",
+        "score_rank",
+        "profile_name",
+        "missing_data_policy",
+        "metric_count_used",
+        "metric_count_expected",
+        "missing_metric_count",
+        "missing_metrics",
+        "weight_sum_used",
+        "year_strategy",
+        "score_rank_method",
+    ]
+
+    required_columns = {
+        "country_code",
+        "country_name",
+        "weighted_score",
+        "score_rank",
+    }
+
+    assert required_columns.issubset(
+        api_table.columns
+    )
+
+    columns = [
+        column
+        for column in presentation_columns
+        if column in api_table.columns
+    ]
+
+    result = api_table.loc[:, columns].copy()
+
+    result = result.sort_values(
+        by="score_rank",
+        ascending=True,
+        kind="stable",
+    ).reset_index(drop=True)
+
+    numeric_columns = result.select_dtypes(
+        include="number"
+    ).columns
+
+    result.loc[:, numeric_columns] = (
+        result.loc[:, numeric_columns].round(3)
+    )
+
+    return result
+
+
+def _select_compare_tab(
+    page: Page,
+    label: str,
+) -> None:
+    tab = page.get_by_role(
+        "tab",
+        name=label,
+        exact=True,
+    )
+
+    expect(tab).to_be_visible(timeout=20_000)
+
+    tab.click()
+
+    expect(tab).to_have_attribute(
+        "aria-selected",
+        "true",
+        timeout=20_000,
+    )
+
+
+def _download_table_csv(page: Page) -> bytes:
+    download_button = page.get_by_role(
+        "button",
+        name="Download table CSV",
+        exact=True,
+    )
+
+    expect(download_button).to_be_visible(
+        timeout=20_000
+    )
+
+    with page.expect_download(
+        timeout=20_000
+    ) as download_info:
+        download_button.click()
+
+    download_path = download_info.value.path()
+
+    assert isinstance(download_path, Path)
+
+    return download_path.read_bytes()
+
+
 def _find_single_metric_reference_case() -> tuple[
     list[str],
     str,
@@ -156,6 +326,252 @@ def _find_single_metric_reference_case() -> tuple[
 
     raise AssertionError(
         "Could not discover a valid two-country " "single-metric E2E reference case."
+    )
+
+
+def _find_multi_metric_reference_case() -> tuple[
+    list[str],
+    list[str],
+    dict[str, object],
+]:
+    (
+        country_codes,
+        first_metric_id,
+        _single_envelope,
+    ) = _find_single_metric_reference_case()
+
+    metrics_payload = _api_get_json(
+        "/api/v1/metadata/metrics"
+    )
+
+    metrics = metrics_payload.get("metrics")
+
+    assert isinstance(metrics, list)
+
+    for metric in metrics:
+        if not isinstance(metric, dict):
+            continue
+
+        second_metric_id = str(
+            metric.get("metric_id") or ""
+        ).strip()
+
+        if (
+            not second_metric_id
+            or second_metric_id == first_metric_id
+        ):
+            continue
+
+        # First prove that the same two countries have a usable
+        # result for the second metric.
+        second_status, second_envelope = _api_post_json(
+            "/api/v1/compare/single-metric",
+            {
+                "country_codes": country_codes,
+                "metric_id": second_metric_id,
+                "year_strategy": "latest_per_metric",
+            },
+        )
+
+        if (
+            second_status != 200
+            or second_envelope.get("ok") is not True
+        ):
+            continue
+
+        second_table = _main_table_dataframe(
+            second_envelope
+        )
+
+        if len(second_table.index) < 2:
+            continue
+
+        metric_ids = [
+            first_metric_id,
+            second_metric_id,
+        ]
+
+        status_code, envelope = _api_post_json(
+            "/api/v1/compare/multi-metric",
+            {
+                "country_codes": country_codes,
+                "metric_ids": metric_ids,
+                "year_strategy": "latest_per_metric",
+            },
+        )
+
+        if (
+            status_code != 200
+            or envelope.get("ok") is not True
+        ):
+            continue
+
+        table = _main_table_dataframe(envelope)
+
+        if not {
+            "country_code",
+            "metric_id",
+        }.issubset(table.columns):
+            continue
+
+        returned_metrics = {
+            str(value)
+            for value in table["metric_id"].tolist()
+        }
+
+        returned_countries = {
+            str(value)
+            for value in table["country_code"].tolist()
+        }
+
+        if not set(metric_ids).issubset(
+            returned_metrics
+        ):
+            continue
+
+        if not set(country_codes).issubset(
+            returned_countries
+        ):
+            continue
+
+        return (
+            country_codes,
+            metric_ids,
+            envelope,
+        )
+
+    raise AssertionError(
+        "Could not discover a two-country, "
+        "two-metric E2E reference case."
+    )
+
+
+def _find_weighted_score_reference_case() -> tuple[
+    list[str],
+    str,
+    dict[str, object],
+]:
+    countries_payload = _api_get_json(
+        "/api/v1/metadata/countries"
+    )
+    profiles_payload = _api_get_json(
+        "/api/v1/metadata/profiles"
+    )
+
+    countries = countries_payload.get("countries")
+    profiles = profiles_payload.get("profiles")
+
+    assert isinstance(countries, list)
+    assert isinstance(profiles, list)
+
+    candidate_country_codes = [
+        str(country["code"])
+        for country in countries[:40]
+        if (
+            isinstance(country, dict)
+            and country.get("code")
+        )
+    ]
+
+    assert len(candidate_country_codes) >= 2
+
+    for profile in profiles:
+        if not isinstance(profile, dict):
+            continue
+
+        profile_name = str(
+            profile.get("profile_name")
+            or profile.get("name")
+            or ""
+        ).strip()
+
+        if not profile_name:
+            continue
+
+        status_code, envelope = _api_post_json(
+            "/api/v1/score/profile",
+            {
+                "country_codes": (
+                    candidate_country_codes
+                ),
+                "profile_name": profile_name,
+                "year_strategy": (
+                    "latest_per_metric"
+                ),
+            },
+        )
+
+        if (
+            status_code != 200
+            or envelope.get("ok") is not True
+        ):
+            continue
+
+        table = _main_table_dataframe(
+            envelope
+        )
+
+        if (
+            "country_code" not in table.columns
+            or len(table.index) < 2
+        ):
+            continue
+
+        returned_country_codes = list(
+            dict.fromkeys(
+                str(code)
+                for code in table[
+                    "country_code"
+                ].tolist()
+                if str(code).strip()
+            )
+        )
+
+        if len(returned_country_codes) < 2:
+            continue
+
+        selected_country_codes = (
+            returned_country_codes[:2]
+        )
+
+        final_status, final_envelope = (
+            _api_post_json(
+                "/api/v1/score/profile",
+                {
+                    "country_codes": (
+                        selected_country_codes
+                    ),
+                    "profile_name": profile_name,
+                    "year_strategy": (
+                        "latest_per_metric"
+                    ),
+                },
+            )
+        )
+
+        if (
+            final_status != 200
+            or final_envelope.get("ok")
+            is not True
+        ):
+            continue
+
+        final_table = _main_table_dataframe(
+            final_envelope
+        )
+
+        if len(final_table.index) < 2:
+            continue
+
+        return (
+            selected_country_codes,
+            profile_name,
+            final_envelope,
+        )
+
+    raise AssertionError(
+        "Could not discover a valid "
+        "two-country weighted-score E2E case."
     )
 
 
@@ -404,10 +820,7 @@ def test_ui_03_single_metric_csv_matches_backend_result(
 
     expected_table = _main_table_dataframe(api_envelope)
 
-    expected_csv = expected_table.to_csv(
-        index=False,
-        lineterminator="\n",
-    ).encode("utf-8")
+    expected_csv = _csv_bytes(expected_table)
 
     page.goto(
         _compare_url(
@@ -468,6 +881,196 @@ def test_ui_03_single_metric_csv_matches_backend_result(
 
     assert isinstance(download_path, Path)
 
-    actual_csv = download_path.read_bytes()
+    actual_csv = _download_table_csv(page)
 
     assert actual_csv == expected_csv
+
+
+@pytest.mark.e2e
+def test_ui_04_multi_metric_csv_matches_backend_result(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        metric_ids,
+        api_envelope,
+    ) = _find_multi_metric_reference_case()
+
+    api_table = _main_table_dataframe(
+        api_envelope
+    )
+
+    assert set(
+        api_table["metric_id"].astype(str)
+    ) == set(metric_ids)
+
+    expected_table = (
+        _expected_multi_metric_ui_table(
+            api_table
+        )
+    )
+
+    expected_csv = _csv_bytes(
+        expected_table
+    )
+
+    page.goto(
+        _compare_url(
+            countries=country_codes,
+            mode="multi_metric",
+            metrics=metric_ids,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Compare",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_compare_tab(
+        page,
+        "Multi Metric",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run multi-metric comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+
+    run_button.click()
+
+    # A Streamlit rerun can reset tab presentation state,
+    # so explicitly restore the tab before inspecting results.
+    _select_compare_tab(
+        page,
+        "Multi Metric",
+    )
+
+    expect(
+        page.get_by_text(
+            "Multi-metric comparison completed successfully.",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Main result table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    actual_csv = _download_table_csv(page)
+
+    assert actual_csv == expected_csv
+
+
+@pytest.mark.e2e
+def test_ui_05_weighted_score_csv_matches_backend_result(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        profile_name,
+        api_envelope,
+    ) = _find_weighted_score_reference_case()
+
+    api_table = _main_table_dataframe(
+        api_envelope
+    )
+    
+    required_columns = {
+        "country_code",
+        "weighted_score",
+        "score_rank",
+    }
+    
+    assert required_columns.issubset(
+        api_table.columns
+    )
+    
+    for column in (
+        "metric_count_used",
+        "metric_count_expected",
+        "weight_sum_used",
+    ):
+        assert column in api_table.columns
+    
+    expected_table = (
+        _expected_weighted_score_ui_table(
+            api_table
+        )
+    )
+    
+    expected_csv = _csv_bytes(
+        expected_table
+    )
+    page.goto(
+        _compare_url(
+            countries=country_codes,
+            mode="weighted_score",
+            profile=profile_name,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Compare",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_compare_tab(
+        page,
+        "Weighted Score",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run weighted-score comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+
+    run_button.click()
+
+    _select_compare_tab(
+        page,
+        "Weighted Score",
+    )
+
+    expect(
+        page.get_by_text(
+            "Weighted scoring completed successfully.",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Main result table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    actual_csv = _download_table_csv(page)
+
+    assert actual_csv == expected_csv    
