@@ -23,6 +23,7 @@ class FakeFacade:
         self.multi_metric_requests: list[MultiMetricRequest] = []
         self.weighted_score_requests: list[WeightedScoreRequest] = []
         self.single_metric_error: AppError | None = None
+        self.weighted_score_error: AppError | None = None
 
     def compare_single_metric(
         self,
@@ -91,6 +92,14 @@ class FakeFacade:
         request: WeightedScoreRequest,
     ) -> tuple[ComparisonResult, PresentationResult]:
         self.weighted_score_requests.append(request)
+
+        if self.weighted_score_error is not None:
+            return _error_result(
+                mode="weighted_score",
+                request=request,
+                error=self.weighted_score_error,
+            )
+
         return _success_result(
             mode="weighted_score",
             request=request,
@@ -292,9 +301,21 @@ class TopNValidationFacade:
 
 
 def _client_for(
-    facade: FakeFacade, *, max_records: int = 500, max_top_n: int = 100
+    facade: FakeFacade,
+    *,
+    max_records: int = 500,
+    max_countries: int = 50,
+    max_metrics: int = 50,
+    max_top_n: int = 100,
 ) -> TestClient:
-    app = create_app(settings=ApiSettings(max_records=max_records, max_top_n=max_top_n))
+    app = create_app(
+        settings=ApiSettings(
+            max_records=max_records,
+            max_countries=max_countries,
+            max_metrics=max_metrics,
+            max_top_n=max_top_n,
+        )
+    )
     app.dependency_overrides[get_app_facade] = lambda: facade
     return TestClient(app)
 
@@ -639,3 +660,232 @@ def test_cmp_16_weighted_score_top_n_preserves_global_score_rank() -> None:
         "CCC",
     ]
     assert [row["score_rank"] for row in table["records"]] == [1, 2]
+
+
+def test_api_06_comparison_country_limit_returns_400_before_service_call() -> None:
+    facade = FakeFacade()
+    client = _client_for(facade, max_countries=1)
+
+    response = client.post(
+        "/api/v1/compare/single-metric",
+        json={
+            "country_codes": ["ISR", "FRA"],
+            "metric_id": "gdp_per_capita",
+        },
+    )
+
+    assert response.status_code == 400
+
+    payload = response.json()
+
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "input_limit_exceeded"
+    assert payload["error"]["details"]["field_errors"]["country_codes"].startswith(
+        "Requested 2 countries"
+    )
+
+    assert facade.single_metric_requests == []
+
+
+def test_api_06_comparison_metric_limit_returns_400_before_service_call() -> None:
+    facade = FakeFacade()
+    client = _client_for(facade, max_metrics=1)
+
+    response = client.post(
+        "/api/v1/compare/multi-metric",
+        json={
+            "country_codes": ["ISR", "FRA"],
+            "metric_ids": [
+                "gdp_per_capita",
+                "life_expectancy",
+            ],
+        },
+    )
+
+    assert response.status_code == 400
+
+    payload = response.json()
+
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "input_limit_exceeded"
+    assert payload["error"]["details"]["field_errors"]["metric_ids"].startswith(
+        "Requested 2 metrics"
+    )
+
+    assert facade.multi_metric_requests == []
+
+
+def test_api_06_comparison_limits_accept_exact_boundary_values() -> None:
+    facade = FakeFacade()
+
+    client = _client_for(
+        facade,
+        max_countries=2,
+        max_metrics=2,
+        max_top_n=2,
+    )
+
+    response = client.post(
+        "/api/v1/compare/multi-metric",
+        json={
+            "country_codes": ["ISR", "FRA"],
+            "metric_ids": [
+                "gdp_per_capita",
+                "life_expectancy",
+            ],
+            "top_n": 2,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+    assert len(facade.multi_metric_requests) == 1
+
+    service_request = facade.multi_metric_requests[0]
+
+    assert len(service_request.countries) == 2
+    assert len(service_request.metric_ids) == 2
+    assert service_request.top_n == 2
+
+
+def test_api_07_invalid_year_strategy_returns_validation_envelope() -> None:
+    facade = FakeFacade()
+    client = _client_for(facade)
+
+    response = client.post(
+        "/api/v1/compare/single-metric",
+        json={
+            "country_codes": ["ISR", "FRA"],
+            "metric_id": "gdp_per_capita",
+            "year_strategy": "not_a_real_strategy",
+        },
+    )
+
+    assert response.status_code == 422
+
+    payload = response.json()
+
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "validation_failed"
+    assert payload["error"]["message"] == ("One or more request values are invalid.")
+
+    assert facade.single_metric_requests == []
+
+
+def test_api_07_missing_required_field_returns_validation_envelope() -> None:
+    facade = FakeFacade()
+    client = _client_for(facade)
+
+    response = client.post(
+        "/api/v1/compare/single-metric",
+        json={
+            "country_codes": ["ISR", "FRA"],
+        },
+    )
+
+    assert response.status_code == 422
+
+    payload = response.json()
+
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "validation_failed"
+
+    field_errors = payload["error"]["details"]["field_errors"]
+
+    assert any(field.endswith("metric_id") for field in field_errors)
+
+    assert facade.single_metric_requests == []
+
+
+def test_api_07_malformed_json_returns_sanitized_validation_envelope() -> None:
+    facade = FakeFacade()
+    client = _client_for(facade)
+
+    raw_body = '{"country_codes": ["ISR", "FRA"],'
+
+    response = client.post(
+        "/api/v1/compare/single-metric",
+        content=raw_body,
+        headers={
+            "Content-Type": "application/json",
+        },
+    )
+
+    assert response.status_code == 422
+
+    payload = response.json()
+
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "validation_failed"
+    assert payload["error"]["message"] == ("One or more request values are invalid.")
+
+    serialized = str(payload)
+
+    assert "Traceback" not in serialized
+
+    assert facade.single_metric_requests == []
+
+
+def test_api_07_unknown_profile_returns_selection_error() -> None:
+    facade = FakeFacade()
+
+    facade.weighted_score_error = AppError(
+        code="selection_invalid",
+        title="Selection is invalid",
+        user_message=("Please review the current selection and try again."),
+        field_errors={"profile_name": ("Unknown scoring profile: missing_profile")},
+    )
+
+    client = _client_for(facade)
+
+    response = client.post(
+        "/api/v1/score/profile",
+        json={
+            "country_codes": ["ISR", "FRA"],
+            "profile_name": "missing_profile",
+        },
+    )
+
+    assert response.status_code == 400
+
+    payload = response.json()
+
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "selection_invalid"
+
+    assert "profile_name" in (payload["error"]["details"]["field_errors"])
+
+
+def test_api_07_unknown_country_returns_selection_error() -> None:
+    facade = FakeFacade()
+
+    facade.single_metric_error = AppError(
+        code="selection_invalid",
+        title="Selection is invalid",
+        user_message=("Please review the current selection and try again."),
+        field_errors={
+            "countries": (
+                "The dataset does not contain these selected " "countries: ZZZ"
+            )
+        },
+    )
+
+    client = _client_for(facade)
+
+    response = client.post(
+        "/api/v1/compare/single-metric",
+        json={
+            "country_codes": ["ISR", "ZZZ"],
+            "metric_id": "gdp_per_capita",
+        },
+    )
+
+    assert response.status_code == 400
+
+    payload = response.json()
+
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "selection_invalid"
+
+    assert "countries" in (payload["error"]["details"]["field_errors"])

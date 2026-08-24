@@ -861,3 +861,63 @@ def test_pred_13_api_preserves_nested_prediction_diagnostics() -> None:
     assert payload["warnings"] == [
         "method 'linear_trend' was unsupported for one selected series"
     ]
+
+
+def test_api_06_prediction_limits_accept_exact_boundary_values() -> None:
+    facade = FakeFacade()
+
+    client = _client_for(
+        facade,
+        max_countries=2,
+        max_metrics=2,
+        max_horizon_years=2,
+        max_holdout_years=2,
+        max_top_n=2,
+    )
+
+    prediction_response = client.post(
+        "/api/v1/prediction/single-metric",
+        json={
+            "country_codes": ["ISR", "FRA"],
+            "metric_id": "gdp_per_capita",
+            "horizon_years": 2,
+        },
+    )
+
+    assert prediction_response.status_code == 200
+    assert prediction_response.json()["ok"] is True
+
+    backtest_response = client.post(
+        "/api/v1/prediction/backtest",
+        json={
+            "country_codes": ["ISR"],
+            "metric_id": "gdp_per_capita",
+            "holdout_years": 2,
+        },
+    )
+
+    assert backtest_response.status_code == 200
+    assert backtest_response.json()["ok"] is True
+
+    predicted_multi_response = client.post(
+        "/api/v1/prediction/compare/multi-metric",
+        json={
+            "country_codes": ["ISR", "FRA"],
+            "metric_ids": [
+                "gdp_per_capita",
+                "life_expectancy",
+            ],
+            "horizon_years": 2,
+            "forecast_horizon": 2,
+            "comparison_options": {
+                "top_n": 2,
+            },
+        },
+    )
+
+    assert predicted_multi_response.status_code == 200
+    assert predicted_multi_response.json()["ok"] is True
+
+    assert len(facade.single_metric_requests) == 1
+    assert len(facade.backtest_requests) == 1
+    assert len(facade.predicted_multi_metric_requests) == 1
