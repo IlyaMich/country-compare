@@ -116,6 +116,15 @@ def main() -> int:
         action="store_true",
         help="Also verify backend-to-LLM-service readiness through /ready/llm.",
     )
+    parser.add_argument(
+        "--operational-only",
+        action="store_true",
+        help=(
+            "Stop after /health and /ready become "
+            "available, without running functional "
+            "metadata/comparison smoke checks."
+        ),
+    )
     args = parser.parse_args()
 
     client = SmokeClient(
@@ -125,6 +134,10 @@ def main() -> int:
     )
 
     _wait_for_operational_endpoints(client, wait_seconds=args.wait_seconds)
+
+    if args.operational_only:
+        print("API operational smoke checks passed.")
+        return 0
 
     if args.check_llm_readiness:
         _check_llm_readiness(client)

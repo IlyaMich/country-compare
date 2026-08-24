@@ -230,17 +230,30 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Run post-deploy UI smoke checks
+      - name: Run OPS-01 post-deploy operational checks
         if: inputs.run_smoke_test == 'true'
         env:
           UI_BASE_URL: ${{ secrets.COUNTRY_COMPARE_UI_BASE_URL }}
+          API_BASE_URL: ${{ secrets.COUNTRY_COMPARE_API_BASE_URL }}
+          API_KEY: ${{ secrets.COUNTRY_COMPARE_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
 
+          if [ -z "${API_BASE_URL}" ]; then
+            echo "COUNTRY_COMPARE_API_BASE_URL is not configured." >&2
+            exit 1
+          fi
+
           if [ -z "${UI_BASE_URL}" ]; then
-            cat >&2 <<'EOF'
-          COUNTRY_COMPARE_UI_BASE_URL is not configured for this environment.
+            echo "COUNTRY_COMPARE_UI_BASE_URL is not configured." >&2
+            exit 1
+          fi
+
+          if [ -z "${API_KEY}" ]; then
+            echo "COUNTRY_COMPARE_API_KEY is not configured." >&2
+            exit 1
+          fi
 
           Set it to the public UI URL, for example:
           https://country-compare-ui.onrender.com
