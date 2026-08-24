@@ -30,6 +30,7 @@ PREDICTED_COMPARISON_LABEL_COLUMNS = (
 )
 
 PREDICTED_COMPARISON_VALUE_COLUMNS = (
+    "weighted_score",
     "score",
     "forecast_value",
     "predicted_value",

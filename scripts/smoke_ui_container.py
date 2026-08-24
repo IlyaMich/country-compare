@@ -51,6 +51,7 @@ def _wait_for_streamlit(
     timeout_seconds: float,
 ) -> None:
     health_url = f"{base_url.rstrip('/')}/_stcore/health"
+    root_url = f"{base_url.rstrip('/')}/"
     deadline = time.time() + wait_seconds
     last_error: Exception | None = None
 
@@ -65,6 +66,33 @@ def _wait_for_streamlit(
                         "Streamlit health endpoint returned " f"HTTP {response.status}."
                     )
 
+                with urllib.request.urlopen(
+                    root_url,
+                    timeout=timeout_seconds,
+                ) as response:
+                    if response.status != 200:
+                        raise SmokeFailure(
+                            "Streamlit root URL returned " f"HTTP {response.status}."
+                        )
+
+                    content_type = response.headers.get(
+                        "Content-Type",
+                        "",
+                    ).lower()
+
+                    if not content_type.startswith("text/html"):
+                        raise SmokeFailure(
+                            "Streamlit root URL did not return "
+                            f"HTML; Content-Type={content_type!r}."
+                        )
+
+                    body = response.read(4096)
+
+                    if not body.strip():
+                        raise SmokeFailure(
+                            "Streamlit root URL returned " "an empty response body."
+                        )
+
                 return
         except (
             OSError,
@@ -75,7 +103,9 @@ def _wait_for_streamlit(
             time.sleep(2)
 
     raise SmokeFailure(
-        "UI did not become healthy within " f"{wait_seconds} seconds: {last_error!r}"
+        "UI did not become healthy/reachable "
+        f"within {wait_seconds} seconds: "
+        f"{last_error!r}"
     )
 
 

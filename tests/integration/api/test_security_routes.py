@@ -25,6 +25,10 @@ def test_api_key_auth_keeps_health_public_but_protects_api_routes() -> None:
     with TestClient(app) as client:
         health_response = client.get("/health")
         unauthenticated_response = client.get("/api/v1/metadata/countries")
+        wrong_key_response = client.get(
+            "/api/v1/metadata/countries",
+            headers={"X-API-Key": "wrong-secret"},
+        )
         authenticated_response = client.get(
             "/api/v1/metadata/countries", headers={"X-API-Key": "secret"}
         )
@@ -32,6 +36,10 @@ def test_api_key_auth_keeps_health_public_but_protects_api_routes() -> None:
     assert health_response.status_code == 200
     assert unauthenticated_response.status_code == 401
     assert unauthenticated_response.json()["error"]["code"] == "authentication_required"
+    assert wrong_key_response.status_code == 401
+    assert wrong_key_response.json()["error"]["code"] == "authentication_required"
+
+    assert "wrong-secret" not in str(wrong_key_response.json())
     assert authenticated_response.status_code == 200
     assert authenticated_response.json() == {
         "countries": [{"code": "ISR", "name": "Israel"}]

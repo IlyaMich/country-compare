@@ -305,10 +305,14 @@ def test_predicted_profile_comparison_injects_bundle_configs_and_profile_name(
     captured: dict[str, object] = {}
 
     def fake_compare_predicted_profile(
-        dataframe: pd.DataFrame, **kwargs: object
+        dataframe: pd.DataFrame,
+        **kwargs: object,
     ) -> object:
         captured["comparison_options"] = kwargs["comparison_options"]
+        captured["metrics_config"] = kwargs["metrics_config"]
         captured["scoring_config"] = kwargs["scoring_config"]
+        captured["profile_name"] = kwargs["profile_name"]
+
         return object()
 
     def fake_run_predicted_comparison_result(
@@ -350,12 +354,14 @@ def test_predicted_profile_comparison_injects_bundle_configs_and_profile_name(
         "fallback_method": PredictionMethod.LAST_OBSERVED,
         "comparison_options": {},
     }
+    assert captured["metrics_config"] is metrics_config
     assert captured["scoring_config"] is explicit_scoring_config
+    assert captured["profile_name"] == "default_profile"
+
     comparison_options = captured["comparison_options"]
+
     assert isinstance(comparison_options, dict)
-    assert comparison_options["metrics_config"] is metrics_config
-    assert comparison_options["scoring_config"] is explicit_scoring_config
-    assert comparison_options["profile_name"] == "default_profile"
+    assert comparison_options == {}
 
 
 def test_service_backtest_delegates_to_evaluation() -> None:

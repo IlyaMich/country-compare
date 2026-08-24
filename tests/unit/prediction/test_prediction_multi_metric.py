@@ -4,6 +4,8 @@ import pandas as pd
 import pytest
 
 from country_compare.config.models import (
+    MetricConfig,
+    MetricsConfig,
     MissingDataPolicy,
     NormalizationMethod,
     ScoringConfig,
@@ -293,9 +295,28 @@ def test_bridge_output_includes_prediction_diagnostics() -> None:
     assert result.prediction_result.metadata["failed_series_count"] == 1
 
 
-def test_compare_predicted_profile_is_straightforward_with_existing_scoring_config() -> (
-    None
-):
+def test_compare_predicted_profile_returns_weighted_profile_scores() -> None:
+    metrics_config = MetricsConfig(
+        metrics={
+            "gdp_per_capita": MetricConfig(
+                display_name="GDP per capita",
+                category="economy",
+                higher_is_better=True,
+                default_weight=0.6,
+                unit="USD",
+                normalization_method=NormalizationMethod.MINMAX,
+            ),
+            "unemployment_pct": MetricConfig(
+                display_name="Unemployment",
+                category="labor",
+                higher_is_better=False,
+                default_weight=0.4,
+                unit="pct",
+                normalization_method=NormalizationMethod.MINMAX,
+            ),
+        }
+    )
+
     scoring_config = ScoringConfig(
         default_profile="economic_outlook",
         weight_handling=WeightHandlingStrategy.NORMALIZE,
@@ -303,7 +324,10 @@ def test_compare_predicted_profile_is_straightforward_with_existing_scoring_conf
         default_missing_data_policy=MissingDataPolicy.RENORMALIZE_WEIGHTS,
         profiles={
             "economic_outlook": ScoringProfile(
-                metrics=["gdp_per_capita", "unemployment_pct"],
+                metrics=[
+                    "gdp_per_capita",
+                    "unemployment_pct",
+                ],
                 normalization_overrides={
                     "gdp_per_capita": NormalizationMethod.MINMAX,
                     "unemployment_pct": NormalizationMethod.MINMAX,
@@ -314,6 +338,7 @@ def test_compare_predicted_profile_is_straightforward_with_existing_scoring_conf
 
     result = compare_predicted_profile(
         _canonical_df(),
+        metrics_config=metrics_config,
         scoring_config=scoring_config,
         profile_name="economic_outlook",
         country_codes=["ISR", "FRA"],
@@ -322,7 +347,23 @@ def test_compare_predicted_profile_is_straightforward_with_existing_scoring_conf
     )
 
     assert result.selected_forecast_year == 2023
-    assert set(result.comparison_df["metric_id"].unique().tolist()) == {
-        "gdp_per_capita",
-        "unemployment_pct",
-    }
+
+    assert result.comparison_df["country_code"].tolist() == [
+        "ISR",
+        "FRA",
+    ]
+
+    assert result.comparison_df["weighted_score"].tolist() == pytest.approx(
+        [1.0, 0.0],
+        abs=1e-12,
+    )
+
+    assert result.comparison_df["score_rank"].tolist() == [1, 2]
+
+    assert result.comparison_df["profile_name"].tolist() == [
+        "economic_outlook",
+        "economic_outlook",
+    ]
+
+    assert result.comparison_df["metric_count_used"].tolist() == [2, 2]
+    assert result.comparison_df["missing_metric_count"].tolist() == [0, 0]

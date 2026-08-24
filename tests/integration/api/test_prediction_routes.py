@@ -33,7 +33,7 @@ class FakeFacade:
             )
         forecast = pd.DataFrame(
             {
-                "country_code": ["ISR", "FRA"],
+                "country_code": ["DEU", "FRA"],
                 "metric_id": [kwargs["metric_id"], kwargs["metric_id"]],
                 "year": [2025, 2025],
                 "forecast_value": [101.0, 91.0],
@@ -43,7 +43,7 @@ class FakeFacade:
         )
         combined = pd.DataFrame(
             {
-                "country_code": ["ISR", "ISR"],
+                "country_code": ["DEU", "DEU"],
                 "metric_id": [kwargs["metric_id"], kwargs["metric_id"]],
                 "year": [2024, 2025],
                 "value": [100.0, 101.0],
@@ -91,7 +91,7 @@ class FakeFacade:
         self.predicted_single_metric_requests.append(dict(kwargs))
         comparison = pd.DataFrame(
             {
-                "country_code": ["ISR", "FRA"],
+                "country_code": ["DEU", "FRA"],
                 "metric_id": [kwargs["metric_id"], kwargs["metric_id"]],
                 "year": [2027, 2027],
                 "value": [103.0, 93.0],
@@ -116,14 +116,14 @@ class FakeFacade:
         self.predicted_multi_metric_requests.append(dict(kwargs))
         comparison = pd.DataFrame(
             {
-                "country_code": ["ISR", "FRA"],
+                "country_code": ["DEU", "FRA"],
                 "score": [0.91, 0.87],
                 "rank": [1, 2],
             }
         )
         forecast = pd.DataFrame(
             {
-                "country_code": ["ISR", "FRA", "ISR", "FRA"],
+                "country_code": ["DEU", "FRA", "DEU", "FRA"],
                 "metric_id": [
                     kwargs["metric_ids"][0],
                     kwargs["metric_ids"][0],
@@ -151,7 +151,7 @@ class FakeFacade:
         self.predicted_profile_requests.append(dict(kwargs))
         comparison = pd.DataFrame(
             {
-                "country_code": ["ISR", "FRA"],
+                "country_code": ["DEU", "FRA"],
                 "profile_name": [kwargs["profile_name"], kwargs["profile_name"]],
                 "score": [0.92, 0.88],
                 "rank": [1, 2],
@@ -170,6 +170,119 @@ class FakeFacade:
         )
 
 
+class RichPredictionDiagnosticsFacade(FakeFacade):
+    def predict_single_metric_for_countries(
+        self,
+        **kwargs: Any,
+    ) -> PredictionServiceResult:
+        self.single_metric_requests.append(dict(kwargs))
+
+        forecast = pd.DataFrame(
+            [
+                {
+                    "country_code": "AAA",
+                    "metric_id": kwargs["metric_id"],
+                    "year": 2024,
+                    "value": 50.0,
+                    "forecast_horizon": 1,
+                    "prediction_method": "linear_trend",
+                    "scenario_id": kwargs["scenario_id"],
+                }
+            ]
+        )
+
+        warning = "method 'linear_trend' was unsupported for one selected series"
+
+        diagnostics = {
+            "count": 2,
+            "status_counts": {
+                "ok": 1,
+                "failed": 1,
+            },
+            "warnings": [warning],
+            "errors": [
+                {
+                    "code": "insufficient_history",
+                    "message": "linear_trend requires at least three observations",
+                    "severity": "error",
+                    "country_code": "CCC",
+                    "metric_id": kwargs["metric_id"],
+                    "year": None,
+                    "details": {
+                        "method": "linear_trend",
+                    },
+                }
+            ],
+            "items": [
+                {
+                    "status": "ok",
+                    "country_code": "AAA",
+                    "metric_id": kwargs["metric_id"],
+                    "method_requested": "linear_trend",
+                    "method_used": "linear_trend",
+                    "fallback_used": False,
+                    "history_observation_count": 4,
+                    "training_start_year": 2020,
+                    "training_end_year": 2023,
+                    "forecast_origin_year": 2023,
+                    "missing_years": [],
+                    "warnings": [],
+                    "errors": [],
+                    "messages": [],
+                },
+                {
+                    "status": "failed",
+                    "country_code": "CCC",
+                    "metric_id": kwargs["metric_id"],
+                    "method_requested": "linear_trend",
+                    "method_used": None,
+                    "fallback_used": False,
+                    "history_observation_count": 1,
+                    "training_start_year": 2023,
+                    "training_end_year": 2023,
+                    "forecast_origin_year": 2023,
+                    "missing_years": [],
+                    "warnings": [],
+                    "errors": [
+                        {
+                            "code": "insufficient_history",
+                            "message": (
+                                "linear_trend requires at least three observations"
+                            ),
+                            "severity": "error",
+                            "country_code": "CCC",
+                            "metric_id": kwargs["metric_id"],
+                            "year": None,
+                            "details": {
+                                "method": "linear_trend",
+                            },
+                        }
+                    ],
+                    "messages": ["linear_trend requires at least three observations"],
+                },
+            ],
+        }
+
+        return PredictionServiceResult(
+            mode="single_metric_countries_prediction",
+            request=kwargs,
+            dataframe=forecast,
+            summary={
+                "result_type": "prediction",
+                "request": {
+                    "scenario_id": kwargs["scenario_id"],
+                },
+            },
+            metadata={
+                "successful_series_count": 1,
+                "failed_series_count": 1,
+                "scenario_id": kwargs["scenario_id"],
+            },
+            diagnostics=diagnostics,
+            warnings=[warning],
+        )
+
+
 def test_single_metric_prediction_returns_result_envelope() -> None:
     facade = FakeFacade()
     client = _client_for(facade)
@@ -177,7 +290,7 @@ def test_single_metric_prediction_returns_result_envelope() -> None:
     response = client.post(
         "/api/v1/prediction/single-metric",
         json={
-            "country_codes": ["isr", "fra"],
+            "country_codes": ["DEU", "fra"],
             "metric_id": "gdp_per_capita",
             "horizon_years": 2,
             "method": "linear_trend",
@@ -204,7 +317,7 @@ def test_single_metric_prediction_returns_result_envelope() -> None:
         "comparison_ready",
     }
     assert payload["tables"]["forecast"]["records"][0] == {
-        "country_code": "ISR",
+        "country_code": "DEU",
         "metric_id": "gdp_per_capita",
         "year": 2025,
         "forecast_value": 101.0,
@@ -215,7 +328,7 @@ def test_single_metric_prediction_returns_result_envelope() -> None:
 
     assert len(facade.single_metric_requests) == 1
     service_request = facade.single_metric_requests[0]
-    assert service_request["country_codes"] == ["ISR", "FRA"]
+    assert service_request["country_codes"] == ["DEU", "FRA"]
     assert service_request["metric_id"] == "gdp_per_capita"
     assert service_request["horizon_years"] == 2
     assert service_request["method"].value == "linear_trend"
@@ -232,7 +345,7 @@ def test_backtest_returns_result_envelope_for_one_country() -> None:
     response = client.post(
         "/api/v1/prediction/backtest",
         json={
-            "country_codes": ["ISR"],
+            "country_codes": ["DEU"],
             "metric_id": "gdp_per_capita",
             "holdout_years": 2,
         },
@@ -244,7 +357,7 @@ def test_backtest_returns_result_envelope_for_one_country() -> None:
     assert payload["mode"] == "prediction_backtest"
     assert set(payload["tables"]) == {"main", "actual_vs_predicted"}
     assert payload["tables"]["actual_vs_predicted"]["records"][0] == {
-        "country_code": "ISR",
+        "country_code": "DEU",
         "metric_id": "gdp_per_capita",
         "year": 2023,
         "actual_value": 100.0,
@@ -253,7 +366,7 @@ def test_backtest_returns_result_envelope_for_one_country() -> None:
 
     assert len(facade.backtest_requests) == 1
     service_request = facade.backtest_requests[0]
-    assert service_request["country_code"] == "ISR"
+    assert service_request["country_code"] == "DEU"
     assert service_request["metric_id"] == "gdp_per_capita"
     assert service_request["holdout_years"] == 2
 
@@ -265,7 +378,7 @@ def test_predicted_single_metric_comparison_returns_result_envelope() -> None:
     response = client.post(
         "/api/v1/prediction/compare/single-metric",
         json={
-            "country_codes": ["ISR", "FRA"],
+            "country_codes": ["DEU", "FRA"],
             "metric_id": "gdp_per_capita",
             "horizon_years": 3,
             "forecast_year": 2027,
@@ -287,7 +400,7 @@ def test_predicted_single_metric_comparison_returns_result_envelope() -> None:
         "predicted_comparison",
     }
     assert payload["tables"]["predicted_comparison"]["records"][0] == {
-        "country_code": "ISR",
+        "country_code": "DEU",
         "metric_id": "gdp_per_capita",
         "year": 2027,
         "value": 103.0,
@@ -296,7 +409,7 @@ def test_predicted_single_metric_comparison_returns_result_envelope() -> None:
 
     assert len(facade.predicted_single_metric_requests) == 1
     service_request = facade.predicted_single_metric_requests[0]
-    assert service_request["country_codes"] == ["ISR", "FRA"]
+    assert service_request["country_codes"] == ["DEU", "FRA"]
     assert service_request["metric_id"] == "gdp_per_capita"
     assert service_request["horizon_years"] == 3
     assert service_request["forecast_year"] == 2027
@@ -311,7 +424,7 @@ def test_predicted_profile_comparison_returns_result_envelope() -> None:
     response = client.post(
         "/api/v1/prediction/compare/profile",
         json={
-            "country_codes": ["ISR", "FRA"],
+            "country_codes": ["DEU", "FRA"],
             "profile_name": "economic_outlook",
             "horizon_years": 3,
             "forecast_horizon": 2,
@@ -325,7 +438,7 @@ def test_predicted_profile_comparison_returns_result_envelope() -> None:
     assert payload["metadata"] == {"profile_name": "economic_outlook"}
     assert set(payload["tables"]) == {"main", "predicted_comparison"}
     assert payload["tables"]["predicted_comparison"]["records"][0] == {
-        "country_code": "ISR",
+        "country_code": "DEU",
         "profile_name": "economic_outlook",
         "score": 0.92,
         "rank": 1,
@@ -333,7 +446,7 @@ def test_predicted_profile_comparison_returns_result_envelope() -> None:
 
     assert len(facade.predicted_profile_requests) == 1
     service_request = facade.predicted_profile_requests[0]
-    assert service_request["country_codes"] == ["ISR", "FRA"]
+    assert service_request["country_codes"] == ["DEU", "FRA"]
     assert service_request["profile_name"] == "economic_outlook"
     assert service_request["forecast_horizon"] == 2
     assert service_request["forecast_year"] is None
@@ -346,7 +459,7 @@ def test_predicted_multi_metric_comparison_returns_result_envelope() -> None:
     response = client.post(
         "/api/v1/prediction/compare/multi-metric",
         json={
-            "country_codes": ["isr", "fra"],
+            "country_codes": ["DEU", "fra"],
             "metric_ids": ["gdp_per_capita", "life_expectancy"],
             "horizon_years": 3,
             "forecast_year": 2027,
@@ -368,7 +481,7 @@ def test_predicted_multi_metric_comparison_returns_result_envelope() -> None:
     assert facade.predicted_multi_metric_requests == [
         {
             "metric_ids": ["gdp_per_capita", "life_expectancy"],
-            "country_codes": ["ISR", "FRA"],
+            "country_codes": ["DEU", "FRA"],
             "horizon_years": 3,
             "forecast_year": 2027,
             "forecast_horizon": None,
@@ -386,7 +499,7 @@ def test_prediction_route_truncates_records_using_api_settings() -> None:
     response = client.post(
         "/api/v1/prediction/single-metric",
         json={
-            "country_codes": ["ISR", "FRA"],
+            "country_codes": ["DEU", "FRA"],
             "metric_id": "gdp_per_capita",
             "horizon_years": 2,
         },
@@ -406,7 +519,7 @@ def test_prediction_country_limit_returns_400_before_service_call() -> None:
     response = client.post(
         "/api/v1/prediction/single-metric",
         json={
-            "country_codes": ["ISR", "FRA"],
+            "country_codes": ["DEU", "FRA"],
             "metric_id": "gdp_per_capita",
             "horizon_years": 2,
         },
@@ -429,7 +542,7 @@ def test_prediction_horizon_limit_returns_400_before_service_call() -> None:
     response = client.post(
         "/api/v1/prediction/single-metric",
         json={
-            "country_codes": ["ISR"],
+            "country_codes": ["DEU"],
             "metric_id": "gdp_per_capita",
             "horizon_years": 2,
         },
@@ -452,7 +565,7 @@ def test_prediction_holdout_limit_returns_400_before_service_call() -> None:
     response = client.post(
         "/api/v1/prediction/backtest",
         json={
-            "country_codes": ["ISR"],
+            "country_codes": ["DEU"],
             "metric_id": "gdp_per_capita",
             "holdout_years": 2,
         },
@@ -475,7 +588,7 @@ def test_predicted_comparison_top_n_limit_returns_400_before_service_call() -> N
     response = client.post(
         "/api/v1/prediction/compare/single-metric",
         json={
-            "country_codes": ["ISR", "FRA"],
+            "country_codes": ["DEU", "FRA"],
             "metric_id": "gdp_per_capita",
             "horizon_years": 2,
             "comparison_options": {"top_n": 2},
@@ -506,7 +619,7 @@ def test_prediction_service_error_returns_error_envelope() -> None:
     response = client.post(
         "/api/v1/prediction/single-metric",
         json={
-            "country_codes": ["ISR"],
+            "country_codes": ["DEU"],
             "metric_id": "gdp_per_capita",
             "horizon_years": 2,
         },
@@ -535,7 +648,7 @@ def test_backtest_with_multiple_countries_returns_422() -> None:
     response = client.post(
         "/api/v1/prediction/backtest",
         json={
-            "country_codes": ["ISR", "FRA"],
+            "country_codes": ["DEU", "FRA"],
             "metric_id": "gdp_per_capita",
             "holdout_years": 2,
         },
@@ -554,7 +667,7 @@ def test_predicted_comparison_with_year_and_horizon_returns_422() -> None:
     response = client.post(
         "/api/v1/prediction/compare/single-metric",
         json={
-            "country_codes": ["ISR", "FRA"],
+            "country_codes": ["DEU", "FRA"],
             "metric_id": "gdp_per_capita",
             "horizon_years": 3,
             "forecast_year": 2027,
@@ -627,3 +740,184 @@ def test_single_metric_prediction_accepts_fail_fast_payload() -> None:
     assert service_request["metric_id"] == "compensation_employees_lcu"
     assert service_request["horizon_years"] == 3
     assert service_request["fail_fast"] is True
+
+
+def test_pred_06_prediction_horizon_at_api_limit_reaches_service() -> None:
+    facade = FakeFacade()
+    client = _client_for(
+        facade,
+        max_horizon_years=3,
+    )
+
+    response = client.post(
+        "/api/v1/prediction/single-metric",
+        json={
+            "country_codes": ["DEU"],
+            "metric_id": "gdp_per_capita",
+            "horizon_years": 3,
+            "method": "last_observed",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+    assert len(facade.single_metric_requests) == 1
+    assert facade.single_metric_requests[0]["horizon_years"] == 3
+
+
+def test_pred_06_zero_horizon_is_rejected_before_service_call() -> None:
+    facade = FakeFacade()
+    client = _client_for(facade)
+
+    response = client.post(
+        "/api/v1/prediction/single-metric",
+        json={
+            "country_codes": ["DEU"],
+            "metric_id": "gdp_per_capita",
+            "horizon_years": 0,
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["ok"] is False
+    assert response.json()["error"]["code"] == "validation_failed"
+
+    assert facade.single_metric_requests == []
+
+
+def test_pred_08_reversed_history_window_returns_422_before_service_call() -> None:
+    facade = FakeFacade()
+    client = _client_for(facade)
+
+    response = client.post(
+        "/api/v1/prediction/single-metric",
+        json={
+            "country_codes": ["DEU"],
+            "metric_id": "gdp_per_capita",
+            "horizon_years": 2,
+            "method": "linear_trend",
+            "history_start_year": 2023,
+            "history_end_year": 2020,
+        },
+    )
+
+    assert response.status_code == 422
+
+    payload = response.json()
+
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "validation_failed"
+
+    assert facade.single_metric_requests == []
+
+
+def test_pred_13_api_preserves_nested_prediction_diagnostics() -> None:
+    facade = RichPredictionDiagnosticsFacade()
+    client = _client_for(facade)
+
+    response = client.post(
+        "/api/v1/prediction/single-metric",
+        json={
+            "country_codes": ["AAA", "CCC"],
+            "metric_id": "oracle_metric",
+            "horizon_years": 1,
+            "method": "linear_trend",
+            "fallback_method": None,
+            "fail_fast": False,
+            "scenario_id": "validation-api",
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["ok"] is True
+    assert payload["diagnostics"]["status_counts"] == {
+        "ok": 1,
+        "failed": 1,
+    }
+
+    failed = payload["diagnostics"]["items"][1]
+
+    assert failed["country_code"] == "CCC"
+    assert failed["status"] == "failed"
+    assert failed["method_requested"] == "linear_trend"
+    assert failed["method_used"] is None
+    assert failed["fallback_used"] is False
+    assert failed["training_start_year"] == 2023
+    assert failed["training_end_year"] == 2023
+
+    assert failed["errors"][0]["code"] == "insufficient_history"
+    assert failed["errors"][0]["country_code"] == "CCC"
+    assert failed["errors"][0]["details"] == {
+        "method": "linear_trend",
+    }
+
+    assert failed["messages"] == ["linear_trend requires at least three observations"]
+
+    assert payload["metadata"]["scenario_id"] == "validation-api"
+    assert payload["warnings"] == [
+        "method 'linear_trend' was unsupported for one selected series"
+    ]
+
+
+def test_api_06_prediction_limits_accept_exact_boundary_values() -> None:
+    facade = FakeFacade()
+
+    client = _client_for(
+        facade,
+        max_countries=2,
+        max_metrics=2,
+        max_horizon_years=2,
+        max_holdout_years=2,
+        max_top_n=2,
+    )
+
+    prediction_response = client.post(
+        "/api/v1/prediction/single-metric",
+        json={
+            "country_codes": ["ISR", "FRA"],
+            "metric_id": "gdp_per_capita",
+            "horizon_years": 2,
+        },
+    )
+
+    assert prediction_response.status_code == 200
+    assert prediction_response.json()["ok"] is True
+
+    backtest_response = client.post(
+        "/api/v1/prediction/backtest",
+        json={
+            "country_codes": ["ISR"],
+            "metric_id": "gdp_per_capita",
+            "holdout_years": 2,
+        },
+    )
+
+    assert backtest_response.status_code == 200
+    assert backtest_response.json()["ok"] is True
+
+    predicted_multi_response = client.post(
+        "/api/v1/prediction/compare/multi-metric",
+        json={
+            "country_codes": ["ISR", "FRA"],
+            "metric_ids": [
+                "gdp_per_capita",
+                "life_expectancy",
+            ],
+            "horizon_years": 2,
+            "forecast_horizon": 2,
+            "comparison_options": {
+                "top_n": 2,
+            },
+        },
+    )
+
+    assert predicted_multi_response.status_code == 200
+    assert predicted_multi_response.json()["ok"] is True
+
+    assert len(facade.single_metric_requests) == 1
+    assert len(facade.backtest_requests) == 1
+    assert len(facade.predicted_multi_metric_requests) == 1

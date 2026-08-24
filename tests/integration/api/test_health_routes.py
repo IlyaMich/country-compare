@@ -5,6 +5,8 @@ from fastapi.testclient import TestClient
 from country_compare import __version__
 from country_compare.api.dependencies import get_app_facade
 from country_compare.api.main import create_app
+from country_compare.api.routes import health as health_routes
+from country_compare.api.schemas.health import LLMReadyResponse
 from country_compare.api.settings import ApiSettings
 from country_compare.services.models import (
     ConfigStatus,
@@ -26,6 +28,95 @@ class FakeFacade:
             validate_config_against_dataset
         )
         return self.overview
+
+
+def _ready_payload(
+    *,
+    status: str,
+    dataset_exists: bool,
+    config_valid: bool,
+    warnings: list[str],
+    config_messages: list[str] | None = None,
+    manifest_valid: bool | None = True,
+) -> dict[str, object]:
+    return {
+        "status": status,
+        "dataset": {
+            "exists": dataset_exists,
+            "backend": "parquet",
+            "dataset_path": "data/processed/metrics.parquet",
+            "row_count": 0,
+            "country_count": 0,
+            "metric_count": 0,
+            "year_min": None,
+            "year_max": None,
+            "dataset_versions": [],
+            "dataset_checksum": None,
+            "dataset_size_bytes": None,
+            "dataset_modified_at": None,
+            "manifest_path": "data/processed/metrics_manifest.json",
+            "manifest_exists": dataset_exists,
+            "manifest_valid": manifest_valid if dataset_exists else False,
+            "manifest_issue_count": 0,
+            "manifest_issues": [],
+            "manifest_dataset_version": None,
+            "manifest_created_at": None,
+            "manifest_schema_version": None,
+            "schema_valid": None,
+            "schema_issue_count": 0,
+            "schema_issues": [],
+            "error": None,
+        },
+        "config": {
+            "valid": config_valid,
+            "validated_against_dataset": True,
+            "metrics_count": 0,
+            "profile_count": 0,
+            "messages": config_messages or [],
+            "error": None,
+        },
+        "warnings": warnings,
+    }
+
+
+def _client_for(facade: FakeFacade) -> TestClient:
+    app = create_app()
+    app.dependency_overrides[get_app_facade] = lambda: facade
+    return TestClient(app)
+
+
+def _overview(
+    *,
+    dataset_exists: bool,
+    config_valid: bool,
+    warnings: tuple[str, ...] = (),
+    validation_messages: tuple[str, ...] = (),
+    manifest_valid: bool | None = True,
+    manifest_issues: tuple[str, ...] = (),
+) -> OverviewStatus:
+    return OverviewStatus(
+        dataset=DatasetSummary(
+            exists=dataset_exists,
+            backend="parquet",
+            dataset_path="data/processed/metrics.parquet",
+            manifest_path="data/processed/metrics_manifest.json",
+            manifest_exists=dataset_exists,
+            manifest_valid=manifest_valid if dataset_exists else False,
+            manifest_issue_count=len(manifest_issues),
+            manifest_issues=manifest_issues,
+        ),
+        config=ConfigStatus(
+            metrics_config_path="config/metrics.yaml",
+            scoring_config_path="config/scoring_profiles.yaml",
+            metrics_config_exists=True,
+            scoring_config_exists=True,
+            validation=ValidationReport(
+                valid=config_valid,
+                messages=validation_messages,
+            ),
+        ),
+        warnings=warnings,
+    )
 
 
 def test_health_returns_process_liveness_without_facade() -> None:
@@ -157,90 +248,121 @@ def test_ready_returns_503_when_manifest_invalid() -> None:
     assert payload["warnings"] == ["Dataset hash does not match manifest sha256."]
 
 
-def _ready_payload(
-    *,
-    status: str,
-    dataset_exists: bool,
-    config_valid: bool,
-    warnings: list[str],
-    config_messages: list[str] | None = None,
-    manifest_valid: bool | None = True,
-) -> dict[str, object]:
-    return {
-        "status": status,
-        "dataset": {
-            "exists": dataset_exists,
-            "backend": "parquet",
-            "dataset_path": "data/processed/metrics.parquet",
-            "row_count": 0,
-            "country_count": 0,
-            "metric_count": 0,
-            "year_min": None,
-            "year_max": None,
-            "dataset_versions": [],
-            "dataset_checksum": None,
-            "dataset_size_bytes": None,
-            "dataset_modified_at": None,
-            "manifest_path": "data/processed/metrics_manifest.json",
-            "manifest_exists": dataset_exists,
-            "manifest_valid": manifest_valid if dataset_exists else False,
-            "manifest_issue_count": 0,
-            "manifest_issues": [],
-            "manifest_dataset_version": None,
-            "manifest_created_at": None,
-            "manifest_schema_version": None,
-            "schema_valid": None,
-            "schema_issue_count": 0,
-            "schema_issues": [],
-            "error": None,
-        },
-        "config": {
-            "valid": config_valid,
-            "validated_against_dataset": True,
-            "metrics_count": 0,
-            "profile_count": 0,
-            "messages": config_messages or [],
-            "error": None,
-        },
-        "warnings": warnings,
-    }
+def test_llm_02_normal_backend_readiness_does_not_depend_on_optional_llm(
+    monkeypatch,
+) -> None:
+    from country_compare.api.routes import health as health_routes
 
+    def fail_if_called():
+        raise AssertionError("/ready must not perform optional LLM readiness")
 
-def _client_for(facade: FakeFacade) -> TestClient:
-    app = create_app()
-    app.dependency_overrides[get_app_facade] = lambda: facade
-    return TestClient(app)
-
-
-def _overview(
-    *,
-    dataset_exists: bool,
-    config_valid: bool,
-    warnings: tuple[str, ...] = (),
-    validation_messages: tuple[str, ...] = (),
-    manifest_valid: bool | None = True,
-    manifest_issues: tuple[str, ...] = (),
-) -> OverviewStatus:
-    return OverviewStatus(
-        dataset=DatasetSummary(
-            exists=dataset_exists,
-            backend="parquet",
-            dataset_path="data/processed/metrics.parquet",
-            manifest_path="data/processed/metrics_manifest.json",
-            manifest_exists=dataset_exists,
-            manifest_valid=manifest_valid if dataset_exists else False,
-            manifest_issue_count=len(manifest_issues),
-            manifest_issues=manifest_issues,
-        ),
-        config=ConfigStatus(
-            metrics_config_path="config/metrics.yaml",
-            scoring_config_path="config/scoring_profiles.yaml",
-            metrics_config_exists=True,
-            scoring_config_exists=True,
-            validation=ValidationReport(
-                valid=config_valid,
-                messages=validation_messages,
-            ),
-        ),
-        warnings=warnings,
+    monkeypatch.setattr(
+        health_routes,
+        "_build_llm_ready_response",
+        fail_if_called,
     )
+
+    overview = _overview(dataset_exists=True, config_valid=True)
+    facade = FakeFacade(overview)
+    client = _client_for(facade)
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    assert facade.validate_config_against_dataset_calls == [True]
+
+
+def test_api_02_llm_ready_returns_503_when_disabled(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        health_routes,
+        "_build_llm_ready_response",
+        lambda: LLMReadyResponse(
+            status="not_ready",
+            enabled=False,
+            service_url_configured=False,
+            service_token_configured=False,
+            warnings=["LLM forecast is disabled."],
+        ),
+    )
+
+    client = _client_for(FakeFacade(_overview(dataset_exists=True, config_valid=True)))
+
+    response = client.get("/ready/llm")
+
+    assert response.status_code == 503
+
+    payload = response.json()
+
+    assert payload["status"] == "not_ready"
+    assert payload["enabled"] is False
+    assert payload["service_url_configured"] is False
+    assert payload["service_token_configured"] is False
+
+
+def test_api_02_llm_ready_returns_503_when_service_is_unavailable(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        health_routes,
+        "_build_llm_ready_response",
+        lambda: LLMReadyResponse(
+            status="not_ready",
+            enabled=True,
+            service_url_configured=True,
+            service_token_configured=True,
+            provider="mistral",
+            model="mistral-large-latest",
+            error="LLM readiness check failed.",
+        ),
+    )
+
+    client = _client_for(FakeFacade(_overview(dataset_exists=True, config_valid=True)))
+
+    response = client.get("/ready/llm")
+
+    assert response.status_code == 503
+
+    payload = response.json()
+
+    assert payload["status"] == "not_ready"
+    assert payload["enabled"] is True
+    assert payload["error"] == "LLM readiness check failed."
+
+
+def test_api_02_llm_ready_returns_200_when_capability_gate_succeeds(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        health_routes,
+        "_build_llm_ready_response",
+        lambda: LLMReadyResponse(
+            status="ready",
+            enabled=True,
+            service_url_configured=True,
+            service_token_configured=True,
+            provider="mistral",
+            model="mistral-large-latest",
+            capabilities={
+                "supports_structured_output": True,
+                "supports_bounded_adjustment": True,
+                "max_series_per_request": 1,
+            },
+        ),
+    )
+
+    client = _client_for(FakeFacade(_overview(dataset_exists=True, config_valid=True)))
+
+    response = client.get("/ready/llm")
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["status"] == "ready"
+    assert payload["enabled"] is True
+    assert payload["provider"] == "mistral"
+    assert payload["capabilities"]["supports_structured_output"] is True
+    assert payload["capabilities"]["supports_bounded_adjustment"] is True

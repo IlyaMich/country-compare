@@ -5,7 +5,7 @@ from typing import Literal
 import streamlit as st
 
 from country_compare.settings import load_app_settings
-from country_compare.ui import state
+from country_compare.ui import query_state, state
 from country_compare.ui.bootstrap import bootstrap_ui_runtime
 from country_compare.ui.navigation import (
     COMPARE_PAGE,
@@ -46,6 +46,7 @@ def main() -> None:
 
     runtime = bootstrap_ui_runtime(settings=app_settings)
     context = runtime.app_context
+    query_state.apply_query_params_once()
 
     available_pages = available_pages_for_runtime(
         config_editing=runtime.capabilities.config_editing,
