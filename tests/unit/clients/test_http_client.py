@@ -125,10 +125,13 @@ def test_http_client_maps_comparison_envelope_to_presentation() -> None:
     assert len(presentation.messages) == 1
 
     message = presentation.messages[0]
-    
+
     assert message.level == "warning"
     assert message.text == "Coverage is limited."
     assert message.detail == "Synthetic detail"
+
+    assert presentation.table is not None
+    assert "main" not in presentation.tables
 
 
 def test_http_client_maps_backend_error_to_result_error() -> None:

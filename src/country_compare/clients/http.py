@@ -30,11 +30,11 @@ from country_compare.services.models import (
 )
 from country_compare.services.presentation_service import PresentationService
 from country_compare.services.results import (
+    AppMessage,
     ComparisonResult,
+    MessageLevel,
     PredictionServiceResult,
     PresentationResult,
-    AppMessage,
-    MessageLevel,
 )
 
 
@@ -817,7 +817,15 @@ def _presentation_from_envelope(
 ) -> PresentationResult:
     error = _app_error_from_payload(payload.get("error"))
     tables = _tables_from_payload(payload.get("tables"))
-    table = _first_dataframe(tables)
+
+    # The API transport represents the primary table as tables["main"].
+    # Reconstruct the local PresentationResult shape by moving it to
+    # PresentationResult.table instead of keeping it duplicated in .tables.
+    table = tables.pop("main", None)
+
+    # Backward-compatible fallback for envelopes that do not use "main".
+    if table is None:
+        table = _first_dataframe(tables)
 
     return PresentationResult(
         mode=str(payload.get("mode") or fallback_mode),
@@ -828,9 +836,7 @@ def _presentation_from_envelope(
         metadata=dict(payload.get("metadata") or {}),
         diagnostics=dict(payload.get("diagnostics") or {}),
         warnings=[str(item) for item in payload.get("warnings", []) or []],
-        messages=_app_messages_from_payload(
-            payload.get("messages")
-        ),
+        messages=_app_messages_from_payload(payload.get("messages")),
         error=error,
     )
 
@@ -1231,11 +1237,7 @@ def _app_messages_from_payload(value: Any) -> list[AppMessage]:
                 AppMessage(
                     level=level,
                     text=str(item.get("text") or ""),
-                    detail=(
-                        None
-                        if detail_value is None
-                        else str(detail_value)
-                    ),
+                    detail=(None if detail_value is None else str(detail_value)),
                 )
             )
             continue
