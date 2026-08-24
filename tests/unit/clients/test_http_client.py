@@ -94,6 +94,13 @@ def test_http_client_maps_comparison_envelope_to_presentation() -> None:
                 "metadata": {"source": "test"},
                 "diagnostics": {},
                 "warnings": [],
+                "messages": [
+                    {
+                        "level": "warning",
+                        "text": "Coverage is limited.",
+                        "detail": "Synthetic detail",
+                    }
+                ],
                 "tables": {"main": _table_payload()},
                 "error": None,
             },
@@ -115,6 +122,13 @@ def test_http_client_maps_comparison_envelope_to_presentation() -> None:
     assert presentation.summary["title"] == "GDP comparison"
     assert isinstance(presentation.table, pd.DataFrame)
     assert presentation.table.iloc[0]["country_code"] == "ISR"
+    assert len(presentation.messages) == 1
+
+    message = presentation.messages[0]
+    
+    assert message.level == "warning"
+    assert message.text == "Coverage is limited."
+    assert message.detail == "Synthetic detail"
 
 
 def test_http_client_maps_backend_error_to_result_error() -> None:
