@@ -94,6 +94,10 @@ dev = [
   "types-PyYAML>=6.0.12",
 ]
 
+e2e = [
+  "playwright==1.62.0",
+]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
@@ -107,6 +111,7 @@ markers = [
   "unit: fast isolated tests",
   "integration: multi-module or filesystem tests",
   "smoke: high-level demo/app smoke tests",
+  "e2e: browser-based end-to-end tests requiring running services",
 ]
 
 [tool.ruff]
