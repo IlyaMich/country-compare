@@ -117,7 +117,6 @@ def _overview(
     )
 
 
-
 def test_health_returns_process_liveness_without_facade() -> None:
     app = create_app()
 

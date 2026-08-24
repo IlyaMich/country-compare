@@ -18,7 +18,7 @@ def test_remote_client_sends_auth_and_converts_response() -> None:
         assert request.headers["authorization"] == "Bearer test-token"
 
         payload = json.loads(request.content)
-        assert payload["country_code"] == "ISR"
+        assert payload["country_code"] == "DEU"
         assert payload["constraints"]["allowed_years"] == [2024]
 
         return httpx.Response(
@@ -47,8 +47,8 @@ def test_remote_client_sends_auth_and_converts_response() -> None:
 
     response = client.forecast(
         LLMForecastRequest(
-            country_code="ISR",
-            country_name="Israel",
+            country_code="DEU",
+            country_name="Germany",
             metric_id="gdp_per_capita",
             metric_name="GDP per capita",
             unit="USD",
@@ -127,3 +127,44 @@ def test_remote_client_maps_http_error_without_token_leak() -> None:
 
     assert "service_not_ready" in str(exc_info.value)
     assert "secret-token" not in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "capability_override",
+    [
+        {"supports_structured_output": False},
+        {"supports_bounded_adjustment": False},
+        {"max_series_per_request": 0},
+    ],
+)
+def test_llm_04_remote_client_requires_safe_capabilities(
+    capability_override: dict[str, object],
+) -> None:
+    capabilities = {
+        "provider": "mistral",
+        "model": "mistral-large-latest",
+        "supports_structured_output": True,
+        "supports_bounded_adjustment": True,
+        "max_series_per_request": 1,
+        "max_horizon_years": 10,
+        "max_history_points": 40,
+        "one_call_per_series": True,
+        "zdr_required": False,
+        "zdr_confirmed": False,
+    }
+    capabilities.update(capability_override)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/capabilities"
+        return httpx.Response(200, json=capabilities)
+
+    http_client = httpx.Client(transport=httpx.MockTransport(handler))
+    client = RemoteLLMForecastClient(
+        service_url="http://llm-forecast:8080",
+        service_token="test-token",
+        timeout_seconds=5,
+        max_adjustment_pct=20.0,
+        http_client=http_client,
+    )
+
+    assert client.is_available() is False

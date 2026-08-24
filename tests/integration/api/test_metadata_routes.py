@@ -8,6 +8,9 @@ from fastapi.testclient import TestClient
 
 from country_compare.api.dependencies import get_app_facade
 from country_compare.api.main import create_app
+from country_compare.prediction.llm import forecasters as llm_forecasters
+from country_compare.prediction.registry import clear_forecasters
+from country_compare.prediction.summaries import list_available_prediction_methods
 from country_compare.services.models import (
     CategorySummary,
     CountryOption,
@@ -116,10 +119,21 @@ class FakeConfigService:
         )
 
 
+class RuntimePredictionService:
+    def list_prediction_methods(self) -> list[dict[str, object]]:
+        return list_available_prediction_methods()
+
+
+class AvailableLLMServiceClient:
+    def is_available(self) -> bool:
+        return True
+
+
 class FakeFacade:
     def __init__(self) -> None:
         self.dataset = FakeDatasetService()
         self.config = FakeConfigService()
+        self.prediction = RuntimePredictionService()
 
 
 @pytest.fixture()
@@ -274,3 +288,51 @@ def test_metadata_routes_are_versioned(
     response = client.get("/metadata/dataset")
 
     assert response.status_code == 404
+
+
+def test_llm_04_ready_llm_is_exposed_as_experimental_prediction_method(
+    client_and_facade: tuple[TestClient, FakeFacade],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _fake_facade = client_and_facade
+
+    monkeypatch.setenv("COUNTRY_COMPARE_ENABLE_LLM_FORECAST", "true")
+    monkeypatch.setenv(
+        "COUNTRY_COMPARE_LLM_SERVICE_URL",
+        "http://llm-service:8001",
+    )
+    monkeypatch.setenv(
+        "COUNTRY_COMPARE_LLM_SERVICE_TOKEN",
+        "test-token",
+    )
+
+    monkeypatch.setattr(
+        llm_forecasters,
+        "_remote_client_from_settings",
+        lambda *args, **kwargs: AvailableLLMServiceClient(),
+    )
+
+    clear_forecasters()
+
+    try:
+        response = client.get("/api/v1/metadata/prediction-methods")
+
+        assert response.status_code == 200
+
+        methods = response.json()["methods"]
+        methods_by_id = {method["method_id"]: method for method in methods}
+
+        assert "last_observed" in methods_by_id
+        assert "linear_trend" in methods_by_id
+        assert "llm_forecast" in methods_by_id
+
+        llm_method = methods_by_id["llm_forecast"]
+
+        assert "experimental" in llm_method["display_name"].lower()
+        assert "deterministic baseline" in llm_method["description"].lower()
+        assert "validation" in llm_method["description"].lower()
+        assert "fallback" in llm_method["description"].lower()
+    finally:
+        # Leave the registry uninitialized so subsequent tests rebuild it
+        # after monkeypatch restores the normal environment.
+        clear_forecasters(keep_builtins=False)
