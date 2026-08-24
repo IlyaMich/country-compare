@@ -2130,6 +2130,59 @@ def _assert_streamlit_metric(
     expect(metric).to_contain_text(_ui_metric_value(value))
 
 
+def _streamlit_metric_text(
+    page: Page,
+    *,
+    label: str,
+    occurrence: int = 0,
+) -> str:
+    metrics = page.locator(
+        '[data-testid="stMetric"]'
+    ).filter(
+        has_text=label
+    )
+
+    metric = metrics.nth(occurrence)
+
+    expect(metric).to_be_visible(
+        timeout=20_000
+    )
+
+    return (
+        metric.locator(
+            '[data-testid="stMetricValue"]'
+        )
+        .inner_text()
+        .strip()
+    )
+
+
+def _assert_numeric_streamlit_metric(
+    page: Page,
+    *,
+    label: str,
+    expected: object,
+    occurrence: int = 0,
+) -> None:
+    actual_text = _streamlit_metric_text(
+        page,
+        label=label,
+        occurrence=occurrence,
+    )
+
+    assert actual_text != "—"
+
+    actual_value = float(
+        actual_text.replace(",", "")
+    )
+
+    expected_value = float(expected)
+
+    assert actual_value == pytest.approx(
+        expected_value
+    )
+
+
 def _compare_url(
     *,
     countries: list[str],
@@ -3907,4 +3960,368 @@ def test_ui_12_forecast_chart_ready_data_matches_result_table() -> None:
         expected_chart_data,
         check_dtype=False,
         check_names=False,
+    )
+
+
+@pytest.mark.e2e
+def test_ui_13_single_metric_summary_matches_first_ranked_row(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        metric_id,
+        api_envelope,
+    ) = _find_single_metric_reference_case()
+
+    table = _main_table_dataframe(
+        api_envelope
+    )
+
+    required_columns = {
+        "country_code",
+        "rank",
+        "value",
+    }
+
+    assert required_columns.issubset(
+        table.columns
+    )
+
+    ranks = pd.to_numeric(
+        table["rank"],
+        errors="raise",
+    )
+
+    top_index = ranks.idxmin()
+    top_row = table.loc[top_index]
+
+    top_country = str(
+        top_row.get("country_name")
+        or top_row["country_code"]
+    )
+
+    top_rank = top_row["rank"]
+    top_value = top_row["value"]
+
+    assert float(top_rank) == pytest.approx(
+        1.0
+    )
+
+    page.goto(
+        _compare_url(
+            countries=country_codes,
+            mode="single_metric",
+            metric=metric_id,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Compare",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run single-metric comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+
+    run_button.click()
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Main result table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    assert (
+        _streamlit_metric_text(
+            page,
+            label="Top item",
+        )
+        == top_country
+    )
+
+    _assert_numeric_streamlit_metric(
+        page,
+        label="Top rank",
+        expected=top_rank,
+    )
+
+    _assert_numeric_streamlit_metric(
+        page,
+        label="Top value",
+        expected=top_value,
+        occurrence=0,
+    )
+
+
+@pytest.mark.e2e
+def test_ui_13_weighted_score_summary_matches_first_ranked_row(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        profile_name,
+        api_envelope,
+    ) = _find_weighted_score_reference_case()
+
+    table = _main_table_dataframe(
+        api_envelope
+    )
+
+    required_columns = {
+        "country_code",
+        "weighted_score",
+        "score_rank",
+    }
+
+    assert required_columns.issubset(
+        table.columns
+    )
+
+    ranks = pd.to_numeric(
+        table["score_rank"],
+        errors="raise",
+    )
+
+    top_index = ranks.idxmin()
+    top_row = table.loc[top_index]
+
+    top_country = str(
+        top_row.get("country_name")
+        or top_row["country_code"]
+    )
+
+    top_rank = top_row[
+        "score_rank"
+    ]
+
+    top_value = top_row[
+        "weighted_score"
+    ]
+
+    assert float(top_rank) == pytest.approx(
+        1.0
+    )
+
+    page.goto(
+        _compare_url(
+            countries=country_codes,
+            mode="weighted_score",
+            profile=profile_name,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Compare",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_compare_tab(
+        page,
+        "Weighted Score",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run weighted-score comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+
+    run_button.click()
+
+    _select_compare_tab(
+        page,
+        "Weighted Score",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Main result table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    assert (
+        _streamlit_metric_text(
+            page,
+            label="Top item",
+        )
+        == top_country
+    )
+
+    _assert_numeric_streamlit_metric(
+        page,
+        label="Top rank",
+        expected=top_rank,
+    )
+
+    _assert_numeric_streamlit_metric(
+        page,
+        label="Top value",
+        expected=top_value,
+        occurrence=0,
+    )
+
+
+@pytest.mark.e2e
+def test_ui_13_multi_metric_summary_matches_documented_logic(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        metric_ids,
+        api_envelope,
+    ) = _find_multi_metric_reference_case()
+
+    table = _main_table_dataframe(
+        api_envelope
+    )
+
+    required_columns = {
+        "country_code",
+        "normalized_value",
+        "metric_id",
+    }
+
+    assert required_columns.issubset(
+        table.columns
+    )
+
+    grouping_columns = [
+        "country_code",
+    ]
+
+    if "country_name" in table.columns:
+        grouping_columns.append(
+            "country_name"
+        )
+
+    working = table.copy()
+
+    working["normalized_value"] = (
+        pd.to_numeric(
+            working["normalized_value"],
+            errors="raise",
+        )
+    )
+
+    summary = (
+        working.groupby(
+            grouping_columns,
+            dropna=False,
+        )["normalized_value"]
+        .mean()
+        .sort_values(
+            ascending=False
+        )
+        .reset_index()
+    )
+
+    assert not summary.empty
+
+    top_row = summary.iloc[0]
+
+    top_country = str(
+        top_row.get("country_name")
+        or top_row["country_code"]
+    )
+
+    returned_metric_count = (
+        table["metric_id"]
+        .astype(str)
+        .nunique()
+    )
+
+    page.goto(
+        _compare_url(
+            countries=country_codes,
+            mode="multi_metric",
+            metrics=metric_ids,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Compare",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_compare_tab(
+        page,
+        "Multi Metric",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run multi-metric comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+
+    run_button.click()
+
+    _select_compare_tab(
+        page,
+        "Multi Metric",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Main result table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    assert (
+        _streamlit_metric_text(
+            page,
+            label="Top item",
+        )
+        == top_country
+    )
+
+    assert (
+        _streamlit_metric_text(
+            page,
+            label="Top rank",
+        )
+        == "—"
+    )
+
+    _assert_numeric_streamlit_metric(
+        page,
+        label="Top value",
+        expected=returned_metric_count,
+        occurrence=0,
     )
