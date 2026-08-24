@@ -228,6 +228,11 @@ jobs:
           country-compare validate-data
           country-compare validate-config
 
+      - name: Install browser E2E dependencies
+        run: |
+          python -m pip install -e ".[e2e]" pytest httpx
+          python -m playwright install --with-deps chromium
+
       - name: Show Docker versions
         run: |
           docker --version
@@ -246,6 +251,10 @@ jobs:
 
           python scripts/smoke_ui_container.py \
             --base-url http://127.0.0.1:8501
+
+          COUNTRY_COMPARE_E2E_API_URL=http://127.0.0.1:8000 \
+          COUNTRY_COMPARE_E2E_UI_URL=http://127.0.0.1:8501 \
+          python -m pytest tests/e2e/ui_validation.py -vv
 
           docker compose exec -T ui \
             sh -c 'test ! -f /app/data/processed/metrics.parquet'
