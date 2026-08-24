@@ -2,6 +2,12 @@
   "reference_pack_version": "1.0",
   "release_version": "1.0.1",
   "reference_status": "reviewed_frozen",
+  "reference_review": {
+    "reviewed_at": "2026-08-24",
+    "release_dataset_checksum": "2a8cb6cfcb0f792352ea0600c70a056c2df545f1dfadf2acea3668d683438721",
+    "local_artifact_checksum_observed": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1",
+    "note": "CI-built Render release artifact approved after all five frozen OPS-02 semantic reference cases matched the reviewed local oracle results."
+  },
   "comparison_policy": {
     "relative_tolerance": 1e-12,
     "absolute_tolerance": 1e-09,
@@ -9,7 +15,7 @@
     "list_comparison": "exact_order_and_length"
   },
   "dataset": {
-    "dataset_checksum": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1",
+    "dataset_checksum": "2a8cb6cfcb0f792352ea0600c70a056c2df545f1dfadf2acea3668d683438721",
     "row_count": 152260,
     "country_count": 215,
     "metric_count": 21,
@@ -37,7 +43,7 @@
         "mode": "single_metric",
         "metadata": {
           "dataset": {
-            "dataset_sha256": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1"
+            "dataset_sha256": "2a8cb6cfcb0f792352ea0600c70a056c2df545f1dfadf2acea3668d683438721"
           }
         },
         "summary": {
@@ -93,7 +99,7 @@
         "mode": "weighted_score",
         "metadata": {
           "dataset": {
-            "dataset_sha256": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1"
+            "dataset_sha256": "2a8cb6cfcb0f792352ea0600c70a056c2df545f1dfadf2acea3668d683438721"
           }
         },
         "summary": {
@@ -161,7 +167,7 @@
         "mode": "single_metric_countries_prediction",
         "metadata": {
           "dataset": {
-            "dataset_sha256": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1"
+            "dataset_sha256": "2a8cb6cfcb0f792352ea0600c70a056c2df545f1dfadf2acea3668d683438721"
           },
           "successful_series_count": 1,
           "failed_series_count": 0
@@ -277,7 +283,7 @@
         "mode": "prediction_backtest",
         "metadata": {
           "dataset": {
-            "dataset_sha256": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1"
+            "dataset_sha256": "2a8cb6cfcb0f792352ea0600c70a056c2df545f1dfadf2acea3668d683438721"
           },
           "forecast_origin_year": 2014,
           "holdout_years": [
@@ -409,7 +415,7 @@
         "mode": "predicted_single_metric_comparison",
         "metadata": {
           "dataset": {
-            "dataset_sha256": "15effb64793186e944c71b554a2b694cadb33d61bf765768f6a112108b70e3b1"
+            "dataset_sha256": "2a8cb6cfcb0f792352ea0600c70a056c2df545f1dfadf2acea3668d683438721"
           },
           "selection_mode": "forecast_horizon",
           "selected_forecast_horizon": 1,
