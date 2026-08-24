@@ -70,10 +70,10 @@ jobs:
           test -s data/processed/catalog.json
 
       - name: Validate release dataset correctness
-              env:
-                COUNTRY_COMPARE_DATA_CORRECTNESS_PATH: data/processed/metrics.parquet
-              run: |
-                python -m pytest tests/integration/data -ra
+        env:
+          COUNTRY_COMPARE_DATA_CORRECTNESS_PATH: data/processed/metrics.parquet
+        run: |
+          python -m pytest tests/integration/data -ra
 
       - name: Run static layout guards
         run: |
