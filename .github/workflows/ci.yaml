@@ -70,10 +70,10 @@ jobs:
           test -s data/processed/catalog.json
 
       - name: Validate release dataset correctness
-              env:
-                COUNTRY_COMPARE_DATA_CORRECTNESS_PATH: data/processed/metrics.parquet
-              run: |
-                python -m pytest tests/integration/data -ra
+        env:
+          COUNTRY_COMPARE_DATA_CORRECTNESS_PATH: data/processed/metrics.parquet
+        run: |
+          python -m pytest tests/integration/data -ra
 
       - name: Run static layout guards
         run: |
@@ -230,7 +230,7 @@ jobs:
 
       - name: Install browser E2E dependencies
         run: |
-          python -m pip install -e ".[e2e]" pytest httpx
+          python -m pip install -e ".[e2e,ui]" pytest
           python -m playwright install --with-deps chromium
 
       - name: Show Docker versions

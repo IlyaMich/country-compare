@@ -978,107 +978,6 @@ def _csv_bytes(dataframe: pd.DataFrame) -> bytes:
     ).encode("utf-8")
 
 
-def _expected_multi_metric_ui_table(
-    api_table: pd.DataFrame,
-) -> pd.DataFrame:
-    presentation_columns = [
-        "metric_id",
-        "metric_name",
-        "country_code",
-        "country_name",
-        "value",
-        "normalized_value",
-        "rank",
-        "year",
-        "unit",
-        "category",
-        "normalization_method",
-        "normalization_basis",
-        "rank_method",
-    ]
-
-    required_columns = {
-        "metric_id",
-        "metric_name",
-        "country_code",
-        "country_name",
-        "value",
-        "normalized_value",
-        "rank",
-        "year",
-    }
-
-    assert required_columns.issubset(api_table.columns)
-
-    columns = [column for column in presentation_columns if column in api_table.columns]
-
-    result = api_table.loc[:, columns].copy()
-
-    result = result.sort_values(
-        by=[
-            "metric_id",
-            "rank",
-            "country_name",
-        ],
-        ascending=[
-            True,
-            True,
-            True,
-        ],
-    ).reset_index(drop=True)
-
-    numeric_columns = result.select_dtypes(include="number").columns
-
-    result.loc[:, numeric_columns] = result.loc[:, numeric_columns].round(3)
-
-    return result
-
-
-def _expected_weighted_score_ui_table(
-    api_table: pd.DataFrame,
-) -> pd.DataFrame:
-    presentation_columns = [
-        "country_code",
-        "country_name",
-        "weighted_score",
-        "score_rank",
-        "profile_name",
-        "missing_data_policy",
-        "metric_count_used",
-        "metric_count_expected",
-        "missing_metric_count",
-        "missing_metrics",
-        "weight_sum_used",
-        "year_strategy",
-        "score_rank_method",
-    ]
-
-    required_columns = {
-        "country_code",
-        "country_name",
-        "weighted_score",
-        "score_rank",
-    }
-
-    assert required_columns.issubset(api_table.columns)
-
-    columns = [column for column in presentation_columns if column in api_table.columns]
-
-    result = api_table.loc[:, columns].copy()
-
-    result = result.sort_values(
-        by="score_rank",
-        ascending=True,
-        kind="stable",
-    ).reset_index(drop=True)
-
-    numeric_columns = result.select_dtypes(include="number").columns
-
-    result.loc[:, numeric_columns] = result.loc[:, numeric_columns].round(3)
-
-    return result
-
-
 def _select_compare_tab(
     page: Page,
     label: str,
@@ -2882,10 +2781,6 @@ def test_ui_04_multi_metric_csv_matches_backend_result(
 
     assert set(api_table["metric_id"].astype(str)) == set(metric_ids)
 
-    expected_table = _expected_multi_metric_ui_table(api_table)
-
-    expected_csv = _csv_bytes(expected_table)
-
     page.goto(
         _compare_url(
             countries=country_codes,
@@ -2943,7 +2838,15 @@ def test_ui_04_multi_metric_csv_matches_backend_result(
 
     actual_csv = _download_table_csv(page)
 
-    assert actual_csv == expected_csv
+    _assert_export_csv_matches_api_columns(
+        csv_payload=actual_csv,
+        api_table=api_table,
+        sort_columns=(
+            "metric_id",
+            "rank",
+            "country_code",
+        ),
+    )
 
 
 @pytest.mark.e2e
@@ -2973,9 +2876,6 @@ def test_ui_05_weighted_score_csv_matches_backend_result(
     ):
         assert column in api_table.columns
 
-    expected_table = _expected_weighted_score_ui_table(api_table)
-
-    expected_csv = _csv_bytes(expected_table)
     page.goto(
         _compare_url(
             countries=country_codes,
@@ -3031,7 +2931,14 @@ def test_ui_05_weighted_score_csv_matches_backend_result(
 
     actual_csv = _download_table_csv(page)
 
-    assert actual_csv == expected_csv
+    _assert_export_csv_matches_api_columns(
+        csv_payload=actual_csv,
+        api_table=api_table,
+        sort_columns=(
+            "score_rank",
+            "country_code",
+        ),
+    )
 
 
 @pytest.mark.e2e
