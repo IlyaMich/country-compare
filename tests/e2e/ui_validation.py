@@ -60,6 +60,53 @@ _PREDICTION_RUN_SPECIFIC_COLUMNS = (
     "prediction_created_at",
 )
 
+_UI_14_BASE_PREDICTION_LIMITATIONS = (
+    (
+        "Forecasts are baseline statistical "
+        "projections, not guarantees."
+    ),
+    (
+        "The module extrapolates from historical "
+        "metric values and does not model causal "
+        "drivers."
+    ),
+    (
+        "Unexpected shocks, policy changes, "
+        "methodology changes, or source revisions "
+        "are not predicted."
+    ),
+    (
+        "Confidence intervals are not available "
+        "in the current baseline output."
+    ),
+    (
+        "Sparse, stale, or irregular histories "
+        "should be treated with extra caution."
+    ),
+)
+
+
+def _open_streamlit_expander(
+    page: Page,
+    label: str,
+):
+    expander = (
+        page.locator('[data-testid="stExpander"]')
+        .filter(has_text=label)
+        .first
+    )
+
+    expect(expander).to_be_visible(
+        timeout=20_000
+    )
+
+    details = expander.locator("details")
+
+    if details.get_attribute("open") is None:
+        expander.locator("summary").click()
+
+    return expander
+
 
 def _csv_without_columns(
     payload: bytes,
@@ -4325,3 +4372,607 @@ def test_ui_13_multi_metric_summary_matches_documented_logic(
         expected=returned_metric_count,
         occurrence=0,
     )
+
+
+def _find_ui_14_diagnostic_reference_case(
+) -> tuple[
+    list[str],
+    str,
+    str,
+    int,
+    dict[str, object],
+]:
+    method = "holt_linear"
+    fallback_method = "last_observed"
+    horizon_years = 3
+
+    countries_payload = _api_get_json(
+        "/api/v1/metadata/countries"
+    )
+    metrics_payload = _api_get_json(
+        "/api/v1/metadata/metrics"
+    )
+
+    countries = countries_payload.get("countries")
+    metrics = metrics_payload.get("metrics")
+
+    assert isinstance(countries, list)
+    assert isinstance(metrics, list)
+
+    country_codes = [
+        str(
+            item.get("code")
+            or item.get("country_code")
+            or ""
+        )
+        .strip()
+        .upper()
+        for item in countries
+        if isinstance(item, dict)
+    ]
+
+    metric_ids = [
+        str(
+            item.get("metric_id")
+            or item.get("id")
+            or ""
+        ).strip()
+        for item in metrics
+        if isinstance(item, dict)
+    ]
+
+    country_codes = [
+        value
+        for value in country_codes
+        if value
+    ]
+    metric_ids = [
+        value
+        for value in metric_ids
+        if value
+    ]
+
+    batch_size = 10
+
+    for metric_id in metric_ids:
+        fallback_country: str | None = None
+        failed_country: str | None = None
+
+        for start in range(
+            0,
+            len(country_codes),
+            batch_size,
+        ):
+            batch = country_codes[
+                start : start + batch_size
+            ]
+
+            status_code, envelope = _api_post_json(
+                "/api/v1/prediction/single-metric",
+                {
+                    "country_codes": batch,
+                    "metric_id": metric_id,
+                    "horizon_years": horizon_years,
+                    "method": method,
+                    "fallback_method": (
+                        fallback_method
+                    ),
+                    "fail_fast": False,
+                    "scenario_id": "baseline",
+                },
+            )
+
+            if status_code != 200:
+                continue
+
+            if envelope.get("ok") is not True:
+                continue
+
+            try:
+                diagnostics = (
+                    _prediction_diagnostic_items(
+                        envelope
+                    )
+                )
+            except AssertionError:
+                continue
+
+            for diagnostic in diagnostics:
+                country_code = diagnostic.get(
+                    "country_code"
+                )
+
+                if not isinstance(
+                    country_code,
+                    str,
+                ):
+                    continue
+
+                if (
+                    fallback_country is None
+                    and diagnostic.get("status")
+                    == "warning"
+                    and diagnostic.get(
+                        "method_requested"
+                    )
+                    == method
+                    and diagnostic.get(
+                        "method_used"
+                    )
+                    == fallback_method
+                    and diagnostic.get(
+                        "fallback_used"
+                    )
+                    is True
+                    and diagnostic.get("warnings")
+                ):
+                    fallback_country = (
+                        country_code
+                    )
+
+                if (
+                    failed_country is None
+                    and diagnostic.get("status")
+                    == "failed"
+                    and diagnostic.get(
+                        "method_requested"
+                    )
+                    == method
+                    and diagnostic.get("errors")
+                ):
+                    failed_country = country_code
+
+            if (
+                fallback_country is not None
+                and failed_country is not None
+            ):
+                break
+
+        if (
+            fallback_country is None
+            or failed_country is None
+            or fallback_country
+            == failed_country
+        ):
+            continue
+
+        selected_countries = [
+            fallback_country,
+            failed_country,
+        ]
+
+        status_code, final_envelope = (
+            _api_post_json(
+                "/api/v1/prediction/single-metric",
+                {
+                    "country_codes": (
+                        selected_countries
+                    ),
+                    "metric_id": metric_id,
+                    "horizon_years": (
+                        horizon_years
+                    ),
+                    "method": method,
+                    "fallback_method": (
+                        fallback_method
+                    ),
+                    "fail_fast": False,
+                    "scenario_id": "baseline",
+                },
+            )
+        )
+
+        if status_code != 200:
+            continue
+
+        if final_envelope.get("ok") is not True:
+            continue
+
+        diagnostics = (
+            _prediction_diagnostic_items(
+                final_envelope
+            )
+        )
+
+        fallback_items = [
+            item
+            for item in diagnostics
+            if (
+                item.get("country_code")
+                == fallback_country
+                and item.get("status")
+                == "warning"
+                and item.get("method_used")
+                == fallback_method
+                and item.get("fallback_used")
+                is True
+            )
+        ]
+
+        failed_items = [
+            item
+            for item in diagnostics
+            if (
+                item.get("country_code")
+                == failed_country
+                and item.get("status")
+                == "failed"
+                and item.get("errors")
+            )
+        ]
+
+        if (
+            len(fallback_items) == 1
+            and len(failed_items) == 1
+        ):
+            return (
+                selected_countries,
+                metric_id,
+                method,
+                horizon_years,
+                final_envelope,
+            )
+
+    pytest.fail(
+        "Could not find a release-dataset "
+        "UI-14 case containing both a "
+        "fallback series and a failed series."
+    )
+
+
+@pytest.mark.e2e
+def test_ui_14_prediction_limitations_are_visible(
+    page: Page,
+) -> None:
+    (
+        country_code,
+        metric_id,
+        method,
+        horizon_years,
+        _api_envelope,
+    ) = _find_single_forecast_reference_case()
+
+    page.goto(
+        _prediction_url(
+            mode="single_forecast",
+            country=country_code,
+            metric=metric_id,
+            method=method,
+            horizon_years=horizon_years,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run single forecast",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+
+    run_button.click()
+
+    # Streamlit reruns can restore the
+    # first visible tab.
+    _select_prediction_tab(
+        page,
+        "Single Forecast",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction quality",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    limitations = _open_streamlit_expander(
+        page,
+        "Prediction limitations",
+    )
+
+    for limitation in (
+        _UI_14_BASE_PREDICTION_LIMITATIONS
+    ):
+        expect(limitations).to_contain_text(
+            limitation
+        )
+
+
+@pytest.mark.e2e
+def test_ui_14_warnings_fallback_and_failed_series_are_visible(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        metric_id,
+        method,
+        horizon_years,
+        api_envelope,
+    ) = _find_ui_14_diagnostic_reference_case()
+
+    assert len(country_codes) == 2
+
+    expected_summary = api_envelope.get(
+        "summary"
+    )
+    assert isinstance(expected_summary, dict)
+
+    expected_diagnostics = (
+        expected_summary.get("diagnostics")
+    )
+    assert isinstance(
+        expected_diagnostics,
+        dict,
+    )
+
+    diagnostic_items = (
+        _prediction_diagnostic_items(
+            api_envelope
+        )
+    )
+
+    fallback_items = [
+        item
+        for item in diagnostic_items
+        if (
+            item.get("status") == "warning"
+            and item.get("fallback_used")
+            is True
+        )
+    ]
+
+    failed_items = [
+        item
+        for item in diagnostic_items
+        if item.get("status") == "failed"
+    ]
+
+    assert len(fallback_items) == 1
+    assert len(failed_items) == 1
+
+    fallback_diagnostic = fallback_items[0]
+    failed_diagnostic = failed_items[0]
+
+    fallback_country = (
+        fallback_diagnostic["country_code"]
+    )
+    failed_country = (
+        failed_diagnostic["country_code"]
+    )
+
+    assert isinstance(
+        fallback_country,
+        str,
+    )
+    assert isinstance(
+        failed_country,
+        str,
+    )
+
+    assert (
+        fallback_diagnostic["method_requested"]
+        == method
+    )
+    assert (
+        fallback_diagnostic["method_used"]
+        == "last_observed"
+    )
+    assert (
+        fallback_diagnostic["fallback_used"]
+        is True
+    )
+
+    fallback_warnings = (
+        fallback_diagnostic.get("warnings")
+    )
+    assert isinstance(
+        fallback_warnings,
+        list,
+    )
+    assert fallback_warnings
+
+    failed_errors = failed_diagnostic.get(
+        "errors"
+    )
+    assert isinstance(failed_errors, list)
+    assert failed_errors
+
+    expected_warnings = api_envelope.get(
+        "warnings"
+    )
+    assert isinstance(expected_warnings, list)
+    assert expected_warnings
+
+    page.goto(
+        _prediction_url(
+            mode="multi_country_forecast",
+            countries=country_codes,
+            metric=metric_id,
+            method=method,
+            horizon_years=horizon_years,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Multi-Country Forecast",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run multi-country forecast",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+
+    run_button.click()
+
+    _select_prediction_tab(
+        page,
+        "Multi-Country Forecast",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction quality",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    # Result-level warnings from the API
+    # must remain visible in the UI.
+    for warning in expected_warnings:
+        warning_alert = (
+            page.locator(
+                '[data-testid="stAlert"]'
+            )
+            .filter(
+                has_text=str(warning)
+            )
+            .first
+        )
+
+        expect(warning_alert).to_be_visible(
+            timeout=20_000
+        )
+
+    _assert_streamlit_metric(
+        page,
+        label="Failed series",
+        value=1,
+    )
+
+    _assert_streamlit_metric(
+        page,
+        label="Failed",
+        value=1,
+    )
+
+    # The downloadable diagnostics give us
+    # exact API -> browser-result parity.
+    actual_diagnostics_payload = (
+        _download_diagnostics_json(page)
+    )
+
+    actual_summary = (
+        actual_diagnostics_payload.get(
+            "summary"
+        )
+    )
+    assert isinstance(actual_summary, dict)
+
+    actual_diagnostics = (
+        actual_summary.get("diagnostics")
+    )
+    assert isinstance(
+        actual_diagnostics,
+        dict,
+    )
+
+    assert (
+        actual_diagnostics
+        == expected_diagnostics
+    )
+
+    # Also prove that the human-visible
+    # Diagnostics panel attributes the
+    # fallback and failure correctly.
+    diagnostics_expander = (
+        _open_streamlit_expander(
+            page,
+            "Diagnostics",
+        )
+    )
+
+    expect(
+        diagnostics_expander
+    ).to_contain_text(
+        fallback_country
+    )
+
+    expect(
+        diagnostics_expander
+    ).to_contain_text(
+        failed_country
+    )
+
+    expect(
+        diagnostics_expander
+    ).to_contain_text(
+        metric_id
+    )
+
+    expect(
+        diagnostics_expander
+    ).to_contain_text(
+        method
+    )
+
+    expect(
+        diagnostics_expander
+    ).to_contain_text(
+        "last_observed"
+    )
+
+    for warning in fallback_warnings:
+        expect(
+            diagnostics_expander
+        ).to_contain_text(
+            str(warning)
+        )
+
+    for error in failed_errors:
+        assert isinstance(error, dict)
+
+        error_code = error.get("code")
+        error_message = error.get("message")
+
+        if error_code:
+            expect(
+                diagnostics_expander
+            ).to_contain_text(
+                str(error_code)
+            )
+
+        if error_message:
+            expect(
+                diagnostics_expander
+            ).to_contain_text(
+                str(error_message)
+            )
+
+
+        
