@@ -103,10 +103,7 @@ def render_prediction_view(context: AppContext) -> None:
     _render_prediction_page_header(catalog_state)
 
     initial_prediction_mode = str(
-        get_selection_state().get(
-            "prediction_active_mode"
-        )
-        or "single_forecast"
+        get_selection_state().get("prediction_active_mode") or "single_forecast"
     )
 
     single_tab, multi_tab, comparison_tab, backtest_tab = st.tabs(
@@ -120,7 +117,11 @@ def render_prediction_view(context: AppContext) -> None:
         _render_multi_country_forecast_tab(catalog_state, prediction_service)
 
     with comparison_tab:
-        _render_predicted_comparison_tab(catalog_state, prediction_service, initial_prediction_mode=initial_prediction_mode)
+        _render_predicted_comparison_tab(
+            catalog_state,
+            prediction_service,
+            initial_prediction_mode=initial_prediction_mode,
+        )
 
     with backtest_tab:
         _render_backtest_tab(catalog_state, prediction_service)
@@ -292,23 +293,13 @@ def _render_predicted_comparison_tab(
     selection_state = get_selection_state()
 
     comparison_modes = ui_text.PREDICTED_COMPARISON_MODES
-    labels = [
-        label
-        for label, _ in comparison_modes
-    ]
-    values = {
-        label: value
-        for label, value in comparison_modes
-    }
+    labels = [label for label, _ in comparison_modes]
+    values = {label: value for label, value in comparison_modes}
 
     default_mode = initial_prediction_mode
 
     default_label = next(
-        (
-            label
-            for label, value in comparison_modes
-            if value == default_mode
-        ),
+        (label for label, value in comparison_modes if value == default_mode),
         ui_text.PREDICTED_COMPARISON_MODE_SINGLE_METRIC_LABEL,
     )
 

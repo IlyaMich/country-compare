@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Iterator
+from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlencode
-import json
-from io import BytesIO
 
 import httpx
 import pandas as pd
@@ -57,11 +57,7 @@ def _csv_without_columns(
         keep_default_na=False,
     )
 
-    removable = [
-        column
-        for column in columns
-        if column in dataframe.columns
-    ]
+    removable = [column for column in columns if column in dataframe.columns]
 
     dataframe = dataframe.drop(columns=removable)
 
@@ -102,8 +98,7 @@ def _assert_prediction_run_metadata(
     assert not pd.isna(parsed_created_at)
 
 
-def _find_single_forecast_reference_case(
-) -> tuple[
+def _find_single_forecast_reference_case() -> tuple[
     str,
     str,
     str,
@@ -113,12 +108,8 @@ def _find_single_forecast_reference_case(
     method = "last_observed"
     horizon_years = 3
 
-    countries_payload = _api_get_json(
-        "/api/v1/metadata/countries"
-    )
-    metrics_payload = _api_get_json(
-        "/api/v1/metadata/metrics"
-    )
+    countries_payload = _api_get_json("/api/v1/metadata/countries")
+    metrics_payload = _api_get_json("/api/v1/metadata/metrics")
 
     countries = countries_payload.get("countries")
     metrics = metrics_payload.get("metrics")
@@ -127,26 +118,19 @@ def _find_single_forecast_reference_case(
     assert isinstance(metrics, list)
 
     country_codes = [
-        str(item.get("code") or item.get("country_code") or "")
-        .strip()
-        .upper()
+        str(item.get("code") or item.get("country_code") or "").strip().upper()
         for item in countries
         if isinstance(item, dict)
     ]
 
     metric_ids = [
-        str(item.get("metric_id") or item.get("id") or "")
-        .strip()
+        str(item.get("metric_id") or item.get("id") or "").strip()
         for item in metrics
         if isinstance(item, dict)
     ]
 
-    country_codes = [
-        value for value in country_codes if value
-    ]
-    metric_ids = [
-        value for value in metric_ids if value
-    ]
+    country_codes = [value for value in country_codes if value]
+    metric_ids = [value for value in metric_ids if value]
 
     for metric_id in metric_ids:
         for country_code in country_codes:
@@ -173,11 +157,7 @@ def _find_single_forecast_reference_case(
                     envelope,
                     "forecast",
                 )
-                diagnostics = (
-                    _prediction_diagnostic_items(
-                        envelope
-                    )
-                )
+                diagnostics = _prediction_diagnostic_items(envelope)
             except AssertionError:
                 continue
 
@@ -189,19 +169,13 @@ def _find_single_forecast_reference_case(
 
             diagnostic = diagnostics[0]
 
-            if (
-                diagnostic.get("country_code")
-                != country_code
-            ):
+            if diagnostic.get("country_code") != country_code:
                 continue
 
             if diagnostic.get("metric_id") != metric_id:
                 continue
 
-            if (
-                diagnostic.get("method_requested")
-                != method
-            ):
+            if diagnostic.get("method_requested") != method:
                 continue
 
             if diagnostic.get("method_used") != method:
@@ -224,8 +198,7 @@ def _find_single_forecast_reference_case(
     )
 
 
-def _find_multi_country_forecast_reference_case(
-) -> tuple[
+def _find_multi_country_forecast_reference_case() -> tuple[
     list[str],
     str,
     str,
@@ -235,12 +208,8 @@ def _find_multi_country_forecast_reference_case(
     method = "last_observed"
     horizon_years = 3
 
-    countries_payload = _api_get_json(
-        "/api/v1/metadata/countries"
-    )
-    metrics_payload = _api_get_json(
-        "/api/v1/metadata/metrics"
-    )
+    countries_payload = _api_get_json("/api/v1/metadata/countries")
+    metrics_payload = _api_get_json("/api/v1/metadata/metrics")
 
     countries = countries_payload.get("countries")
     metrics = metrics_payload.get("metrics")
@@ -249,37 +218,19 @@ def _find_multi_country_forecast_reference_case(
     assert isinstance(metrics, list)
 
     country_codes = [
-        str(
-            item.get("code")
-            or item.get("country_code")
-            or ""
-        )
-        .strip()
-        .upper()
+        str(item.get("code") or item.get("country_code") or "").strip().upper()
         for item in countries
         if isinstance(item, dict)
     ]
 
     metric_ids = [
-        str(
-            item.get("metric_id")
-            or item.get("id")
-            or ""
-        ).strip()
+        str(item.get("metric_id") or item.get("id") or "").strip()
         for item in metrics
         if isinstance(item, dict)
     ]
 
-    country_codes = [
-        value
-        for value in country_codes
-        if value
-    ]
-    metric_ids = [
-        value
-        for value in metric_ids
-        if value
-    ]
+    country_codes = [value for value in country_codes if value]
+    metric_ids = [value for value in metric_ids if value]
 
     for metric_id in metric_ids:
         successful_countries: list[str] = []
@@ -308,11 +259,7 @@ def _find_multi_country_forecast_reference_case(
                     single_envelope,
                     "forecast",
                 )
-                diagnostics = (
-                    _prediction_diagnostic_items(
-                        single_envelope
-                    )
-                )
+                diagnostics = _prediction_diagnostic_items(single_envelope)
             except AssertionError:
                 continue
 
@@ -324,19 +271,13 @@ def _find_multi_country_forecast_reference_case(
 
             diagnostic = diagnostics[0]
 
-            if (
-                diagnostic.get("country_code")
-                != country_code
-            ):
+            if diagnostic.get("country_code") != country_code:
                 continue
 
             if diagnostic.get("metric_id") != metric_id:
                 continue
 
-            if (
-                diagnostic.get("method_requested")
-                != method
-            ):
+            if diagnostic.get("method_requested") != method:
                 continue
 
             if diagnostic.get("method_used") != method:
@@ -376,45 +317,28 @@ def _find_multi_country_forecast_reference_case(
                     batch_envelope,
                     "forecast",
                 )
-                batch_diagnostics = (
-                    _prediction_diagnostic_items(
-                        batch_envelope
-                    )
-                )
+                batch_diagnostics = _prediction_diagnostic_items(batch_envelope)
             except AssertionError:
                 continue
 
-            if (
-                len(batch_forecast.index)
-                != len(selected_countries)
-                * horizon_years
-            ):
+            if len(batch_forecast.index) != len(selected_countries) * horizon_years:
                 continue
 
-            if len(batch_diagnostics) != len(
-                selected_countries
-            ):
+            if len(batch_diagnostics) != len(selected_countries):
                 continue
 
             forecast_country_codes = set(
-                batch_forecast["country_code"]
-                .astype(str)
-                .tolist()
+                batch_forecast["country_code"].astype(str).tolist()
             )
 
-            if forecast_country_codes != set(
-                selected_countries
-            ):
+            if forecast_country_codes != set(selected_countries):
                 continue
 
             diagnostics_by_country = {
-                str(item.get("country_code")): item
-                for item in batch_diagnostics
+                str(item.get("country_code")): item for item in batch_diagnostics
             }
 
-            if set(diagnostics_by_country) != set(
-                selected_countries
-            ):
+            if set(diagnostics_by_country) != set(selected_countries):
                 continue
 
             valid = True
@@ -426,10 +350,7 @@ def _find_multi_country_forecast_reference_case(
                     valid = False
                     break
 
-                if (
-                    diagnostic.get("method_requested")
-                    != method
-                ):
+                if diagnostic.get("method_requested") != method:
                     valid = False
                     break
 
@@ -437,10 +358,7 @@ def _find_multi_country_forecast_reference_case(
                     valid = False
                     break
 
-                if (
-                    diagnostic.get("fallback_used")
-                    is not False
-                ):
+                if diagnostic.get("fallback_used") is not False:
                     valid = False
                     break
 
@@ -462,8 +380,7 @@ def _find_multi_country_forecast_reference_case(
     )
 
 
-def _find_predicted_single_metric_reference_case(
-) -> tuple[
+def _find_predicted_single_metric_reference_case() -> tuple[
     list[str],
     str,
     str,
@@ -505,33 +422,20 @@ def _find_predicted_single_metric_reference_case(
     summary = envelope.get("summary")
     assert isinstance(summary, dict)
 
-    assert (
-        summary.get("selected_forecast_horizon")
-        == forecast_horizon
-    )
+    assert summary.get("selected_forecast_horizon") == forecast_horizon
 
-    selected_year = summary.get(
-        "selected_forecast_year"
-    )
+    selected_year = summary.get("selected_forecast_year")
 
-    assert (
-        selected_year is None
-        or isinstance(selected_year, int)
-    )
+    assert selected_year is None or isinstance(selected_year, int)
 
     metadata = summary.get("metadata")
     assert isinstance(metadata, dict)
 
-    selected_prediction_years = metadata.get(
-        "selected_prediction_years"
-    )
+    selected_prediction_years = metadata.get("selected_prediction_years")
     assert isinstance(selected_prediction_years, list)
     assert selected_prediction_years
 
-    selected_prediction_years = [
-        int(year)
-        for year in selected_prediction_years
-    ]
+    selected_prediction_years = [int(year) for year in selected_prediction_years]
 
     comparison_years = sorted(
         pd.to_numeric(
@@ -543,23 +447,17 @@ def _find_predicted_single_metric_reference_case(
         .tolist()
     )
 
-    assert comparison_years == sorted(
-        selected_prediction_years
-    )
+    assert comparison_years == sorted(selected_prediction_years)
 
     if selected_year is not None:
-        assert selected_prediction_years == [
-            selected_year
-        ]
+        assert selected_prediction_years == [selected_year]
     else:
         # Horizon-based selection may map to different
         # calendar years when countries have different
         # forecast origin years.
         assert len(selected_prediction_years) > 1
 
-    assert len(comparison.index) == len(
-        country_codes
-    )
+    assert len(comparison.index) == len(country_codes)
 
     assert "country_code" in comparison.columns
     assert "year" in comparison.columns
@@ -567,11 +465,7 @@ def _find_predicted_single_metric_reference_case(
     assert "normalized_value" in comparison.columns
     assert "rank" in comparison.columns
 
-    assert set(
-        comparison["country_code"]
-        .astype(str)
-        .tolist()
-    ) == set(country_codes)
+    assert set(comparison["country_code"].astype(str).tolist()) == set(country_codes)
 
     assert comparison["value"].notna().all()
     assert comparison["normalized_value"].notna().all()
@@ -618,9 +512,7 @@ def _expected_forecast_ui_table(
 
     if "row_type" in dataframe.columns:
         dataframe = dataframe.loc[
-            dataframe["row_type"]
-            .astype("string")
-            .eq("predicted")
+            dataframe["row_type"].astype("string").eq("predicted")
         ].copy()
 
     assert "year" in dataframe.columns
@@ -777,24 +669,16 @@ def _prediction_url(
         params["prediction_countries"] = ",".join(countries)
 
     if horizon_years is not None:
-        params["prediction_horizon_years"] = str(
-            horizon_years
-        )
+        params["prediction_horizon_years"] = str(horizon_years)
 
     if holdout_years is not None:
-        params["prediction_holdout_years"] = str(
-            holdout_years
-        )
+        params["prediction_holdout_years"] = str(holdout_years)
 
     if forecast_horizon is not None:
-        params["prediction_forecast_horizon"] = str(
-            forecast_horizon
-        )
+        params["prediction_forecast_horizon"] = str(forecast_horizon)
 
     if forecast_year is not None:
-        params["prediction_forecast_year"] = str(
-            forecast_year
-        )
+        params["prediction_forecast_year"] = str(forecast_year)
 
     return f"{UI_BASE_URL}/?{urlencode(params)}"
 
@@ -828,9 +712,7 @@ def _download_diagnostics_json(
         exact=True,
     )
 
-    expect(download_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(download_button).to_be_visible(timeout=20_000)
 
     with page.expect_download(timeout=20_000) as download_info:
         download_button.click()
@@ -838,9 +720,7 @@ def _download_diagnostics_json(
     download_path = download_info.value.path()
     assert isinstance(download_path, Path)
 
-    payload = json.loads(
-        download_path.read_text(encoding="utf-8")
-    )
+    payload = json.loads(download_path.read_text(encoding="utf-8"))
 
     assert isinstance(payload, dict)
     return payload
@@ -931,11 +811,7 @@ def _expected_multi_metric_ui_table(
 
     assert required_columns.issubset(api_table.columns)
 
-    columns = [
-        column
-        for column in presentation_columns
-        if column in api_table.columns
-    ]
+    columns = [column for column in presentation_columns if column in api_table.columns]
 
     result = api_table.loc[:, columns].copy()
 
@@ -952,13 +828,9 @@ def _expected_multi_metric_ui_table(
         ],
     ).reset_index(drop=True)
 
-    numeric_columns = result.select_dtypes(
-        include="number"
-    ).columns
+    numeric_columns = result.select_dtypes(include="number").columns
 
-    result.loc[:, numeric_columns] = (
-        result.loc[:, numeric_columns].round(3)
-    )
+    result.loc[:, numeric_columns] = result.loc[:, numeric_columns].round(3)
 
     return result
 
@@ -989,15 +861,9 @@ def _expected_weighted_score_ui_table(
         "score_rank",
     }
 
-    assert required_columns.issubset(
-        api_table.columns
-    )
+    assert required_columns.issubset(api_table.columns)
 
-    columns = [
-        column
-        for column in presentation_columns
-        if column in api_table.columns
-    ]
+    columns = [column for column in presentation_columns if column in api_table.columns]
 
     result = api_table.loc[:, columns].copy()
 
@@ -1007,13 +873,9 @@ def _expected_weighted_score_ui_table(
         kind="stable",
     ).reset_index(drop=True)
 
-    numeric_columns = result.select_dtypes(
-        include="number"
-    ).columns
+    numeric_columns = result.select_dtypes(include="number").columns
 
-    result.loc[:, numeric_columns] = (
-        result.loc[:, numeric_columns].round(3)
-    )
+    result.loc[:, numeric_columns] = result.loc[:, numeric_columns].round(3)
 
     return result
 
@@ -1046,13 +908,9 @@ def _download_table_csv(page: Page) -> bytes:
         exact=True,
     )
 
-    expect(download_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(download_button).to_be_visible(timeout=20_000)
 
-    with page.expect_download(
-        timeout=20_000
-    ) as download_info:
+    with page.expect_download(timeout=20_000) as download_info:
         download_button.click()
 
     download_path = download_info.value.path()
@@ -1163,9 +1021,7 @@ def _find_multi_metric_reference_case() -> tuple[
         _single_envelope,
     ) = _find_single_metric_reference_case()
 
-    metrics_payload = _api_get_json(
-        "/api/v1/metadata/metrics"
-    )
+    metrics_payload = _api_get_json("/api/v1/metadata/metrics")
 
     metrics = metrics_payload.get("metrics")
 
@@ -1175,14 +1031,9 @@ def _find_multi_metric_reference_case() -> tuple[
         if not isinstance(metric, dict):
             continue
 
-        second_metric_id = str(
-            metric.get("metric_id") or ""
-        ).strip()
+        second_metric_id = str(metric.get("metric_id") or "").strip()
 
-        if (
-            not second_metric_id
-            or second_metric_id == first_metric_id
-        ):
+        if not second_metric_id or second_metric_id == first_metric_id:
             continue
 
         # First prove that the same two countries have a usable
@@ -1196,15 +1047,10 @@ def _find_multi_metric_reference_case() -> tuple[
             },
         )
 
-        if (
-            second_status != 200
-            or second_envelope.get("ok") is not True
-        ):
+        if second_status != 200 or second_envelope.get("ok") is not True:
             continue
 
-        second_table = _main_table_dataframe(
-            second_envelope
-        )
+        second_table = _main_table_dataframe(second_envelope)
 
         if len(second_table.index) < 2:
             continue
@@ -1223,10 +1069,7 @@ def _find_multi_metric_reference_case() -> tuple[
             },
         )
 
-        if (
-            status_code != 200
-            or envelope.get("ok") is not True
-        ):
+        if status_code != 200 or envelope.get("ok") is not True:
             continue
 
         table = _main_table_dataframe(envelope)
@@ -1237,24 +1080,14 @@ def _find_multi_metric_reference_case() -> tuple[
         }.issubset(table.columns):
             continue
 
-        returned_metrics = {
-            str(value)
-            for value in table["metric_id"].tolist()
-        }
+        returned_metrics = {str(value) for value in table["metric_id"].tolist()}
 
-        returned_countries = {
-            str(value)
-            for value in table["country_code"].tolist()
-        }
+        returned_countries = {str(value) for value in table["country_code"].tolist()}
 
-        if not set(metric_ids).issubset(
-            returned_metrics
-        ):
+        if not set(metric_ids).issubset(returned_metrics):
             continue
 
-        if not set(country_codes).issubset(
-            returned_countries
-        ):
+        if not set(country_codes).issubset(returned_countries):
             continue
 
         return (
@@ -1264,8 +1097,7 @@ def _find_multi_metric_reference_case() -> tuple[
         )
 
     raise AssertionError(
-        "Could not discover a two-country, "
-        "two-metric E2E reference case."
+        "Could not discover a two-country, " "two-metric E2E reference case."
     )
 
 
@@ -1274,12 +1106,8 @@ def _find_weighted_score_reference_case() -> tuple[
     str,
     dict[str, object],
 ]:
-    countries_payload = _api_get_json(
-        "/api/v1/metadata/countries"
-    )
-    profiles_payload = _api_get_json(
-        "/api/v1/metadata/profiles"
-    )
+    countries_payload = _api_get_json("/api/v1/metadata/countries")
+    profiles_payload = _api_get_json("/api/v1/metadata/profiles")
 
     countries = countries_payload.get("countries")
     profiles = profiles_payload.get("profiles")
@@ -1290,10 +1118,7 @@ def _find_weighted_score_reference_case() -> tuple[
     candidate_country_codes = [
         str(country["code"])
         for country in countries[:40]
-        if (
-            isinstance(country, dict)
-            and country.get("code")
-        )
+        if (isinstance(country, dict) and country.get("code"))
     ]
 
     assert len(candidate_country_codes) >= 2
@@ -1303,9 +1128,7 @@ def _find_weighted_score_reference_case() -> tuple[
             continue
 
         profile_name = str(
-            profile.get("profile_name")
-            or profile.get("name")
-            or ""
+            profile.get("profile_name") or profile.get("name") or ""
         ).strip()
 
         if not profile_name:
@@ -1314,38 +1137,24 @@ def _find_weighted_score_reference_case() -> tuple[
         status_code, envelope = _api_post_json(
             "/api/v1/score/profile",
             {
-                "country_codes": (
-                    candidate_country_codes
-                ),
+                "country_codes": (candidate_country_codes),
                 "profile_name": profile_name,
-                "year_strategy": (
-                    "latest_per_metric"
-                ),
+                "year_strategy": ("latest_per_metric"),
             },
         )
 
-        if (
-            status_code != 200
-            or envelope.get("ok") is not True
-        ):
+        if status_code != 200 or envelope.get("ok") is not True:
             continue
 
-        table = _main_table_dataframe(
-            envelope
-        )
+        table = _main_table_dataframe(envelope)
 
-        if (
-            "country_code" not in table.columns
-            or len(table.index) < 2
-        ):
+        if "country_code" not in table.columns or len(table.index) < 2:
             continue
 
         returned_country_codes = list(
             dict.fromkeys(
                 str(code)
-                for code in table[
-                    "country_code"
-                ].tolist()
+                for code in table["country_code"].tolist()
                 if str(code).strip()
             )
         )
@@ -1353,35 +1162,21 @@ def _find_weighted_score_reference_case() -> tuple[
         if len(returned_country_codes) < 2:
             continue
 
-        selected_country_codes = (
-            returned_country_codes[:2]
+        selected_country_codes = returned_country_codes[:2]
+
+        final_status, final_envelope = _api_post_json(
+            "/api/v1/score/profile",
+            {
+                "country_codes": (selected_country_codes),
+                "profile_name": profile_name,
+                "year_strategy": ("latest_per_metric"),
+            },
         )
 
-        final_status, final_envelope = (
-            _api_post_json(
-                "/api/v1/score/profile",
-                {
-                    "country_codes": (
-                        selected_country_codes
-                    ),
-                    "profile_name": profile_name,
-                    "year_strategy": (
-                        "latest_per_metric"
-                    ),
-                },
-            )
-        )
-
-        if (
-            final_status != 200
-            or final_envelope.get("ok")
-            is not True
-        ):
+        if final_status != 200 or final_envelope.get("ok") is not True:
             continue
 
-        final_table = _main_table_dataframe(
-            final_envelope
-        )
+        final_table = _main_table_dataframe(final_envelope)
 
         if len(final_table.index) < 2:
             continue
@@ -1393,13 +1188,11 @@ def _find_weighted_score_reference_case() -> tuple[
         )
 
     raise AssertionError(
-        "Could not discover a valid "
-        "two-country weighted-score E2E case."
+        "Could not discover a valid " "two-country weighted-score E2E case."
     )
 
 
-def _find_backtest_reference_case(
-) -> tuple[
+def _find_backtest_reference_case() -> tuple[
     str,
     str,
     str,
@@ -1409,12 +1202,8 @@ def _find_backtest_reference_case(
     method = "last_observed"
     holdout_years = 3
 
-    countries_payload = _api_get_json(
-        "/api/v1/metadata/countries"
-    )
-    metrics_payload = _api_get_json(
-        "/api/v1/metadata/metrics"
-    )
+    countries_payload = _api_get_json("/api/v1/metadata/countries")
+    metrics_payload = _api_get_json("/api/v1/metadata/metrics")
 
     countries = countries_payload.get("countries")
     metrics = metrics_payload.get("metrics")
@@ -1423,33 +1212,19 @@ def _find_backtest_reference_case(
     assert isinstance(metrics, list)
 
     country_codes = [
-        str(
-            item.get("code")
-            or item.get("country_code")
-            or ""
-        )
-        .strip()
-        .upper()
+        str(item.get("code") or item.get("country_code") or "").strip().upper()
         for item in countries
         if isinstance(item, dict)
     ]
 
     metric_ids = [
-        str(
-            item.get("metric_id")
-            or item.get("id")
-            or ""
-        ).strip()
+        str(item.get("metric_id") or item.get("id") or "").strip()
         for item in metrics
         if isinstance(item, dict)
     ]
 
-    country_codes = [
-        value for value in country_codes if value
-    ]
-    metric_ids = [
-        value for value in metric_ids if value
-    ]
+    country_codes = [value for value in country_codes if value]
+    metric_ids = [value for value in metric_ids if value]
 
     for metric_id in metric_ids:
         for country_code in country_codes:
@@ -1472,11 +1247,9 @@ def _find_backtest_reference_case(
                 continue
 
             try:
-                actual_vs_predicted = (
-                    _named_table_dataframe(
-                        envelope,
-                        "actual_vs_predicted",
-                    )
+                actual_vs_predicted = _named_table_dataframe(
+                    envelope,
+                    "actual_vs_predicted",
                 )
             except AssertionError:
                 continue
@@ -1513,10 +1286,7 @@ def _find_backtest_reference_case(
             if diagnostic.get("metric_id") != metric_id:
                 continue
 
-            if (
-                diagnostic.get("method_requested")
-                != method
-            ):
+            if diagnostic.get("method_requested") != method:
                 continue
 
             if diagnostic.get("method_used") != method:
@@ -1551,8 +1321,7 @@ def _find_backtest_reference_case(
     )
 
 
-def _find_predicted_multi_metric_reference_case(
-) -> tuple[
+def _find_predicted_multi_metric_reference_case() -> tuple[
     list[str],
     list[str],
     str,
@@ -1570,18 +1339,12 @@ def _find_predicted_multi_metric_reference_case(
 
     forecast_horizon = 1
 
-    metrics_payload = _api_get_json(
-        "/api/v1/metadata/metrics"
-    )
+    metrics_payload = _api_get_json("/api/v1/metadata/metrics")
     metrics = metrics_payload.get("metrics")
     assert isinstance(metrics, list)
 
     metric_ids = [
-        str(
-            item.get("metric_id")
-            or item.get("id")
-            or ""
-        ).strip()
+        str(item.get("metric_id") or item.get("id") or "").strip()
         for item in metrics
         if isinstance(item, dict)
     ]
@@ -1589,8 +1352,7 @@ def _find_predicted_multi_metric_reference_case(
     metric_ids = [
         metric_id
         for metric_id in metric_ids
-        if metric_id
-        and metric_id != first_metric_id
+        if metric_id and metric_id != first_metric_id
     ]
 
     for second_metric_id in metric_ids:
@@ -1623,11 +1385,7 @@ def _find_predicted_multi_metric_reference_case(
                 envelope,
                 "predicted_comparison",
             )
-            diagnostics = (
-                _prediction_diagnostic_items(
-                    envelope
-                )
-            )
+            diagnostics = _prediction_diagnostic_items(envelope)
         except AssertionError:
             continue
 
@@ -1635,10 +1393,7 @@ def _find_predicted_multi_metric_reference_case(
         if not isinstance(summary, dict):
             continue
 
-        if (
-            summary.get("selected_forecast_horizon")
-            != forecast_horizon
-        ):
+        if summary.get("selected_forecast_horizon") != forecast_horizon:
             continue
 
         required_columns = {
@@ -1650,36 +1405,25 @@ def _find_predicted_multi_metric_reference_case(
             "rank",
         }
 
-        if not required_columns.issubset(
-            set(comparison.columns)
-        ):
+        if not required_columns.issubset(set(comparison.columns)):
             continue
 
         # Require a complete 2-country x 2-metric result.
         if len(comparison.index) != 4:
             continue
 
-        if set(
-            comparison["country_code"]
-            .astype(str)
-            .tolist()
-        ) != set(country_codes):
+        if set(comparison["country_code"].astype(str).tolist()) != set(country_codes):
             continue
 
-        if set(
-            comparison["metric_id"]
-            .astype(str)
-            .tolist()
-        ) != set(selected_metric_ids):
+        if set(comparison["metric_id"].astype(str).tolist()) != set(
+            selected_metric_ids
+        ):
             continue
 
-        pair_counts = (
-            comparison.groupby(
-                ["country_code", "metric_id"],
-                dropna=False,
-            )
-            .size()
-        )
+        pair_counts = comparison.groupby(
+            ["country_code", "metric_id"],
+            dropna=False,
+        ).size()
 
         if not (pair_counts == 1).all():
             continue
@@ -1709,12 +1453,8 @@ def _find_predicted_multi_metric_reference_case(
         valid = True
 
         for diagnostic in diagnostics:
-            country_code = diagnostic.get(
-                "country_code"
-            )
-            metric_id = diagnostic.get(
-                "metric_id"
-            )
+            country_code = diagnostic.get("country_code")
+            metric_id = diagnostic.get("metric_id")
 
             if not isinstance(country_code, str):
                 valid = False
@@ -1732,24 +1472,15 @@ def _find_predicted_multi_metric_reference_case(
 
             diagnostics_by_series[key] = diagnostic
 
-            if (
-                diagnostic.get("method_requested")
-                != method
-            ):
+            if diagnostic.get("method_requested") != method:
                 valid = False
                 break
 
-            if (
-                diagnostic.get("method_used")
-                != method
-            ):
+            if diagnostic.get("method_used") != method:
                 valid = False
                 break
 
-            if (
-                diagnostic.get("fallback_used")
-                is not False
-            ):
+            if diagnostic.get("fallback_used") is not False:
                 valid = False
                 break
 
@@ -1762,19 +1493,14 @@ def _find_predicted_multi_metric_reference_case(
         if not valid:
             continue
 
-        if (
-            set(diagnostics_by_series)
-            != expected_series
-        ):
+        if set(diagnostics_by_series) != expected_series:
             continue
 
         metadata = summary.get("metadata")
         if not isinstance(metadata, dict):
             continue
 
-        selected_prediction_years = metadata.get(
-            "selected_prediction_years"
-        )
+        selected_prediction_years = metadata.get("selected_prediction_years")
 
         if not isinstance(
             selected_prediction_years,
@@ -1800,6 +1526,473 @@ def _find_predicted_multi_metric_reference_case(
         "deterministic UI-09 predicted multi-metric "
         "comparison reference case."
     )
+
+
+def _find_predicted_profile_reference_case() -> tuple[
+    list[str],
+    str,
+    list[str],
+    str,
+    int,
+    int,
+    dict[str, object],
+]:
+    method = "last_observed"
+    horizon_years = 3
+    forecast_horizon = 1
+
+    profiles_payload = _api_get_json("/api/v1/metadata/profiles")
+    countries_payload = _api_get_json("/api/v1/metadata/countries")
+
+    profiles = profiles_payload.get("profiles")
+    countries = countries_payload.get("countries")
+
+    assert isinstance(profiles, list)
+    assert isinstance(countries, list)
+
+    # Prefer smaller profiles first so reference discovery
+    # remains reasonably fast.
+    profiles = sorted(
+        (profile for profile in profiles if isinstance(profile, dict)),
+        key=lambda profile: int(profile.get("metric_count") or 10_000),
+    )
+
+    country_codes = [
+        str(item.get("code") or item.get("country_code") or "").strip().upper()
+        for item in countries
+        if isinstance(item, dict)
+    ]
+
+    country_codes = [country_code for country_code in country_codes if country_code]
+
+    for profile in profiles:
+        profile_name = str(
+            profile.get("profile_name") or profile.get("name") or ""
+        ).strip()
+
+        raw_metric_ids = profile.get("metric_ids")
+
+        if not isinstance(
+            raw_metric_ids,
+            list,
+        ):
+            continue
+
+        metric_ids = [
+            str(metric_id).strip()
+            for metric_id in raw_metric_ids
+            if str(metric_id).strip()
+        ]
+
+        if not profile_name or not metric_ids:
+            continue
+
+        selected_countries = _find_countries_covering_profile(
+            country_codes=country_codes,
+            metric_ids=metric_ids,
+            method=method,
+            horizon_years=horizon_years,
+        )
+
+        if selected_countries is None:
+            continue
+
+        status_code, envelope = _api_post_json(
+            "/api/v1/prediction/compare/profile",
+            {
+                "country_codes": (selected_countries),
+                "profile_name": profile_name,
+                "horizon_years": (horizon_years),
+                "forecast_horizon": (forecast_horizon),
+                "method": method,
+                "fallback_method": ("last_observed"),
+                "comparison_options": {},
+            },
+        )
+
+        if status_code != 200:
+            continue
+
+        if envelope.get("ok") is not True:
+            continue
+
+        try:
+            comparison = _named_table_dataframe(
+                envelope,
+                "predicted_comparison",
+            )
+
+            diagnostics = _prediction_diagnostic_items(envelope)
+        except AssertionError:
+            continue
+
+        if comparison.empty:
+            continue
+
+        # Profile prediction produces a weighted-score
+        # result, not the long per-metric table used by
+        # predicted multi-metric comparison.
+        required_columns = {
+            "country_code",
+            "weighted_score",
+            "score_rank",
+            "profile_name",
+        }
+
+        if not required_columns.issubset(set(comparison.columns)):
+            continue
+
+        if len(comparison.index) != len(selected_countries):
+            continue
+
+        result_countries = set(comparison["country_code"].astype(str).tolist())
+
+        if result_countries != set(selected_countries):
+            continue
+
+        returned_profiles = set(comparison["profile_name"].astype(str).tolist())
+
+        if returned_profiles != {profile_name}:
+            continue
+
+        if comparison["weighted_score"].isna().any():
+            continue
+
+        if comparison["score_rank"].isna().any():
+            continue
+
+        expected_series = {
+            (
+                country_code,
+                metric_id,
+            )
+            for country_code in selected_countries
+            for metric_id in metric_ids
+        }
+
+        diagnostics_by_series: dict[
+            tuple[str, str],
+            dict[str, object],
+        ] = {}
+
+        valid = True
+        successful_diagnostic_count = 0
+
+        for diagnostic in diagnostics:
+            country_code = diagnostic.get("country_code")
+            metric_id = diagnostic.get("metric_id")
+
+            if not isinstance(
+                country_code,
+                str,
+            ):
+                valid = False
+                break
+
+            if not isinstance(
+                metric_id,
+                str,
+            ):
+                valid = False
+                break
+
+            key = (
+                country_code,
+                metric_id,
+            )
+
+            if key in diagnostics_by_series:
+                valid = False
+                break
+
+            diagnostics_by_series[key] = diagnostic
+
+            if diagnostic.get("method_requested") != method:
+                valid = False
+                break
+
+            status = diagnostic.get("status")
+
+            if status in {
+                "ok",
+                "warning",
+            }:
+                if diagnostic.get("method_used") != method:
+                    valid = False
+                    break
+
+                if diagnostic.get("fallback_used") is not False:
+                    valid = False
+                    break
+
+                successful_diagnostic_count += 1
+
+            elif status == "failed":
+                if diagnostic.get("method_used") is not None:
+                    valid = False
+                    break
+
+                if diagnostic.get("fallback_used") is not False:
+                    valid = False
+                    break
+
+                errors = diagnostic.get("errors")
+
+                if (
+                    not isinstance(
+                        errors,
+                        list,
+                    )
+                    or not errors
+                ):
+                    valid = False
+                    break
+
+            else:
+                valid = False
+                break
+
+        if not valid:
+            continue
+
+        if successful_diagnostic_count == 0:
+            continue
+
+        # Every attempted country/metric forecast series
+        # should have a corresponding diagnostic.
+        if set(diagnostics_by_series) != expected_series:
+            continue
+
+        # The profile comparison requires every profile
+        # metric to have at least one usable forecast
+        # among the selected countries.
+        successful_metrics = {
+            metric_id
+            for (
+                _country_code,
+                metric_id,
+            ), diagnostic in diagnostics_by_series.items()
+            if diagnostic.get("status")
+            in {
+                "ok",
+                "warning",
+            }
+        }
+
+        if successful_metrics != set(metric_ids):
+            continue
+
+        summary = envelope.get("summary")
+
+        if not isinstance(
+            summary,
+            dict,
+        ):
+            continue
+
+        if summary.get("selected_forecast_horizon") != forecast_horizon:
+            continue
+
+        metadata = summary.get("metadata")
+
+        if not isinstance(
+            metadata,
+            dict,
+        ):
+            continue
+
+        selected_years = metadata.get("selected_prediction_years")
+
+        if (
+            not isinstance(
+                selected_years,
+                list,
+            )
+            or not selected_years
+        ):
+            continue
+
+        return (
+            selected_countries,
+            profile_name,
+            metric_ids,
+            method,
+            horizon_years,
+            forecast_horizon,
+            envelope,
+        )
+
+    pytest.fail(
+        "Could not find a release-dataset "
+        "profile with a small country set "
+        "suitable for the deterministic UI-10 "
+        "predicted profile comparison case."
+    )
+
+
+def _find_countries_covering_profile(
+    *,
+    country_codes: list[str],
+    metric_ids: list[str],
+    method: str,
+    horizon_years: int,
+) -> list[str] | None:
+    required_metrics = set(metric_ids)
+
+    preferred_order = [
+        "ARG",
+        "BRA",
+        "CHL",
+        "COL",
+        "MEX",
+        "PER",
+        "URY",
+        "CRI",
+        "PAN",
+        "TUR",
+        "ZAF",
+        "MYS",
+        "THA",
+        "IDN",
+        "PHL",
+        "IND",
+        "POL",
+        "PRT",
+        "ESP",
+        "FRA",
+        "DEU",
+        "GBR",
+        "USA",
+        "CAN",
+        "AUS",
+        "JPN",
+        "KOR",
+        "NLD",
+        "SWE",
+        "CHE",
+    ]
+
+    available = set(country_codes)
+
+    ordered_countries = [
+        country_code for country_code in preferred_order if country_code in available
+    ]
+
+    ordered_countries.extend(
+        country_code
+        for country_code in country_codes
+        if country_code not in ordered_countries
+    )
+
+    accumulated_coverage: dict[
+        str,
+        set[str],
+    ] = {}
+
+    batch_size = 20
+
+    # Broaden beyond the previous 80-country search.
+    search_limit = min(
+        len(ordered_countries),
+        120,
+    )
+
+    for start in range(
+        0,
+        search_limit,
+        batch_size,
+    ):
+        batch = ordered_countries[start : start + batch_size]
+
+        batch_coverage = _profile_prediction_coverage_for_countries(
+            country_codes=batch,
+            metric_ids=metric_ids,
+            method=method,
+            horizon_years=horizon_years,
+        )
+
+        accumulated_coverage.update(batch_coverage)
+
+        total_coverage: set[str] = set()
+
+        for covered_metrics in accumulated_coverage.values():
+            total_coverage.update(covered_metrics)
+
+        # There is no point attempting set-cover yet
+        # if the searched countries collectively do not
+        # cover the whole profile.
+        if not required_metrics.issubset(total_coverage):
+            continue
+
+        remaining = {
+            country_code: set(covered_metrics)
+            for country_code, covered_metrics in accumulated_coverage.items()
+            if covered_metrics
+        }
+
+        uncovered = set(required_metrics)
+        selected: list[str] = []
+
+        # Greedy set cover. The E2E case does not need
+        # the mathematically smallest country set; it
+        # only needs a small deterministic valid one.
+        while uncovered and len(selected) < 6:
+            best_country: str | None = None
+            best_gain: set[str] = set()
+
+            for (
+                country_code,
+                covered_metrics,
+            ) in remaining.items():
+                gain = covered_metrics & uncovered
+
+                if len(gain) > len(best_gain):
+                    best_country = country_code
+                    best_gain = gain
+
+            if best_country is None or not best_gain:
+                break
+
+            selected.append(best_country)
+
+            uncovered.difference_update(best_gain)
+
+            remaining.pop(
+                best_country,
+                None,
+            )
+
+        if uncovered:
+            # More candidate countries may allow a
+            # smaller/better coverage set.
+            continue
+
+        # Predicted comparison should remain an actual
+        # comparison, not a one-country normalization.
+        if len(selected) == 1:
+            second_country = max(
+                (
+                    (
+                        len(covered_metrics),
+                        country_code,
+                    )
+                    for (
+                        country_code,
+                        covered_metrics,
+                    ) in remaining.items()
+                    if covered_metrics
+                ),
+                default=None,
+            )
+
+            if second_country is None:
+                continue
+
+            selected.append(second_country[1])
+
+        return selected
+
+    return None
 
 
 def _prediction_diagnostics_by_series(
@@ -1839,6 +2032,67 @@ def _prediction_diagnostics_by_series(
     return result
 
 
+def _profile_prediction_coverage_for_countries(
+    *,
+    country_codes: list[str],
+    metric_ids: list[str],
+    method: str,
+    horizon_years: int,
+) -> dict[str, set[str]]:
+    coverage: dict[str, set[str]] = {
+        country_code: set() for country_code in country_codes
+    }
+
+    for metric_id in metric_ids:
+        status_code, envelope = _api_post_json(
+            "/api/v1/prediction/single-metric",
+            {
+                "country_codes": country_codes,
+                "metric_id": metric_id,
+                "horizon_years": horizon_years,
+                "method": method,
+                "fallback_method": "last_observed",
+                "fail_fast": False,
+                "scenario_id": "baseline",
+            },
+        )
+
+        if status_code != 200:
+            continue
+
+        if envelope.get("ok") is not True:
+            continue
+
+        try:
+            diagnostics = _prediction_diagnostic_items(envelope)
+        except AssertionError:
+            continue
+
+        for diagnostic in diagnostics:
+            country_code = diagnostic.get("country_code")
+
+            if not isinstance(country_code, str):
+                continue
+
+            if country_code not in coverage:
+                continue
+
+            status = diagnostic.get("status")
+
+            if status not in {"ok", "warning"}:
+                continue
+
+            if diagnostic.get("method_used") != method:
+                continue
+
+            if diagnostic.get("fallback_used") is not False:
+                continue
+
+            coverage[country_code].add(metric_id)
+
+    return coverage
+
+
 def _ui_metric_value(value: object) -> str:
     if value is None or value == "":
         return "—"
@@ -1855,17 +2109,11 @@ def _assert_streamlit_metric(
     label: str,
     value: object,
 ) -> None:
-    metric = page.locator(
-        '[data-testid="stMetric"]'
-    ).filter(
-        has_text=label
-    ).first
+    metric = page.locator('[data-testid="stMetric"]').filter(has_text=label).first
 
     expect(metric).to_be_visible(timeout=20_000)
     expect(metric).to_contain_text(label)
-    expect(metric).to_contain_text(
-        _ui_metric_value(value)
-    )
+    expect(metric).to_contain_text(_ui_metric_value(value))
 
 
 def _compare_url(
@@ -2189,23 +2437,13 @@ def test_ui_04_multi_metric_csv_matches_backend_result(
         api_envelope,
     ) = _find_multi_metric_reference_case()
 
-    api_table = _main_table_dataframe(
-        api_envelope
-    )
+    api_table = _main_table_dataframe(api_envelope)
 
-    assert set(
-        api_table["metric_id"].astype(str)
-    ) == set(metric_ids)
+    assert set(api_table["metric_id"].astype(str)) == set(metric_ids)
 
-    expected_table = (
-        _expected_multi_metric_ui_table(
-            api_table
-        )
-    )
+    expected_table = _expected_multi_metric_ui_table(api_table)
 
-    expected_csv = _csv_bytes(
-        expected_table
-    )
+    expected_csv = _csv_bytes(expected_table)
 
     page.goto(
         _compare_url(
@@ -2236,9 +2474,7 @@ def test_ui_04_multi_metric_csv_matches_backend_result(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
 
     run_button.click()
 
@@ -2279,9 +2515,7 @@ def test_ui_05_weighted_score_csv_matches_backend_result(
         api_envelope,
     ) = _find_weighted_score_reference_case()
 
-    api_table = _main_table_dataframe(
-        api_envelope
-    )
+    api_table = _main_table_dataframe(api_envelope)
 
     required_columns = {
         "country_code",
@@ -2289,9 +2523,7 @@ def test_ui_05_weighted_score_csv_matches_backend_result(
         "score_rank",
     }
 
-    assert required_columns.issubset(
-        api_table.columns
-    )
+    assert required_columns.issubset(api_table.columns)
 
     for column in (
         "metric_count_used",
@@ -2300,15 +2532,9 @@ def test_ui_05_weighted_score_csv_matches_backend_result(
     ):
         assert column in api_table.columns
 
-    expected_table = (
-        _expected_weighted_score_ui_table(
-            api_table
-        )
-    )
+    expected_table = _expected_weighted_score_ui_table(api_table)
 
-    expected_csv = _csv_bytes(
-        expected_table
-    )
+    expected_csv = _csv_bytes(expected_table)
     page.goto(
         _compare_url(
             countries=country_codes,
@@ -2338,9 +2564,7 @@ def test_ui_05_weighted_score_csv_matches_backend_result(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
 
     run_button.click()
 
@@ -2381,17 +2605,13 @@ def test_ui_06_single_country_forecast_matches_backend_result(
         api_envelope,
     ) = _find_single_forecast_reference_case()
 
-    expected_table = _expected_forecast_ui_table(
-        api_envelope
-    )
+    expected_table = _expected_forecast_ui_table(api_envelope)
     expected_csv = _csv_bytes(expected_table)
 
     expected_summary = api_envelope.get("summary")
     assert isinstance(expected_summary, dict)
 
-    expected_diagnostics = expected_summary.get(
-        "diagnostics"
-    )
+    expected_diagnostics = expected_summary.get("diagnostics")
     assert isinstance(expected_diagnostics, dict)
 
     expected_items = expected_diagnostics.get("items")
@@ -2401,10 +2621,7 @@ def test_ui_06_single_country_forecast_matches_backend_result(
     expected_diagnostic = expected_items[0]
     assert isinstance(expected_diagnostic, dict)
 
-    assert (
-        expected_diagnostic["method_requested"]
-        == method
-    )
+    assert expected_diagnostic["method_requested"] == method
     assert expected_diagnostic["method_used"] == method
     assert expected_diagnostic["fallback_used"] is False
 
@@ -2439,9 +2656,7 @@ def test_ui_06_single_country_forecast_matches_backend_result(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
 
     run_button.click()
 
@@ -2484,18 +2699,12 @@ def test_ui_06_single_country_forecast_matches_backend_result(
 
     assert actual_comparable_csv == expected_comparable_csv
 
-    actual_diagnostics_payload = (
-        _download_diagnostics_json(page)
-    )
+    actual_diagnostics_payload = _download_diagnostics_json(page)
 
-    actual_summary = actual_diagnostics_payload.get(
-        "summary"
-    )
+    actual_summary = actual_diagnostics_payload.get("summary")
     assert isinstance(actual_summary, dict)
 
-    actual_diagnostics = actual_summary.get(
-        "diagnostics"
-    )
+    actual_diagnostics = actual_summary.get("diagnostics")
 
     assert actual_diagnostics == expected_diagnostics
 
@@ -2514,28 +2723,18 @@ def test_ui_07_multi_country_forecast_matches_backend_result(
 
     assert len(country_codes) == 2
 
-    expected_table = _expected_forecast_ui_table(
-        api_envelope
-    )
+    expected_table = _expected_forecast_ui_table(api_envelope)
     expected_csv = _csv_bytes(expected_table)
 
     expected_summary = api_envelope.get("summary")
     assert isinstance(expected_summary, dict)
 
-    expected_diagnostics = expected_summary.get(
-        "diagnostics"
-    )
+    expected_diagnostics = expected_summary.get("diagnostics")
     assert isinstance(expected_diagnostics, dict)
 
-    expected_by_country = (
-        _prediction_diagnostics_by_country(
-            expected_diagnostics
-        )
-    )
+    expected_by_country = _prediction_diagnostics_by_country(expected_diagnostics)
 
-    assert set(expected_by_country) == set(
-        country_codes
-    )
+    assert set(expected_by_country) == set(country_codes)
 
     for country_code in country_codes:
         diagnostic = expected_by_country[country_code]
@@ -2577,9 +2776,7 @@ def test_ui_07_multi_country_forecast_matches_backend_result(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
 
     run_button.click()
 
@@ -2607,12 +2804,8 @@ def test_ui_07_multi_country_forecast_matches_backend_result(
 
     actual_csv = _download_table_csv(page)
 
-    _assert_prediction_run_metadata(
-        expected_csv
-    )
-    _assert_prediction_run_metadata(
-        actual_csv
-    )
+    _assert_prediction_run_metadata(expected_csv)
+    _assert_prediction_run_metadata(actual_csv)
 
     expected_comparable_csv = _csv_without_columns(
         expected_csv,
@@ -2623,30 +2816,17 @@ def test_ui_07_multi_country_forecast_matches_backend_result(
         _PREDICTION_RUN_SPECIFIC_COLUMNS,
     )
 
-    assert (
-        actual_comparable_csv
-        == expected_comparable_csv
-    )
+    assert actual_comparable_csv == expected_comparable_csv
 
-    actual_diagnostics_payload = (
-        _download_diagnostics_json(page)
-    )
+    actual_diagnostics_payload = _download_diagnostics_json(page)
 
-    actual_summary = actual_diagnostics_payload.get(
-        "summary"
-    )
+    actual_summary = actual_diagnostics_payload.get("summary")
     assert isinstance(actual_summary, dict)
 
-    actual_diagnostics = actual_summary.get(
-        "diagnostics"
-    )
+    actual_diagnostics = actual_summary.get("diagnostics")
     assert isinstance(actual_diagnostics, dict)
 
-    actual_by_country = (
-        _prediction_diagnostics_by_country(
-            actual_diagnostics
-        )
-    )
+    actual_by_country = _prediction_diagnostics_by_country(actual_diagnostics)
 
     assert actual_by_country == expected_by_country
 
@@ -2673,41 +2853,21 @@ def test_ui_08_predicted_single_metric_comparison_matches_backend_result(
     expected_summary = api_envelope.get("summary")
     assert isinstance(expected_summary, dict)
 
-    selected_forecast_year = expected_summary.get(
-        "selected_forecast_year"
-    )
-    selected_forecast_horizon = (
-        expected_summary.get(
-            "selected_forecast_horizon"
-        )
-    )
+    selected_forecast_year = expected_summary.get("selected_forecast_year")
+    selected_forecast_horizon = expected_summary.get("selected_forecast_horizon")
 
-    assert (
-        selected_forecast_year is None
-        or isinstance(selected_forecast_year, int)
-    )
+    assert selected_forecast_year is None or isinstance(selected_forecast_year, int)
 
-    assert (
-        selected_forecast_horizon
-        == forecast_horizon
-    )
+    assert selected_forecast_horizon == forecast_horizon
 
-    expected_metadata = expected_summary.get(
-        "metadata"
-    )
+    expected_metadata = expected_summary.get("metadata")
     assert isinstance(expected_metadata, dict)
 
-    expected_prediction_years = (
-        expected_metadata.get(
-            "selected_prediction_years"
-        )
-    )
+    expected_prediction_years = expected_metadata.get("selected_prediction_years")
     assert isinstance(expected_prediction_years, list)
     assert expected_prediction_years
 
-    expected_diagnostics = expected_summary.get(
-        "diagnostics"
-    )
+    expected_diagnostics = expected_summary.get("diagnostics")
     assert isinstance(expected_diagnostics, dict)
 
     page.goto(
@@ -2743,9 +2903,7 @@ def test_ui_08_predicted_single_metric_comparison_matches_backend_result(
         exact=True,
     )
 
-    expect(single_metric_radio).to_be_checked(
-        timeout=20_000
-    )
+    expect(single_metric_radio).to_be_checked(timeout=20_000)
 
     run_button = page.get_by_role(
         "button",
@@ -2753,9 +2911,7 @@ def test_ui_08_predicted_single_metric_comparison_matches_backend_result(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
 
     run_button.click()
 
@@ -2795,12 +2951,8 @@ def test_ui_08_predicted_single_metric_comparison_matches_backend_result(
 
     # Predicted comparison rows can retain prediction execution
     # metadata from the underlying forecast batch.
-    _assert_prediction_run_metadata(
-        expected_csv
-    )
-    _assert_prediction_run_metadata(
-        actual_csv
-    )
+    _assert_prediction_run_metadata(expected_csv)
+    _assert_prediction_run_metadata(actual_csv)
 
     expected_comparable_csv = _csv_without_columns(
         expected_csv,
@@ -2812,55 +2964,26 @@ def test_ui_08_predicted_single_metric_comparison_matches_backend_result(
         _PREDICTION_RUN_SPECIFIC_COLUMNS,
     )
 
-    assert (
-        actual_comparable_csv
-        == expected_comparable_csv
-    )
+    assert actual_comparable_csv == expected_comparable_csv
 
-    actual_diagnostics_payload = (
-        _download_diagnostics_json(page)
-    )
+    actual_diagnostics_payload = _download_diagnostics_json(page)
 
-    actual_summary = actual_diagnostics_payload.get(
-        "summary"
-    )
+    actual_summary = actual_diagnostics_payload.get("summary")
     assert isinstance(actual_summary, dict)
 
-    assert (
-        actual_summary.get(
-            "selected_forecast_year"
-        )
-        == selected_forecast_year
-    )
+    assert actual_summary.get("selected_forecast_year") == selected_forecast_year
 
-    assert (
-        actual_summary.get(
-            "selected_forecast_horizon"
-        )
-        == selected_forecast_horizon
-    )
+    assert actual_summary.get("selected_forecast_horizon") == selected_forecast_horizon
 
-    actual_metadata = actual_summary.get(
-        "metadata"
-    )
+    actual_metadata = actual_summary.get("metadata")
     assert isinstance(actual_metadata, dict)
 
-    assert (
-        actual_metadata.get(
-            "selected_prediction_years"
-        )
-        == expected_prediction_years
-    )
+    assert actual_metadata.get("selected_prediction_years") == expected_prediction_years
 
-    actual_diagnostics = actual_summary.get(
-        "diagnostics"
-    )
+    actual_diagnostics = actual_summary.get("diagnostics")
     assert isinstance(actual_diagnostics, dict)
 
-    assert (
-        actual_diagnostics
-        == expected_diagnostics
-    )
+    assert actual_diagnostics == expected_diagnostics
 
 
 @pytest.mark.e2e
@@ -2888,37 +3011,17 @@ def test_ui_09_predicted_multi_metric_comparison_matches_backend_result(
     expected_summary = api_envelope.get("summary")
     assert isinstance(expected_summary, dict)
 
-    selected_forecast_year = (
-        expected_summary.get(
-            "selected_forecast_year"
-        )
-    )
-    selected_forecast_horizon = (
-        expected_summary.get(
-            "selected_forecast_horizon"
-        )
-    )
+    selected_forecast_year = expected_summary.get("selected_forecast_year")
+    selected_forecast_horizon = expected_summary.get("selected_forecast_horizon")
 
-    assert (
-        selected_forecast_year is None
-        or isinstance(selected_forecast_year, int)
-    )
+    assert selected_forecast_year is None or isinstance(selected_forecast_year, int)
 
-    assert (
-        selected_forecast_horizon
-        == forecast_horizon
-    )
+    assert selected_forecast_horizon == forecast_horizon
 
-    expected_metadata = expected_summary.get(
-        "metadata"
-    )
+    expected_metadata = expected_summary.get("metadata")
     assert isinstance(expected_metadata, dict)
 
-    expected_prediction_years = (
-        expected_metadata.get(
-            "selected_prediction_years"
-        )
-    )
+    expected_prediction_years = expected_metadata.get("selected_prediction_years")
 
     assert isinstance(
         expected_prediction_years,
@@ -2926,19 +3029,13 @@ def test_ui_09_predicted_multi_metric_comparison_matches_backend_result(
     )
     assert expected_prediction_years
 
-    expected_diagnostics = (
-        expected_summary.get("diagnostics")
-    )
+    expected_diagnostics = expected_summary.get("diagnostics")
     assert isinstance(
         expected_diagnostics,
         dict,
     )
 
-    expected_by_series = (
-        _prediction_diagnostics_by_series(
-            expected_diagnostics
-        )
-    )
+    expected_by_series = _prediction_diagnostics_by_series(expected_diagnostics)
 
     expected_series = {
         (country_code, metric_id)
@@ -2949,10 +3046,7 @@ def test_ui_09_predicted_multi_metric_comparison_matches_backend_result(
     assert set(expected_by_series) == expected_series
 
     for diagnostic in expected_by_series.values():
-        assert (
-            diagnostic["method_requested"]
-            == method
-        )
+        assert diagnostic["method_requested"] == method
         assert diagnostic["method_used"] == method
         assert diagnostic["fallback_used"] is False
 
@@ -2963,24 +3057,16 @@ def test_ui_09_predicted_multi_metric_comparison_matches_backend_result(
             str(row.country_code),
             str(row.metric_id),
         )
-        for row in expected_table.itertuples(
-            index=False
-        )
+        for row in expected_table.itertuples(index=False)
     }
 
     assert actual_pairs == expected_series
 
-    assert expected_table[
-        "value"
-    ].notna().all()
+    assert expected_table["value"].notna().all()
 
-    assert expected_table[
-        "normalized_value"
-    ].notna().all()
+    assert expected_table["normalized_value"].notna().all()
 
-    assert expected_table[
-        "rank"
-    ].notna().all()
+    assert expected_table["rank"].notna().all()
 
     page.goto(
         _prediction_url(
@@ -3014,9 +3100,7 @@ def test_ui_09_predicted_multi_metric_comparison_matches_backend_result(
         exact=True,
     )
 
-    expect(
-        multi_metric_radio
-    ).to_be_checked(timeout=20_000)
+    expect(multi_metric_radio).to_be_checked(timeout=20_000)
 
     run_button = page.get_by_role(
         "button",
@@ -3024,9 +3108,7 @@ def test_ui_09_predicted_multi_metric_comparison_matches_backend_result(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
 
     run_button.click()
 
@@ -3063,83 +3145,43 @@ def test_ui_09_predicted_multi_metric_comparison_matches_backend_result(
 
     actual_csv = _download_table_csv(page)
 
-    _assert_prediction_run_metadata(
-        expected_csv
-    )
-    _assert_prediction_run_metadata(
-        actual_csv
+    _assert_prediction_run_metadata(expected_csv)
+    _assert_prediction_run_metadata(actual_csv)
+
+    expected_comparable_csv = _csv_without_columns(
+        expected_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
     )
 
-    expected_comparable_csv = (
-        _csv_without_columns(
-            expected_csv,
-            _PREDICTION_RUN_SPECIFIC_COLUMNS,
-        )
+    actual_comparable_csv = _csv_without_columns(
+        actual_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
     )
 
-    actual_comparable_csv = (
-        _csv_without_columns(
-            actual_csv,
-            _PREDICTION_RUN_SPECIFIC_COLUMNS,
-        )
-    )
+    assert actual_comparable_csv == expected_comparable_csv
 
-    assert (
-        actual_comparable_csv
-        == expected_comparable_csv
-    )
+    actual_diagnostics_payload = _download_diagnostics_json(page)
 
-    actual_diagnostics_payload = (
-        _download_diagnostics_json(page)
-    )
-
-    actual_summary = (
-        actual_diagnostics_payload.get(
-            "summary"
-        )
-    )
+    actual_summary = actual_diagnostics_payload.get("summary")
     assert isinstance(actual_summary, dict)
 
-    assert (
-        actual_summary.get(
-            "selected_forecast_year"
-        )
-        == selected_forecast_year
-    )
+    assert actual_summary.get("selected_forecast_year") == selected_forecast_year
 
-    assert (
-        actual_summary.get(
-            "selected_forecast_horizon"
-        )
-        == selected_forecast_horizon
-    )
+    assert actual_summary.get("selected_forecast_horizon") == selected_forecast_horizon
 
-    actual_metadata = actual_summary.get(
-        "metadata"
-    )
+    actual_metadata = actual_summary.get("metadata")
     assert isinstance(actual_metadata, dict)
 
-    assert (
-        actual_metadata.get(
-            "selected_prediction_years"
-        )
-        == expected_prediction_years
-    )
+    assert actual_metadata.get("selected_prediction_years") == expected_prediction_years
 
-    actual_diagnostics = actual_summary.get(
-        "diagnostics"
-    )
+    actual_diagnostics = actual_summary.get("diagnostics")
     assert isinstance(actual_diagnostics, dict)
 
-    actual_by_series = (
-        _prediction_diagnostics_by_series(
-            actual_diagnostics
-        )
-    )
+    actual_by_series = _prediction_diagnostics_by_series(actual_diagnostics)
 
     assert actual_by_series == expected_by_series
 
-        
+
 @pytest.mark.e2e
 def test_ui_11_backtest_matches_backend_result(
     page: Page,
@@ -3164,9 +3206,7 @@ def test_ui_11_backtest_matches_backend_result(
     expected_metrics = expected_summary.get("metrics")
     assert isinstance(expected_metrics, dict)
 
-    expected_diagnostics = expected_summary.get(
-        "diagnostics"
-    )
+    expected_diagnostics = expected_summary.get("diagnostics")
     assert isinstance(expected_diagnostics, dict)
 
     assert expected_metrics["method_used"] == method
@@ -3175,10 +3215,7 @@ def test_ui_11_backtest_matches_backend_result(
     assert expected_metrics["rmse"] is not None
     assert expected_metrics["mape"] is not None
 
-    assert (
-        expected_metrics["n_test_observations"]
-        == holdout_years
-    )
+    assert expected_metrics["n_test_observations"] == holdout_years
 
     page.goto(
         _prediction_url(
@@ -3211,9 +3248,7 @@ def test_ui_11_backtest_matches_backend_result(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
     run_button.click()
 
     # Streamlit reruns can restore the first tab.
@@ -3267,27 +3302,287 @@ def test_ui_11_backtest_matches_backend_result(
         _PREDICTION_RUN_SPECIFIC_COLUMNS,
     )
 
-    assert (
-        actual_comparable_csv
-        == expected_comparable_csv
-    )
+    assert actual_comparable_csv == expected_comparable_csv
 
-    actual_diagnostics_payload = (
-        _download_diagnostics_json(page)
-    )
+    actual_diagnostics_payload = _download_diagnostics_json(page)
 
-    actual_summary = actual_diagnostics_payload.get(
-        "summary"
-    )
+    actual_summary = actual_diagnostics_payload.get("summary")
     assert isinstance(actual_summary, dict)
 
     actual_metrics = actual_summary.get("metrics")
     assert isinstance(actual_metrics, dict)
 
-    actual_diagnostics = actual_summary.get(
-        "diagnostics"
-    )
+    actual_diagnostics = actual_summary.get("diagnostics")
     assert isinstance(actual_diagnostics, dict)
 
     assert actual_metrics == expected_metrics
-    assert actual_diagnostics == expected_diagnostics    
+    assert actual_diagnostics == expected_diagnostics
+
+
+@pytest.mark.e2e
+def test_ui_10_predicted_profile_comparison_matches_backend_result(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        profile_name,
+        profile_metric_ids,
+        method,
+        horizon_years,
+        forecast_horizon,
+        api_envelope,
+    ) = _find_predicted_profile_reference_case()
+
+    assert 2 <= len(country_codes) <= 6
+    assert len(set(country_codes)) == len(country_codes)
+    assert profile_name
+    assert profile_metric_ids
+
+    expected_table = _named_table_dataframe(
+        api_envelope,
+        "predicted_comparison",
+    )
+
+    expected_csv = _csv_bytes(expected_table)
+
+    required_profile_columns = {
+        "country_code",
+        "weighted_score",
+        "score_rank",
+        "profile_name",
+    }
+
+    assert required_profile_columns.issubset(expected_table.columns)
+
+    assert expected_table["weighted_score"].notna().all()
+
+    assert expected_table["score_rank"].notna().all()
+
+    assert set(expected_table["profile_name"].astype(str).tolist()) == {profile_name}
+
+    assert set(expected_table["country_code"].astype(str).tolist()) == set(
+        country_codes
+    )
+
+    assert len(expected_table.index) == len(country_codes)
+
+    rank_values = pd.to_numeric(
+        expected_table["score_rank"],
+        errors="raise",
+    )
+
+    top_index = rank_values.idxmin()
+    top_row = expected_table.loc[top_index]
+
+    expected_top_result = str(top_row.get("country_name") or top_row["country_code"])
+
+    expected_top_value = float(top_row["weighted_score"])
+
+    expected_summary = api_envelope.get("summary")
+    assert isinstance(expected_summary, dict)
+
+    selected_forecast_year = expected_summary.get("selected_forecast_year")
+
+    selected_forecast_horizon = expected_summary.get("selected_forecast_horizon")
+
+    assert selected_forecast_year is None or isinstance(selected_forecast_year, int)
+
+    assert selected_forecast_horizon == forecast_horizon
+
+    expected_metadata = expected_summary.get("metadata")
+    assert isinstance(expected_metadata, dict)
+
+    expected_prediction_years = expected_metadata.get("selected_prediction_years")
+
+    assert isinstance(
+        expected_prediction_years,
+        list,
+    )
+    assert expected_prediction_years
+
+    expected_diagnostics = expected_summary.get("diagnostics")
+    assert isinstance(
+        expected_diagnostics,
+        dict,
+    )
+
+    expected_by_series = _prediction_diagnostics_by_series(expected_diagnostics)
+
+    expected_series = {
+        (country_code, metric_id)
+        for country_code in country_codes
+        for metric_id in profile_metric_ids
+    }
+
+    assert set(expected_by_series) == expected_series
+
+    successful_series_count = 0
+    failed_series_count = 0
+
+    for diagnostic in expected_by_series.values():
+        assert diagnostic["method_requested"] == method
+
+        status = diagnostic["status"]
+
+        if status in {"ok", "warning"}:
+            assert diagnostic["method_used"] == method
+            assert diagnostic["fallback_used"] is False
+
+            successful_series_count += 1
+
+        else:
+            assert status == "failed"
+            assert diagnostic["method_used"] is None
+            assert diagnostic["fallback_used"] is False
+            assert diagnostic["errors"]
+
+            failed_series_count += 1
+
+    assert successful_series_count > 0
+    assert successful_series_count + failed_series_count == len(expected_series)
+
+    page.goto(
+        _prediction_url(
+            mode="predicted_profile_comparison",
+            countries=country_codes,
+            profile=profile_name,
+            method=method,
+            horizon_years=horizon_years,
+            forecast_horizon=forecast_horizon,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Predicted Comparison",
+    )
+
+    profile_radio = page.get_by_role(
+        "radio",
+        name="Profile",
+        exact=True,
+    )
+
+    expect(profile_radio).to_be_checked(timeout=20_000)
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run predicted comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(timeout=20_000)
+
+    run_button.click()
+
+    _select_prediction_tab(
+        page,
+        "Predicted Comparison",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Predicted comparison table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Ranked comparison summary",
+            exact=True,
+        )
+    ).to_be_visible(timeout=20_000)
+
+    _assert_streamlit_metric(
+        page,
+        label="Ranked rows",
+        value=len(expected_table.index),
+    )
+
+    _assert_streamlit_metric(
+        page,
+        label="Top result",
+        value=expected_top_result,
+    )
+
+    _assert_streamlit_metric(
+        page,
+        label="Top value",
+        value=expected_top_value,
+    )
+
+    _assert_streamlit_metric(
+        page,
+        label="Rows",
+        value=len(expected_table.index),
+    )
+
+    _assert_streamlit_metric(
+        page,
+        label="Forecast year",
+        value=selected_forecast_year,
+    )
+
+    _assert_streamlit_metric(
+        page,
+        label="Forecast horizon",
+        value=selected_forecast_horizon,
+    )
+
+    actual_csv = _download_table_csv(page)
+
+    # The comparison table normally preserves the
+    # prediction execution metadata. Validate it when
+    # present, but don't require aggregate/profile
+    # implementations to expose those columns.
+    if all(
+        column in expected_table.columns for column in _PREDICTION_RUN_SPECIFIC_COLUMNS
+    ):
+        _assert_prediction_run_metadata(expected_csv)
+        _assert_prediction_run_metadata(actual_csv)
+
+    expected_comparable_csv = _csv_without_columns(
+        expected_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    )
+
+    actual_comparable_csv = _csv_without_columns(
+        actual_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    )
+
+    assert actual_comparable_csv == expected_comparable_csv
+
+    actual_diagnostics_payload = _download_diagnostics_json(page)
+
+    actual_summary = actual_diagnostics_payload.get("summary")
+    assert isinstance(actual_summary, dict)
+
+    assert actual_summary.get("selected_forecast_year") == selected_forecast_year
+
+    assert actual_summary.get("selected_forecast_horizon") == selected_forecast_horizon
+
+    actual_metadata = actual_summary.get("metadata")
+    assert isinstance(actual_metadata, dict)
+
+    assert actual_metadata.get("selected_prediction_years") == expected_prediction_years
+
+    actual_diagnostics = actual_summary.get("diagnostics")
+    assert isinstance(actual_diagnostics, dict)
+
+    actual_by_series = _prediction_diagnostics_by_series(actual_diagnostics)
+
+    assert actual_by_series == expected_by_series
