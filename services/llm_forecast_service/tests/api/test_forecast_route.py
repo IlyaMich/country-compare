@@ -66,6 +66,29 @@ def test_forecast_adjust_requires_bearer_token() -> None:
     assert response.json()["error"]["code"] == "unauthorized"
 
 
+def test_llm_05_forecast_adjust_rejects_invalid_bearer_token() -> None:
+    client = TestClient(create_app(settings=_settings()))
+
+    wrong_token = "wrong-secret-token"
+
+    response = client.post(
+        "/v1/forecast/adjust",
+        json=_payload(),
+        headers={"Authorization": f"Bearer {wrong_token}"},
+    )
+
+    assert response.status_code == 401
+
+    payload = response.json()
+
+    assert payload["error"]["code"] == "unauthorized"
+
+    serialized = str(payload)
+
+    assert wrong_token not in serialized
+    assert "Authorization" not in serialized
+
+
 def test_forecast_adjust_returns_baseline_echo_response() -> None:
     client = TestClient(
         create_app(settings=_settings(), provider=BaselineEchoProvider())
