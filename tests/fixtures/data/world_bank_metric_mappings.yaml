@@ -1,0 +1,179 @@
+# Authoritative, manually reviewed World Bank indicator mappings.
+#
+# This fixture is deliberately separate from the production source manifest.
+# Its purpose is to prevent an accidental manifest mapping change from becoming
+# its own expected value.
+#
+# Before changing an entry:
+# 1. Verify the indicator on an official World Bank page/API.
+# 2. Confirm that its definition matches the Country Compare metric.
+# 3. Update verified_at and keep review_status=verified.
+
+mappings:
+  - metric_id: compensation_employees_lcu
+    indicator_code: GC.XPN.COMP.CN
+    raw_path: data/raw/compensation_employees_lcu/wb_compensation_employees_lcu.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/GC.XPN.COMP.CN
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: taxes_goods_services_lcu
+    indicator_code: GC.TAX.GSRV.CN
+    raw_path: data/raw/taxes_goods_services_lcu/wb_taxes_goods_services_lcu.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/GC.TAX.GSRV.CN
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: external_debt_total
+    indicator_code: DT.DOD.DECT.CD
+    raw_path: data/raw/external_debt_total/wb_external_debt_total.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/DT.DOD.DECT.CD
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: journal_articles
+    indicator_code: IP.JRN.ARTC.SC
+    raw_path: data/raw/journal_articles/wb_journal_articles.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/IP.JRN.ARTC.SC
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: rnd_expenditure_pct_gdp
+    indicator_code: GB.XPD.RSDV.GD.ZS
+    raw_path: data/raw/rnd_expenditure_pct_gdp/wb_rnd_expenditure_pct_gdp.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/GB.XPD.RSDV.GD.ZS
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: internet_users_pct
+    indicator_code: IT.NET.USER.ZS
+    raw_path: data/raw/internet_users_pct/wb_internet_users_pct.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/IT.NET.USER.ZS
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: military_exp_pct_gdp
+    indicator_code: MS.MIL.XPND.GD.ZS
+    raw_path: data/raw/military_exp_pct_gdp/wb_military_exp_pct_gdp.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/MS.MIL.XPND.GD.ZS
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: market_cap_pct_gdp
+    indicator_code: CM.MKT.LCAP.GD.ZS
+    raw_path: data/raw/market_cap_pct_gdp/wb_market_cap_pct_gdp.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/CM.MKT.LCAP.GD.ZS
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: consumer_price_index
+    indicator_code: FP.CPI.TOTL
+    raw_path: data/raw/consumer_price_index/wb_consumer_price_index.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/FP.CPI.TOTL
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: imports_growth_pct
+    indicator_code: NE.IMP.GNFS.KD.ZG
+    raw_path: data/raw/imports_growth_pct/wb_imports_growth_pct.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/NE.IMP.GNFS.KD.ZG
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: exports_growth_pct
+    indicator_code: NE.EXP.GNFS.KD.ZG
+    raw_path: data/raw/exports_growth_pct/wb_exports_growth_pct.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/NE.EXP.GNFS.KD.ZG
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: gdp_current_usd
+    indicator_code: NY.GDP.MKTP.CD
+    raw_path: data/raw/gdp_current_usd/wb_gdp_current_usd.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/NY.GDP.MKTP.CD
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: unemployment_pct
+    indicator_code: SL.UEM.TOTL.ZS
+    raw_path: data/raw/unemployment_pct/wb_unemployment_pct.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: labor_participation_pct
+    indicator_code: SL.TLF.CACT.ZS
+    raw_path: data/raw/labor_participation_pct/wb_labor_participation_pct.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/SL.TLF.CACT.ZS
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: youth_literacy_pct
+    indicator_code: SE.ADT.1524.LT.ZS
+    raw_path: data/raw/youth_literacy_pct/wb_youth_literacy_pct.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/SE.ADT.1524.LT.ZS
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: education_spending_pct_gdp
+    indicator_code: SE.XPD.TOTL.GD.ZS
+    raw_path: data/raw/education_spending_pct_gdp/wb_education_spending_pct_gdp.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/SE.XPD.TOTL.GD.ZS
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: crude_death_rate
+    indicator_code: SP.DYN.CDRT.IN
+    raw_path: data/raw/crude_death_rate/wb_crude_death_rate.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/SP.DYN.CDRT.IN
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: life_expectancy_female
+    indicator_code: SP.DYN.LE00.FE.IN
+    raw_path: data/raw/life_expectancy_female/wb_life_expectancy_female.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/SP.DYN.LE00.FE.IN
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: life_expectancy_male
+    indicator_code: SP.DYN.LE00.MA.IN
+    raw_path: data/raw/life_expectancy_male/wb_life_expectancy_male.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/SP.DYN.LE00.MA.IN
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: population_growth_pct
+    indicator_code: SP.POP.GROW
+    raw_path: data/raw/population_growth_pct/wb_population_growth_pct.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/SP.POP.GROW
+    review_status: verified
+    verified_at: "2026-08-23"
+
+  - metric_id: top10_income_share
+    indicator_code: SI.DST.10TH.10
+    raw_path: data/raw/top10_income_share/wb_top10_income_share.csv
+    snapshot_last_updated: "2026-04-08"
+    source_url: https://data.worldbank.org/indicator/SI.DST.10TH.10
+    review_status: verified
+    verified_at: "2026-08-23"

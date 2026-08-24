@@ -13,7 +13,11 @@ from country_compare.comparison.single_metric import (
     ComparisonError as SingleComparisonError,
 )
 from country_compare.comparison.single_metric import compare_metric
-from country_compare.config.models import ScoringConfig, YearStrategy
+from country_compare.config.models import (
+    MetricsConfig,
+    ScoringConfig,
+    YearStrategy,
+)
 from country_compare.data.contract import YEAR_COLUMN
 from country_compare.prediction.errors import PredictionErrorCode, PredictionException
 from country_compare.prediction.models import (
@@ -26,6 +30,10 @@ from country_compare.prediction.multi_metric import (
     predict_single_metric_for_countries,
 )
 from country_compare.prediction.output import FORECAST_HORIZON_COLUMN, ROW_TYPE_COLUMN
+from country_compare.scoring.weighted_score import (
+    ScoringError,
+    score_countries,
+)
 
 
 def compare_predicted_single_metric(
@@ -141,6 +149,7 @@ def compare_predicted_multi_metric(
 def compare_predicted_profile(
     canonical_df: pd.DataFrame,
     *,
+    metrics_config: MetricsConfig,
     scoring_config: ScoringConfig,
     profile_name: str,
     country_codes: Iterable[str],
@@ -174,18 +183,35 @@ def compare_predicted_profile(
         horizon_years=horizon_years,
     )
     comparison_kwargs = dict(comparison_options or {})
-    comparison_kwargs.update(
-        {
-            "metric_ids": None,
-            "countries_include": resolved_country_codes,
-            "year_strategy": selection["comparison_year_strategy"],
-            "target_year": selection["comparison_target_year"],
-            "scoring_config": scoring_config,
-            "profile_name": profile_name,
-        }
-    )
+
+    # These values belong to this bridge or the presentation layer and
+    # must not be forwarded to score_countries().
+    comparison_kwargs.pop("metrics_config", None)
+    comparison_kwargs.pop("scoring_config", None)
+    comparison_kwargs.pop("profile_name", None)
+    comparison_kwargs.pop("year_strategy", None)
+    comparison_kwargs.pop("target_year", None)
+    comparison_kwargs.pop("top_n", None)
+
     try:
-        comparison_df = compare_countries(selected_df, **comparison_kwargs)
+        comparison_df = score_countries(
+            selected_df,
+            metrics_config=metrics_config,
+            scoring_config=scoring_config,
+            profile_name=profile_name,
+            countries_include=resolved_country_codes,
+            target_year=selection["comparison_target_year"],
+            **comparison_kwargs,
+        )
+    except ScoringError as exc:
+        raise PredictionException(
+            PredictionErrorCode.COMPARISON_BRIDGE_FAILED,
+            str(exc),
+            details={
+                "profile_name": profile_name,
+                "selection": selection,
+            },
+        ) from exc
     except MultiComparisonError as exc:
         raise PredictionException(
             PredictionErrorCode.COMPARISON_BRIDGE_FAILED,

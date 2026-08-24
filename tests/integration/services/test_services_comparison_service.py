@@ -70,6 +70,26 @@ class StubComparisonService(ComparisonService):
         return result
 
     def _invoke_weighted_score(self, *, dataframe, bundle, request):
+        if request.profile_name == "drop_country_profile":
+            return pd.DataFrame(
+                [
+                    {
+                        "country_code": "DEU",
+                        "country_name": "Germany",
+                        "weighted_score": 0.95,
+                        "score_rank": 1,
+                        "profile_name": request.profile_name,
+                        "missing_data_policy": "drop_country",
+                        "metric_count_used": 2,
+                        "metric_count_expected": 2,
+                        "missing_metric_count": 0,
+                        "missing_metrics": pd.NA,
+                        "weight_sum_used": 1.0,
+                        "year_strategy": "latest_per_metric",
+                        "score_rank_method": "competition_min",
+                    }
+                ]
+            )
         result = pd.DataFrame(
             [
                 {
@@ -147,6 +167,11 @@ def _bundle() -> ConfigurationBundle:
                 metrics=["gdp_per_capita", "life_expectancy"],
                 year_strategy=YearStrategy.TARGET_YEAR,
                 description="Requires target year",
+            ),
+            "drop_country_profile": ScoringProfile(
+                metrics=["gdp_per_capita", "life_expectancy"],
+                missing_data_policy=MissingDataPolicy.DROP_COUNTRY,
+                description="Drop countries with incomplete profile data",
             ),
         },
     )
@@ -329,3 +354,27 @@ def test_run_weighted_score_maps_scoring_errors() -> None:
     assert result.ok is False
     assert result.error.code == "scoring_failed"
     assert result.error.title == "Weighted scoring failed"
+
+
+def test_run_weighted_score_drop_country_explains_excluded_country() -> None:
+    service = StubComparisonService(_dataframe(), _bundle())
+
+    request = WeightedScoreRequest(
+        countries=["ISR", "DEU"],
+        profile_name="drop_country_profile",
+    )
+
+    result = service.run_weighted_score(request)
+
+    assert result.ok is True
+    assert result.error is None
+    assert list(result.dataframe["country_code"]) == ["DEU"]
+
+    assert result.metadata["missing_data_policy"] == "drop_country"
+
+    assert any(
+        "drop_country" in warning
+        and "ISR" in warning
+        and "required profile metrics" in warning
+        for warning in result.warnings
+    )

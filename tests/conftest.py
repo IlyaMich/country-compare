@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+# Tests must use a non-interactive Matplotlib backend. This prevents GUI
+# backends such as TkAgg from being initialized by API/TestClient worker
+# threads and keeps chart tests deterministic in headless CI environments.
+os.environ["MPLBACKEND"] = "Agg"
 
 import pytest
 
