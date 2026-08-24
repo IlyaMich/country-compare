@@ -5,12 +5,26 @@ import os
 from collections.abc import Iterator
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import urlencode
 
 import httpx
 import pandas as pd
 import pytest
 from playwright.sync_api import Browser, Page, expect, sync_playwright
+
+from country_compare.prediction import (
+    build_line_chart_dataframe,
+)
+from country_compare.ui.components.prediction_result_panels import (
+    build_backtest_line_chart_dataframe,
+    build_predicted_comparison_chart_dataframe,
+    build_streamlit_line_chart_table,
+)
+from country_compare.ui.components.result_panels import (
+    build_comparison_chart_dataframe,
+    build_multi_metric_comparison_chart_dataframe,
+)
 
 UI_BASE_URL = os.getenv(
     "COUNTRY_COMPARE_E2E_UI_URL",
@@ -3183,143 +3197,6 @@ def test_ui_09_predicted_multi_metric_comparison_matches_backend_result(
 
 
 @pytest.mark.e2e
-def test_ui_11_backtest_matches_backend_result(
-    page: Page,
-) -> None:
-    (
-        country_code,
-        metric_id,
-        method,
-        holdout_years,
-        api_envelope,
-    ) = _find_backtest_reference_case()
-
-    expected_table = _named_table_dataframe(
-        api_envelope,
-        "actual_vs_predicted",
-    )
-    expected_csv = _csv_bytes(expected_table)
-
-    expected_summary = api_envelope.get("summary")
-    assert isinstance(expected_summary, dict)
-
-    expected_metrics = expected_summary.get("metrics")
-    assert isinstance(expected_metrics, dict)
-
-    expected_diagnostics = expected_summary.get("diagnostics")
-    assert isinstance(expected_diagnostics, dict)
-
-    assert expected_metrics["method_used"] == method
-    assert expected_metrics["fallback_used"] is False
-    assert expected_metrics["mae"] is not None
-    assert expected_metrics["rmse"] is not None
-    assert expected_metrics["mape"] is not None
-
-    assert expected_metrics["n_test_observations"] == holdout_years
-
-    page.goto(
-        _prediction_url(
-            mode="backtest",
-            country=country_code,
-            metric=metric_id,
-            method=method,
-            holdout_years=holdout_years,
-        ),
-        wait_until="domcontentloaded",
-        timeout=30_000,
-    )
-
-    expect(
-        page.get_by_role(
-            "heading",
-            name="Prediction",
-            exact=True,
-        )
-    ).to_be_visible(timeout=30_000)
-
-    _select_prediction_tab(
-        page,
-        "Backtest",
-    )
-
-    run_button = page.get_by_role(
-        "button",
-        name="Run backtest",
-        exact=True,
-    )
-
-    expect(run_button).to_be_visible(timeout=20_000)
-    run_button.click()
-
-    # Streamlit reruns can restore the first tab.
-    _select_prediction_tab(
-        page,
-        "Backtest",
-    )
-
-    expect(
-        page.get_by_role(
-            "heading",
-            name="Actual vs predicted",
-            exact=True,
-        )
-    ).to_be_visible(timeout=30_000)
-
-    _assert_streamlit_metric(
-        page,
-        label="Method used",
-        value=expected_metrics["method_used"],
-    )
-    _assert_streamlit_metric(
-        page,
-        label="MAE",
-        value=expected_metrics["mae"],
-    )
-    _assert_streamlit_metric(
-        page,
-        label="RMSE",
-        value=expected_metrics["rmse"],
-    )
-    _assert_streamlit_metric(
-        page,
-        label="MAPE",
-        value=expected_metrics["mape"],
-    )
-
-    actual_csv = _download_table_csv(page)
-
-    # A separate browser-triggered backtest receives a
-    # fresh UUID/timestamp, just like UI-06/UI-07.
-    _assert_prediction_run_metadata(expected_csv)
-    _assert_prediction_run_metadata(actual_csv)
-
-    expected_comparable_csv = _csv_without_columns(
-        expected_csv,
-        _PREDICTION_RUN_SPECIFIC_COLUMNS,
-    )
-    actual_comparable_csv = _csv_without_columns(
-        actual_csv,
-        _PREDICTION_RUN_SPECIFIC_COLUMNS,
-    )
-
-    assert actual_comparable_csv == expected_comparable_csv
-
-    actual_diagnostics_payload = _download_diagnostics_json(page)
-
-    actual_summary = actual_diagnostics_payload.get("summary")
-    assert isinstance(actual_summary, dict)
-
-    actual_metrics = actual_summary.get("metrics")
-    assert isinstance(actual_metrics, dict)
-
-    actual_diagnostics = actual_summary.get("diagnostics")
-    assert isinstance(actual_diagnostics, dict)
-
-    assert actual_metrics == expected_metrics
-    assert actual_diagnostics == expected_diagnostics
-
-
-@pytest.mark.e2e
 def test_ui_10_predicted_profile_comparison_matches_backend_result(
     page: Page,
 ) -> None:
@@ -3586,3 +3463,448 @@ def test_ui_10_predicted_profile_comparison_matches_backend_result(
     actual_by_series = _prediction_diagnostics_by_series(actual_diagnostics)
 
     assert actual_by_series == expected_by_series
+
+
+@pytest.mark.e2e
+def test_ui_11_backtest_matches_backend_result(
+    page: Page,
+) -> None:
+    (
+        country_code,
+        metric_id,
+        method,
+        holdout_years,
+        api_envelope,
+    ) = _find_backtest_reference_case()
+
+    expected_table = _named_table_dataframe(
+        api_envelope,
+        "actual_vs_predicted",
+    )
+    expected_csv = _csv_bytes(expected_table)
+
+    expected_summary = api_envelope.get("summary")
+    assert isinstance(expected_summary, dict)
+
+    expected_metrics = expected_summary.get("metrics")
+    assert isinstance(expected_metrics, dict)
+
+    expected_diagnostics = expected_summary.get("diagnostics")
+    assert isinstance(expected_diagnostics, dict)
+
+    assert expected_metrics["method_used"] == method
+    assert expected_metrics["fallback_used"] is False
+    assert expected_metrics["mae"] is not None
+    assert expected_metrics["rmse"] is not None
+    assert expected_metrics["mape"] is not None
+
+    assert expected_metrics["n_test_observations"] == holdout_years
+
+    page.goto(
+        _prediction_url(
+            mode="backtest",
+            country=country_code,
+            metric=metric_id,
+            method=method,
+            holdout_years=holdout_years,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Backtest",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run backtest",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(timeout=20_000)
+    run_button.click()
+
+    # Streamlit reruns can restore the first tab.
+    _select_prediction_tab(
+        page,
+        "Backtest",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Actual vs predicted",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _assert_streamlit_metric(
+        page,
+        label="Method used",
+        value=expected_metrics["method_used"],
+    )
+    _assert_streamlit_metric(
+        page,
+        label="MAE",
+        value=expected_metrics["mae"],
+    )
+    _assert_streamlit_metric(
+        page,
+        label="RMSE",
+        value=expected_metrics["rmse"],
+    )
+    _assert_streamlit_metric(
+        page,
+        label="MAPE",
+        value=expected_metrics["mape"],
+    )
+
+    actual_csv = _download_table_csv(page)
+
+    # A separate browser-triggered backtest receives a
+    # fresh UUID/timestamp, just like UI-06/UI-07.
+    _assert_prediction_run_metadata(expected_csv)
+    _assert_prediction_run_metadata(actual_csv)
+
+    expected_comparable_csv = _csv_without_columns(
+        expected_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    )
+    actual_comparable_csv = _csv_without_columns(
+        actual_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    )
+
+    assert actual_comparable_csv == expected_comparable_csv
+
+    actual_diagnostics_payload = _download_diagnostics_json(page)
+
+    actual_summary = actual_diagnostics_payload.get("summary")
+    assert isinstance(actual_summary, dict)
+
+    actual_metrics = actual_summary.get("metrics")
+    assert isinstance(actual_metrics, dict)
+
+    actual_diagnostics = actual_summary.get("diagnostics")
+    assert isinstance(actual_diagnostics, dict)
+
+    assert actual_metrics == expected_metrics
+    assert actual_diagnostics == expected_diagnostics
+
+
+@pytest.mark.e2e
+def test_ui_12_comparison_chart_ready_data_matches_result_table() -> None:
+    result_table = pd.DataFrame(
+        [
+            {
+                "country_name": "Gamma",
+                "value": 30.5,
+                "rank": 3,
+            },
+            {
+                "country_name": "Alpha",
+                "value": 10.25,
+                "rank": 1,
+            },
+            {
+                "country_name": "Beta",
+                "value": 20.75,
+                "rank": 2,
+            },
+        ]
+    )
+
+    expected_chart_data = pd.DataFrame(
+        {
+            "value": [
+                10.25,
+                20.75,
+                30.5,
+            ],
+        },
+        index=[
+            "Alpha",
+            "Beta",
+            "Gamma",
+        ],
+    )
+
+    actual_chart_data = build_comparison_chart_dataframe(result_table)
+
+    pd.testing.assert_frame_equal(
+        actual_chart_data,
+        expected_chart_data,
+        check_dtype=False,
+    )
+
+
+@pytest.mark.e2e
+def test_ui_12_multi_metric_chart_ready_data_matches_result_table() -> None:
+    result_table = pd.DataFrame(
+        [
+            {
+                "country_name": "Alpha",
+                "metric_name": "Metric A",
+                "value": 10.0,
+            },
+            {
+                "country_name": "Alpha",
+                "metric_name": "Metric B",
+                "value": 100.0,
+            },
+            {
+                "country_name": "Beta",
+                "metric_name": "Metric A",
+                "value": 20.0,
+            },
+            {
+                "country_name": "Beta",
+                "metric_name": "Metric B",
+                "value": 80.0,
+            },
+            {
+                "country_name": "Gamma",
+                "metric_name": "Metric A",
+                "value": 15.0,
+            },
+            {
+                "country_name": "Gamma",
+                "metric_name": "Metric B",
+                "value": 90.0,
+            },
+        ]
+    )
+
+    # Production ordering is by the mean plotted value:
+    #
+    # Alpha = 55.0
+    # Gamma = 52.5
+    # Beta  = 50.0
+    #
+    # The important oracle values themselves come
+    # directly and independently from result_table.
+    expected_chart_data = pd.DataFrame(
+        {
+            "Metric A": [
+                10.0,
+                15.0,
+                20.0,
+            ],
+            "Metric B": [
+                100.0,
+                90.0,
+                80.0,
+            ],
+        },
+        index=[
+            "Alpha",
+            "Gamma",
+            "Beta",
+        ],
+    )
+
+    actual_chart_data = build_multi_metric_comparison_chart_dataframe(result_table)
+
+    pd.testing.assert_frame_equal(
+        actual_chart_data,
+        expected_chart_data,
+        check_dtype=False,
+        check_names=False,
+    )
+
+
+@pytest.mark.e2e
+def test_ui_12_predicted_comparison_chart_ready_data_matches_result_table() -> None:
+    result_table = pd.DataFrame(
+        [
+            {
+                "country_name": "Gamma",
+                "weighted_score": 0.40,
+                "score_rank": 3,
+            },
+            {
+                "country_name": "Alpha",
+                "weighted_score": 0.90,
+                "score_rank": 1,
+            },
+            {
+                "country_name": "Beta",
+                "weighted_score": 0.60,
+                "score_rank": 2,
+            },
+        ]
+    )
+
+    expected_chart_data = pd.DataFrame(
+        {
+            "weighted_score": [
+                0.90,
+                0.60,
+                0.40,
+            ],
+        },
+        index=[
+            "Alpha",
+            "Beta",
+            "Gamma",
+        ],
+    )
+
+    actual_chart_data = build_predicted_comparison_chart_dataframe(result_table)
+
+    pd.testing.assert_frame_equal(
+        actual_chart_data,
+        expected_chart_data,
+        check_dtype=False,
+    )
+
+
+@pytest.mark.e2e
+def test_ui_12_backtest_chart_ready_data_matches_result_table() -> None:
+    result_table = pd.DataFrame(
+        [
+            {
+                "year": 2024,
+                "actual_value": 30.0,
+                "predicted_value": 31.25,
+            },
+            {
+                "year": 2022,
+                "actual_value": 10.0,
+                "predicted_value": 11.50,
+            },
+            {
+                "year": 2023,
+                "actual_value": 20.0,
+                "predicted_value": 19.75,
+            },
+        ]
+    )
+
+    expected_chart_data = pd.DataFrame(
+        {
+            "Actual": [
+                10.0,
+                20.0,
+                30.0,
+            ],
+            "Predicted": [
+                11.50,
+                19.75,
+                31.25,
+            ],
+        },
+        index=[
+            2022,
+            2023,
+            2024,
+        ],
+    )
+
+    actual_chart_data = build_backtest_line_chart_dataframe(result_table)
+
+    pd.testing.assert_frame_equal(
+        actual_chart_data,
+        expected_chart_data,
+        check_dtype=False,
+    )
+
+
+@pytest.mark.e2e
+def test_ui_12_forecast_chart_ready_data_matches_result_table() -> None:
+    result_table = pd.DataFrame(
+        [
+            {
+                "country_code": "AAA",
+                "country_name": "Alpha",
+                "metric_id": "metric_a",
+                "metric_name": "Metric A",
+                "year": 2022,
+                "value": 10.0,
+                "row_type": "actual",
+            },
+            {
+                "country_code": "AAA",
+                "country_name": "Alpha",
+                "metric_id": "metric_a",
+                "metric_name": "Metric A",
+                "year": 2023,
+                "value": 20.0,
+                "row_type": "actual",
+            },
+            {
+                "country_code": "AAA",
+                "country_name": "Alpha",
+                "metric_id": "metric_a",
+                "metric_name": "Metric A",
+                "year": 2024,
+                "value": 30.5,
+                "row_type": "predicted",
+                "forecast_horizon": 1,
+            },
+            {
+                "country_code": "AAA",
+                "country_name": "Alpha",
+                "metric_id": "metric_a",
+                "metric_name": "Metric A",
+                "year": 2025,
+                "value": 40.75,
+                "row_type": "predicted",
+                "forecast_horizon": 2,
+            },
+        ]
+    )
+
+    # build_line_chart_dataframe() only needs an
+    # object exposing combined_df.
+    prediction_result = SimpleNamespace(combined_df=result_table)
+
+    renderer_neutral_data = build_line_chart_dataframe(prediction_result)
+
+    actual_chart_data = build_streamlit_line_chart_table(renderer_neutral_data)
+
+    expected_chart_data = pd.DataFrame(
+        {
+            "Alpha actual": [
+                10.0,
+                20.0,
+                float("nan"),
+                float("nan"),
+            ],
+            "Alpha forecast": [
+                float("nan"),
+                float("nan"),
+                30.5,
+                40.75,
+            ],
+        },
+        index=pd.Index(
+            pd.array(
+                [
+                    2022,
+                    2023,
+                    2024,
+                    2025,
+                ],
+                dtype="Int64",
+            ),
+            name="year",
+        ),
+    )
+
+    pd.testing.assert_frame_equal(
+        actual_chart_data,
+        expected_chart_data,
+        check_dtype=False,
+        check_names=False,
+    )
