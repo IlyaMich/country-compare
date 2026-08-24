@@ -462,6 +462,131 @@ def _find_multi_country_forecast_reference_case(
     )
 
 
+def _find_predicted_single_metric_reference_case(
+) -> tuple[
+    list[str],
+    str,
+    str,
+    int,
+    int,
+    dict[str, object],
+]:
+    (
+        country_codes,
+        metric_id,
+        method,
+        horizon_years,
+        _,
+    ) = _find_multi_country_forecast_reference_case()
+
+    forecast_horizon = 1
+
+    status_code, envelope = _api_post_json(
+        "/api/v1/prediction/compare/single-metric",
+        {
+            "country_codes": country_codes,
+            "metric_id": metric_id,
+            "horizon_years": horizon_years,
+            "forecast_horizon": forecast_horizon,
+            "method": method,
+            "fallback_method": "last_observed",
+            "comparison_options": {},
+        },
+    )
+
+    assert status_code == 200
+    assert envelope.get("ok") is True
+
+    comparison = _named_table_dataframe(
+        envelope,
+        "predicted_comparison",
+    )
+
+    summary = envelope.get("summary")
+    assert isinstance(summary, dict)
+
+    assert (
+        summary.get("selected_forecast_horizon")
+        == forecast_horizon
+    )
+
+    selected_year = summary.get(
+        "selected_forecast_year"
+    )
+
+    assert (
+        selected_year is None
+        or isinstance(selected_year, int)
+    )
+
+    metadata = summary.get("metadata")
+    assert isinstance(metadata, dict)
+
+    selected_prediction_years = metadata.get(
+        "selected_prediction_years"
+    )
+    assert isinstance(selected_prediction_years, list)
+    assert selected_prediction_years
+
+    selected_prediction_years = [
+        int(year)
+        for year in selected_prediction_years
+    ]
+
+    comparison_years = sorted(
+        pd.to_numeric(
+            comparison["year"],
+            errors="raise",
+        )
+        .astype(int)
+        .unique()
+        .tolist()
+    )
+
+    assert comparison_years == sorted(
+        selected_prediction_years
+    )
+
+    if selected_year is not None:
+        assert selected_prediction_years == [
+            selected_year
+        ]
+    else:
+        # Horizon-based selection may map to different
+        # calendar years when countries have different
+        # forecast origin years.
+        assert len(selected_prediction_years) > 1
+
+    assert len(comparison.index) == len(
+        country_codes
+    )
+
+    assert "country_code" in comparison.columns
+    assert "year" in comparison.columns
+    assert "value" in comparison.columns
+    assert "normalized_value" in comparison.columns
+    assert "rank" in comparison.columns
+
+    assert set(
+        comparison["country_code"]
+        .astype(str)
+        .tolist()
+    ) == set(country_codes)
+
+    assert comparison["value"].notna().all()
+    assert comparison["normalized_value"].notna().all()
+    assert comparison["rank"].notna().all()
+
+    return (
+        country_codes,
+        metric_id,
+        method,
+        horizon_years,
+        forecast_horizon,
+        envelope,
+    )
+
+
 def _prediction_diagnostics_by_country(
     diagnostics: dict[str, object],
 ) -> dict[str, dict[str, object]]:
@@ -620,18 +745,30 @@ def _prediction_url(
     *,
     mode: str,
     method: str,
-    metric: str,
+    metric: str | None = None,
+    metrics: list[str] | None = None,
+    profile: str | None = None,
     horizon_years: int | None = None,
     holdout_years: int | None = None,
     country: str | None = None,
     countries: list[str] | None = None,
+    forecast_horizon: int | None = None,
+    forecast_year: int | None = None,
 ) -> str:
     params: dict[str, str] = {
         "page": "Prediction",
         "prediction_mode": mode,
         "prediction_method": method,
-        "prediction_metric": metric,
     }
+
+    if metric is not None:
+        params["prediction_metric"] = metric
+
+    if metrics:
+        params["prediction_metrics"] = ",".join(metrics)
+
+    if profile is not None:
+        params["prediction_profile"] = profile
 
     if country is not None:
         params["prediction_country"] = country
@@ -640,10 +777,24 @@ def _prediction_url(
         params["prediction_countries"] = ",".join(countries)
 
     if horizon_years is not None:
-        params["prediction_horizon_years"] = str(horizon_years)
+        params["prediction_horizon_years"] = str(
+            horizon_years
+        )
 
     if holdout_years is not None:
-        params["prediction_holdout_years"] = str(holdout_years)
+        params["prediction_holdout_years"] = str(
+            holdout_years
+        )
+
+    if forecast_horizon is not None:
+        params["prediction_forecast_horizon"] = str(
+            forecast_horizon
+        )
+
+    if forecast_year is not None:
+        params["prediction_forecast_year"] = str(
+            forecast_year
+        )
 
     return f"{UI_BASE_URL}/?{urlencode(params)}"
 
@@ -2212,6 +2363,218 @@ def test_ui_07_multi_country_forecast_matches_backend_result(
     assert actual_by_country == expected_by_country
 
 
+@pytest.mark.e2e
+def test_ui_08_predicted_single_metric_comparison_matches_backend_result(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        metric_id,
+        method,
+        horizon_years,
+        forecast_horizon,
+        api_envelope,
+    ) = _find_predicted_single_metric_reference_case()
+
+    expected_table = _named_table_dataframe(
+        api_envelope,
+        "predicted_comparison",
+    )
+    expected_csv = _csv_bytes(expected_table)
+
+    expected_summary = api_envelope.get("summary")
+    assert isinstance(expected_summary, dict)
+
+    selected_forecast_year = expected_summary.get(
+        "selected_forecast_year"
+    )
+    selected_forecast_horizon = (
+        expected_summary.get(
+            "selected_forecast_horizon"
+        )
+    )
+
+    assert (
+        selected_forecast_year is None
+        or isinstance(selected_forecast_year, int)
+    )
+
+    assert (
+        selected_forecast_horizon
+        == forecast_horizon
+    )
+
+    expected_metadata = expected_summary.get(
+        "metadata"
+    )
+    assert isinstance(expected_metadata, dict)
+
+    expected_prediction_years = (
+        expected_metadata.get(
+            "selected_prediction_years"
+        )
+    )
+    assert isinstance(expected_prediction_years, list)
+    assert expected_prediction_years
+
+    expected_diagnostics = expected_summary.get(
+        "diagnostics"
+    )
+    assert isinstance(expected_diagnostics, dict)
+
+    page.goto(
+        _prediction_url(
+            mode="predicted_single_metric_comparison",
+            countries=country_codes,
+            metric=metric_id,
+            method=method,
+            horizon_years=horizon_years,
+            forecast_horizon=forecast_horizon,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Predicted Comparison",
+    )
+
+    # Deep-link mode must restore the correct comparison type.
+    single_metric_radio = page.get_by_role(
+        "radio",
+        name="Single Metric",
+        exact=True,
+    )
+
+    expect(single_metric_radio).to_be_checked(
+        timeout=20_000
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run predicted comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(
+        timeout=20_000
+    )
+
+    run_button.click()
+
+    # Streamlit may restore the first visible tab after rerun.
+    _select_prediction_tab(
+        page,
+        "Predicted Comparison",
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Predicted comparison table",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _assert_streamlit_metric(
+        page,
+        label="Rows",
+        value=len(expected_table.index),
+    )
+
+    _assert_streamlit_metric(
+        page,
+        label="Forecast year",
+        value=selected_forecast_year,
+    )
+
+    _assert_streamlit_metric(
+        page,
+        label="Forecast horizon",
+        value=selected_forecast_horizon,
+    )
+
+    actual_csv = _download_table_csv(page)
+
+    # Predicted comparison rows can retain prediction execution
+    # metadata from the underlying forecast batch.
+    _assert_prediction_run_metadata(
+        expected_csv
+    )
+    _assert_prediction_run_metadata(
+        actual_csv
+    )
+
+    expected_comparable_csv = _csv_without_columns(
+        expected_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    )
+
+    actual_comparable_csv = _csv_without_columns(
+        actual_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    )
+
+    assert (
+        actual_comparable_csv
+        == expected_comparable_csv
+    )
+
+    actual_diagnostics_payload = (
+        _download_diagnostics_json(page)
+    )
+
+    actual_summary = actual_diagnostics_payload.get(
+        "summary"
+    )
+    assert isinstance(actual_summary, dict)
+
+    assert (
+        actual_summary.get(
+            "selected_forecast_year"
+        )
+        == selected_forecast_year
+    )
+
+    assert (
+        actual_summary.get(
+            "selected_forecast_horizon"
+        )
+        == selected_forecast_horizon
+    )
+
+    actual_metadata = actual_summary.get(
+        "metadata"
+    )
+    assert isinstance(actual_metadata, dict)
+    
+    assert (
+        actual_metadata.get(
+            "selected_prediction_years"
+        )
+        == expected_prediction_years
+    )
+
+    actual_diagnostics = actual_summary.get(
+        "diagnostics"
+    )
+    assert isinstance(actual_diagnostics, dict)
+
+    assert (
+        actual_diagnostics
+        == expected_diagnostics
+    )
+
+    
 @pytest.mark.e2e
 def test_ui_11_backtest_matches_backend_result(
     page: Page,
