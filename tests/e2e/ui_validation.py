@@ -61,10 +61,7 @@ _PREDICTION_RUN_SPECIFIC_COLUMNS = (
 )
 
 _UI_14_BASE_PREDICTION_LIMITATIONS = (
-    (
-        "Forecasts are baseline statistical "
-        "projections, not guarantees."
-    ),
+    ("Forecasts are baseline statistical " "projections, not guarantees."),
     (
         "The module extrapolates from historical "
         "metric values and does not model causal "
@@ -75,14 +72,8 @@ _UI_14_BASE_PREDICTION_LIMITATIONS = (
         "methodology changes, or source revisions "
         "are not predicted."
     ),
-    (
-        "Confidence intervals are not available "
-        "in the current baseline output."
-    ),
-    (
-        "Sparse, stale, or irregular histories "
-        "should be treated with extra caution."
-    ),
+    ("Confidence intervals are not available " "in the current baseline output."),
+    ("Sparse, stale, or irregular histories " "should be treated with extra caution."),
 )
 
 
@@ -90,15 +81,9 @@ def _open_streamlit_expander(
     page: Page,
     label: str,
 ):
-    expander = (
-        page.locator('[data-testid="stExpander"]')
-        .filter(has_text=label)
-        .first
-    )
+    expander = page.locator('[data-testid="stExpander"]').filter(has_text=label).first
 
-    expect(expander).to_be_visible(
-        timeout=20_000
-    )
+    expect(expander).to_be_visible(timeout=20_000)
 
     details = expander.locator("details")
 
@@ -990,36 +975,30 @@ def _download_summary_markdown(
         exact=True,
     )
 
-    expect(download_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(download_button).to_be_visible(timeout=20_000)
 
-    with page.expect_download(
-        timeout=20_000
-    ) as download_info:
+    with page.expect_download(timeout=20_000) as download_info:
         download_button.click()
 
-    download_path = (
-        download_info.value.path()
-    )
+    download_path = download_info.value.path()
 
     assert isinstance(download_path, Path)
 
-    return download_path.read_text(
-        encoding="utf-8"
-    )
+    return download_path.read_text(encoding="utf-8")
 
 
 def _assert_exports_contain_no_secrets(
     *payloads: bytes | str,
 ) -> None:
     combined = "\n".join(
-        payload.decode(
-            "utf-8",
-            errors="replace",
+        (
+            payload.decode(
+                "utf-8",
+                errors="replace",
+            )
+            if isinstance(payload, bytes)
+            else payload
         )
-        if isinstance(payload, bytes)
-        else payload
         for payload in payloads
     )
 
@@ -1035,8 +1014,7 @@ def _assert_exports_contain_no_secrets(
 
         if secret and secret in combined:
             pytest.fail(
-                "Export payload leaked a "
-                f"configured secret from {env_name}."
+                "Export payload leaked a " f"configured secret from {env_name}."
             )
 
 
@@ -1053,9 +1031,7 @@ def _assert_export_csv_matches_api_columns(
     assert not actual.empty
 
     missing_api_columns = [
-        column
-        for column in actual.columns
-        if column not in api_table.columns
+        column for column in actual.columns if column not in api_table.columns
     ]
 
     assert not missing_api_columns, (
@@ -1072,10 +1048,7 @@ def _assert_export_csv_matches_api_columns(
     usable_sort_columns = [
         column
         for column in sort_columns
-        if (
-            column in actual.columns
-            and column in expected.columns
-        )
+        if (column in actual.columns and column in expected.columns)
     ]
 
     if usable_sort_columns:
@@ -1094,15 +1067,9 @@ def _assert_export_csv_matches_api_columns(
     # CSV parsing converts empty fields to NaN,
     # while the API may represent the same
     # missing value as None or pd.NA.
-    actual = (
-        actual.astype(object)
-        .where(pd.notna(actual), pd.NA)
-    )
+    actual = actual.astype(object).where(pd.notna(actual), pd.NA)
 
-    expected = (
-        expected.astype(object)
-        .where(pd.notna(expected), pd.NA)
-    )
+    expected = expected.astype(object).where(pd.notna(expected), pd.NA)
 
     pd.testing.assert_frame_equal(
         actual,
@@ -1117,17 +1084,13 @@ def _assert_export_csv_matches_api_columns(
 def _prediction_method_available(
     method_id: str,
 ) -> bool:
-    payload = _api_get_json(
-        "/api/v1/metadata/prediction-methods"
-    )
+    payload = _api_get_json("/api/v1/metadata/prediction-methods")
 
     methods = payload.get("methods")
     assert isinstance(methods, list)
 
     return any(
-        isinstance(method, dict)
-        and method.get("method_id")
-        == method_id
+        isinstance(method, dict) and method.get("method_id") == method_id
         for method in methods
     )
 
@@ -2334,24 +2297,58 @@ def _streamlit_metric_text(
     label: str,
     occurrence: int = 0,
 ) -> str:
-    metrics = page.locator(
-        '[data-testid="stMetric"]'
-    ).filter(
-        has_text=label
-    )
+    metrics = page.locator('[data-testid="stMetric"]').filter(has_text=label)
 
     metric = metrics.nth(occurrence)
 
-    expect(metric).to_be_visible(
-        timeout=20_000
+    expect(metric).to_be_visible(timeout=20_000)
+
+    return metric.locator('[data-testid="stMetricValue"]').inner_text().strip()
+
+
+def _assert_streamlit_error(
+    page: Page,
+    *,
+    title: str,
+    message: str,
+) -> None:
+    expected_text = f"{title}: {message}"
+
+    alert = page.locator('[data-testid="stAlert"]').filter(has_text=expected_text).first
+
+    expect(alert).to_be_visible(timeout=20_000)
+    expect(alert).to_contain_text(expected_text)
+
+
+def _select_streamlit_combobox_option(
+    page: Page,
+    *,
+    label: str,
+    option: str,
+) -> None:
+    combobox = page.get_by_role(
+        "combobox",
+        name=label,
+        exact=True,
     )
 
-    return (
-        metric.locator(
-            '[data-testid="stMetricValue"]'
-        )
-        .inner_text()
-        .strip()
+    expect(combobox).to_be_visible(timeout=20_000)
+
+    combobox.click()
+
+    option_locator = page.get_by_role(
+        "option",
+        name=option,
+        exact=True,
+    )
+
+    expect(option_locator).to_be_visible(timeout=20_000)
+
+    option_locator.click()
+
+    expect(combobox).to_have_value(
+        option,
+        timeout=20_000,
     )
 
 
@@ -2370,15 +2367,11 @@ def _assert_numeric_streamlit_metric(
 
     assert actual_text != "—"
 
-    actual_value = float(
-        actual_text.replace(",", "")
-    )
+    actual_value = float(actual_text.replace(",", ""))
 
     expected_value = float(expected)
 
-    assert actual_value == pytest.approx(
-        expected_value
-    )
+    assert actual_value == pytest.approx(expected_value)
 
 
 def _compare_url(
@@ -4171,9 +4164,7 @@ def test_ui_13_single_metric_summary_matches_first_ranked_row(
         api_envelope,
     ) = _find_single_metric_reference_case()
 
-    table = _main_table_dataframe(
-        api_envelope
-    )
+    table = _main_table_dataframe(api_envelope)
 
     required_columns = {
         "country_code",
@@ -4181,9 +4172,7 @@ def test_ui_13_single_metric_summary_matches_first_ranked_row(
         "value",
     }
 
-    assert required_columns.issubset(
-        table.columns
-    )
+    assert required_columns.issubset(table.columns)
 
     ranks = pd.to_numeric(
         table["rank"],
@@ -4193,17 +4182,12 @@ def test_ui_13_single_metric_summary_matches_first_ranked_row(
     top_index = ranks.idxmin()
     top_row = table.loc[top_index]
 
-    top_country = str(
-        top_row.get("country_name")
-        or top_row["country_code"]
-    )
+    top_country = str(top_row.get("country_name") or top_row["country_code"])
 
     top_rank = top_row["rank"]
     top_value = top_row["value"]
 
-    assert float(top_rank) == pytest.approx(
-        1.0
-    )
+    assert float(top_rank) == pytest.approx(1.0)
 
     page.goto(
         _compare_url(
@@ -4229,9 +4213,7 @@ def test_ui_13_single_metric_summary_matches_first_ranked_row(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
 
     run_button.click()
 
@@ -4275,9 +4257,7 @@ def test_ui_13_weighted_score_summary_matches_first_ranked_row(
         api_envelope,
     ) = _find_weighted_score_reference_case()
 
-    table = _main_table_dataframe(
-        api_envelope
-    )
+    table = _main_table_dataframe(api_envelope)
 
     required_columns = {
         "country_code",
@@ -4285,9 +4265,7 @@ def test_ui_13_weighted_score_summary_matches_first_ranked_row(
         "score_rank",
     }
 
-    assert required_columns.issubset(
-        table.columns
-    )
+    assert required_columns.issubset(table.columns)
 
     ranks = pd.to_numeric(
         table["score_rank"],
@@ -4297,22 +4275,13 @@ def test_ui_13_weighted_score_summary_matches_first_ranked_row(
     top_index = ranks.idxmin()
     top_row = table.loc[top_index]
 
-    top_country = str(
-        top_row.get("country_name")
-        or top_row["country_code"]
-    )
+    top_country = str(top_row.get("country_name") or top_row["country_code"])
 
-    top_rank = top_row[
-        "score_rank"
-    ]
+    top_rank = top_row["score_rank"]
 
-    top_value = top_row[
-        "weighted_score"
-    ]
+    top_value = top_row["weighted_score"]
 
-    assert float(top_rank) == pytest.approx(
-        1.0
-    )
+    assert float(top_rank) == pytest.approx(1.0)
 
     page.goto(
         _compare_url(
@@ -4343,9 +4312,7 @@ def test_ui_13_weighted_score_summary_matches_first_ranked_row(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
 
     run_button.click()
 
@@ -4394,9 +4361,7 @@ def test_ui_13_multi_metric_summary_matches_documented_logic(
         api_envelope,
     ) = _find_multi_metric_reference_case()
 
-    table = _main_table_dataframe(
-        api_envelope
-    )
+    table = _main_table_dataframe(api_envelope)
 
     required_columns = {
         "country_code",
@@ -4404,26 +4369,20 @@ def test_ui_13_multi_metric_summary_matches_documented_logic(
         "metric_id",
     }
 
-    assert required_columns.issubset(
-        table.columns
-    )
+    assert required_columns.issubset(table.columns)
 
     grouping_columns = [
         "country_code",
     ]
 
     if "country_name" in table.columns:
-        grouping_columns.append(
-            "country_name"
-        )
+        grouping_columns.append("country_name")
 
     working = table.copy()
 
-    working["normalized_value"] = (
-        pd.to_numeric(
-            working["normalized_value"],
-            errors="raise",
-        )
+    working["normalized_value"] = pd.to_numeric(
+        working["normalized_value"],
+        errors="raise",
     )
 
     summary = (
@@ -4432,9 +4391,7 @@ def test_ui_13_multi_metric_summary_matches_documented_logic(
             dropna=False,
         )["normalized_value"]
         .mean()
-        .sort_values(
-            ascending=False
-        )
+        .sort_values(ascending=False)
         .reset_index()
     )
 
@@ -4442,16 +4399,9 @@ def test_ui_13_multi_metric_summary_matches_documented_logic(
 
     top_row = summary.iloc[0]
 
-    top_country = str(
-        top_row.get("country_name")
-        or top_row["country_code"]
-    )
+    top_country = str(top_row.get("country_name") or top_row["country_code"])
 
-    returned_metric_count = (
-        table["metric_id"]
-        .astype(str)
-        .nunique()
-    )
+    returned_metric_count = table["metric_id"].astype(str).nunique()
 
     page.goto(
         _compare_url(
@@ -4482,9 +4432,7 @@ def test_ui_13_multi_metric_summary_matches_documented_logic(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
 
     run_button.click()
 
@@ -4525,8 +4473,7 @@ def test_ui_13_multi_metric_summary_matches_documented_logic(
     )
 
 
-def _find_ui_14_diagnostic_reference_case(
-) -> tuple[
+def _find_ui_14_diagnostic_reference_case() -> tuple[
     list[str],
     str,
     str,
@@ -4537,12 +4484,8 @@ def _find_ui_14_diagnostic_reference_case(
     fallback_method = "last_observed"
     horizon_years = 3
 
-    countries_payload = _api_get_json(
-        "/api/v1/metadata/countries"
-    )
-    metrics_payload = _api_get_json(
-        "/api/v1/metadata/metrics"
-    )
+    countries_payload = _api_get_json("/api/v1/metadata/countries")
+    metrics_payload = _api_get_json("/api/v1/metadata/metrics")
 
     countries = countries_payload.get("countries")
     metrics = metrics_payload.get("metrics")
@@ -4551,37 +4494,19 @@ def _find_ui_14_diagnostic_reference_case(
     assert isinstance(metrics, list)
 
     country_codes = [
-        str(
-            item.get("code")
-            or item.get("country_code")
-            or ""
-        )
-        .strip()
-        .upper()
+        str(item.get("code") or item.get("country_code") or "").strip().upper()
         for item in countries
         if isinstance(item, dict)
     ]
 
     metric_ids = [
-        str(
-            item.get("metric_id")
-            or item.get("id")
-            or ""
-        ).strip()
+        str(item.get("metric_id") or item.get("id") or "").strip()
         for item in metrics
         if isinstance(item, dict)
     ]
 
-    country_codes = [
-        value
-        for value in country_codes
-        if value
-    ]
-    metric_ids = [
-        value
-        for value in metric_ids
-        if value
-    ]
+    country_codes = [value for value in country_codes if value]
+    metric_ids = [value for value in metric_ids if value]
 
     batch_size = 10
 
@@ -4594,9 +4519,7 @@ def _find_ui_14_diagnostic_reference_case(
             len(country_codes),
             batch_size,
         ):
-            batch = country_codes[
-                start : start + batch_size
-            ]
+            batch = country_codes[start : start + batch_size]
 
             status_code, envelope = _api_post_json(
                 "/api/v1/prediction/single-metric",
@@ -4605,9 +4528,7 @@ def _find_ui_14_diagnostic_reference_case(
                     "metric_id": metric_id,
                     "horizon_years": horizon_years,
                     "method": method,
-                    "fallback_method": (
-                        fallback_method
-                    ),
+                    "fallback_method": (fallback_method),
                     "fail_fast": False,
                     "scenario_id": "baseline",
                 },
@@ -4620,18 +4541,12 @@ def _find_ui_14_diagnostic_reference_case(
                 continue
 
             try:
-                diagnostics = (
-                    _prediction_diagnostic_items(
-                        envelope
-                    )
-                )
+                diagnostics = _prediction_diagnostic_items(envelope)
             except AssertionError:
                 continue
 
             for diagnostic in diagnostics:
-                country_code = diagnostic.get(
-                    "country_code"
-                )
+                country_code = diagnostic.get("country_code")
 
                 if not isinstance(
                     country_code,
@@ -4641,49 +4556,29 @@ def _find_ui_14_diagnostic_reference_case(
 
                 if (
                     fallback_country is None
-                    and diagnostic.get("status")
-                    == "warning"
-                    and diagnostic.get(
-                        "method_requested"
-                    )
-                    == method
-                    and diagnostic.get(
-                        "method_used"
-                    )
-                    == fallback_method
-                    and diagnostic.get(
-                        "fallback_used"
-                    )
-                    is True
+                    and diagnostic.get("status") == "warning"
+                    and diagnostic.get("method_requested") == method
+                    and diagnostic.get("method_used") == fallback_method
+                    and diagnostic.get("fallback_used") is True
                     and diagnostic.get("warnings")
                 ):
-                    fallback_country = (
-                        country_code
-                    )
+                    fallback_country = country_code
 
                 if (
                     failed_country is None
-                    and diagnostic.get("status")
-                    == "failed"
-                    and diagnostic.get(
-                        "method_requested"
-                    )
-                    == method
+                    and diagnostic.get("status") == "failed"
+                    and diagnostic.get("method_requested") == method
                     and diagnostic.get("errors")
                 ):
                     failed_country = country_code
 
-            if (
-                fallback_country is not None
-                and failed_country is not None
-            ):
+            if fallback_country is not None and failed_country is not None:
                 break
 
         if (
             fallback_country is None
             or failed_country is None
-            or fallback_country
-            == failed_country
+            or fallback_country == failed_country
         ):
             continue
 
@@ -4692,25 +4587,17 @@ def _find_ui_14_diagnostic_reference_case(
             failed_country,
         ]
 
-        status_code, final_envelope = (
-            _api_post_json(
-                "/api/v1/prediction/single-metric",
-                {
-                    "country_codes": (
-                        selected_countries
-                    ),
-                    "metric_id": metric_id,
-                    "horizon_years": (
-                        horizon_years
-                    ),
-                    "method": method,
-                    "fallback_method": (
-                        fallback_method
-                    ),
-                    "fail_fast": False,
-                    "scenario_id": "baseline",
-                },
-            )
+        status_code, final_envelope = _api_post_json(
+            "/api/v1/prediction/single-metric",
+            {
+                "country_codes": (selected_countries),
+                "metric_id": metric_id,
+                "horizon_years": (horizon_years),
+                "method": method,
+                "fallback_method": (fallback_method),
+                "fail_fast": False,
+                "scenario_id": "baseline",
+            },
         )
 
         if status_code != 200:
@@ -4719,24 +4606,16 @@ def _find_ui_14_diagnostic_reference_case(
         if final_envelope.get("ok") is not True:
             continue
 
-        diagnostics = (
-            _prediction_diagnostic_items(
-                final_envelope
-            )
-        )
+        diagnostics = _prediction_diagnostic_items(final_envelope)
 
         fallback_items = [
             item
             for item in diagnostics
             if (
-                item.get("country_code")
-                == fallback_country
-                and item.get("status")
-                == "warning"
-                and item.get("method_used")
-                == fallback_method
-                and item.get("fallback_used")
-                is True
+                item.get("country_code") == fallback_country
+                and item.get("status") == "warning"
+                and item.get("method_used") == fallback_method
+                and item.get("fallback_used") is True
             )
         ]
 
@@ -4744,18 +4623,13 @@ def _find_ui_14_diagnostic_reference_case(
             item
             for item in diagnostics
             if (
-                item.get("country_code")
-                == failed_country
-                and item.get("status")
-                == "failed"
+                item.get("country_code") == failed_country
+                and item.get("status") == "failed"
                 and item.get("errors")
             )
         ]
 
-        if (
-            len(fallback_items) == 1
-            and len(failed_items) == 1
-        ):
+        if len(fallback_items) == 1 and len(failed_items) == 1:
             return (
                 selected_countries,
                 metric_id,
@@ -4814,9 +4688,7 @@ def test_ui_14_prediction_limitations_are_visible(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
 
     run_button.click()
 
@@ -4840,12 +4712,8 @@ def test_ui_14_prediction_limitations_are_visible(
         "Prediction limitations",
     )
 
-    for limitation in (
-        _UI_14_BASE_PREDICTION_LIMITATIONS
-    ):
-        expect(limitations).to_contain_text(
-            limitation
-        )
+    for limitation in _UI_14_BASE_PREDICTION_LIMITATIONS:
+        expect(limitations).to_contain_text(limitation)
 
 
 @pytest.mark.e2e
@@ -4862,40 +4730,24 @@ def test_ui_14_warnings_fallback_and_failed_series_are_visible(
 
     assert len(country_codes) == 2
 
-    expected_summary = api_envelope.get(
-        "summary"
-    )
+    expected_summary = api_envelope.get("summary")
     assert isinstance(expected_summary, dict)
 
-    expected_diagnostics = (
-        expected_summary.get("diagnostics")
-    )
+    expected_diagnostics = expected_summary.get("diagnostics")
     assert isinstance(
         expected_diagnostics,
         dict,
     )
 
-    diagnostic_items = (
-        _prediction_diagnostic_items(
-            api_envelope
-        )
-    )
+    diagnostic_items = _prediction_diagnostic_items(api_envelope)
 
     fallback_items = [
         item
         for item in diagnostic_items
-        if (
-            item.get("status") == "warning"
-            and item.get("fallback_used")
-            is True
-        )
+        if (item.get("status") == "warning" and item.get("fallback_used") is True)
     ]
 
-    failed_items = [
-        item
-        for item in diagnostic_items
-        if item.get("status") == "failed"
-    ]
+    failed_items = [item for item in diagnostic_items if item.get("status") == "failed"]
 
     assert len(fallback_items) == 1
     assert len(failed_items) == 1
@@ -4903,12 +4755,8 @@ def test_ui_14_warnings_fallback_and_failed_series_are_visible(
     fallback_diagnostic = fallback_items[0]
     failed_diagnostic = failed_items[0]
 
-    fallback_country = (
-        fallback_diagnostic["country_code"]
-    )
-    failed_country = (
-        failed_diagnostic["country_code"]
-    )
+    fallback_country = fallback_diagnostic["country_code"]
+    failed_country = failed_diagnostic["country_code"]
 
     assert isinstance(
         fallback_country,
@@ -4919,37 +4767,22 @@ def test_ui_14_warnings_fallback_and_failed_series_are_visible(
         str,
     )
 
-    assert (
-        fallback_diagnostic["method_requested"]
-        == method
-    )
-    assert (
-        fallback_diagnostic["method_used"]
-        == "last_observed"
-    )
-    assert (
-        fallback_diagnostic["fallback_used"]
-        is True
-    )
+    assert fallback_diagnostic["method_requested"] == method
+    assert fallback_diagnostic["method_used"] == "last_observed"
+    assert fallback_diagnostic["fallback_used"] is True
 
-    fallback_warnings = (
-        fallback_diagnostic.get("warnings")
-    )
+    fallback_warnings = fallback_diagnostic.get("warnings")
     assert isinstance(
         fallback_warnings,
         list,
     )
     assert fallback_warnings
 
-    failed_errors = failed_diagnostic.get(
-        "errors"
-    )
+    failed_errors = failed_diagnostic.get("errors")
     assert isinstance(failed_errors, list)
     assert failed_errors
 
-    expected_warnings = api_envelope.get(
-        "warnings"
-    )
+    expected_warnings = api_envelope.get("warnings")
     assert isinstance(expected_warnings, list)
     assert expected_warnings
 
@@ -4984,9 +4817,7 @@ def test_ui_14_warnings_fallback_and_failed_series_are_visible(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
 
     run_button.click()
 
@@ -5007,18 +4838,10 @@ def test_ui_14_warnings_fallback_and_failed_series_are_visible(
     # must remain visible in the UI.
     for warning in expected_warnings:
         warning_alert = (
-            page.locator(
-                '[data-testid="stAlert"]'
-            )
-            .filter(
-                has_text=str(warning)
-            )
-            .first
+            page.locator('[data-testid="stAlert"]').filter(has_text=str(warning)).first
         )
 
-        expect(warning_alert).to_be_visible(
-            timeout=20_000
-        )
+        expect(warning_alert).to_be_visible(timeout=20_000)
 
     _assert_streamlit_metric(
         page,
@@ -5034,76 +4857,39 @@ def test_ui_14_warnings_fallback_and_failed_series_are_visible(
 
     # The downloadable diagnostics give us
     # exact API -> browser-result parity.
-    actual_diagnostics_payload = (
-        _download_diagnostics_json(page)
-    )
+    actual_diagnostics_payload = _download_diagnostics_json(page)
 
-    actual_summary = (
-        actual_diagnostics_payload.get(
-            "summary"
-        )
-    )
+    actual_summary = actual_diagnostics_payload.get("summary")
     assert isinstance(actual_summary, dict)
 
-    actual_diagnostics = (
-        actual_summary.get("diagnostics")
-    )
+    actual_diagnostics = actual_summary.get("diagnostics")
     assert isinstance(
         actual_diagnostics,
         dict,
     )
 
-    assert (
-        actual_diagnostics
-        == expected_diagnostics
-    )
+    assert actual_diagnostics == expected_diagnostics
 
     # Also prove that the human-visible
     # Diagnostics panel attributes the
     # fallback and failure correctly.
-    diagnostics_expander = (
-        _open_streamlit_expander(
-            page,
-            "Diagnostics",
-        )
+    diagnostics_expander = _open_streamlit_expander(
+        page,
+        "Diagnostics",
     )
 
-    expect(
-        diagnostics_expander
-    ).to_contain_text(
-        fallback_country
-    )
+    expect(diagnostics_expander).to_contain_text(fallback_country)
 
-    expect(
-        diagnostics_expander
-    ).to_contain_text(
-        failed_country
-    )
+    expect(diagnostics_expander).to_contain_text(failed_country)
 
-    expect(
-        diagnostics_expander
-    ).to_contain_text(
-        metric_id
-    )
+    expect(diagnostics_expander).to_contain_text(metric_id)
 
-    expect(
-        diagnostics_expander
-    ).to_contain_text(
-        method
-    )
+    expect(diagnostics_expander).to_contain_text(method)
 
-    expect(
-        diagnostics_expander
-    ).to_contain_text(
-        "last_observed"
-    )
+    expect(diagnostics_expander).to_contain_text("last_observed")
 
     for warning in fallback_warnings:
-        expect(
-            diagnostics_expander
-        ).to_contain_text(
-            str(warning)
-        )
+        expect(diagnostics_expander).to_contain_text(str(warning))
 
     for error in failed_errors:
         assert isinstance(error, dict)
@@ -5112,18 +4898,10 @@ def test_ui_14_warnings_fallback_and_failed_series_are_visible(
         error_message = error.get("message")
 
         if error_code:
-            expect(
-                diagnostics_expander
-            ).to_contain_text(
-                str(error_code)
-            )
+            expect(diagnostics_expander).to_contain_text(str(error_code))
 
         if error_message:
-            expect(
-                diagnostics_expander
-            ).to_contain_text(
-                str(error_message)
-            )
+            expect(diagnostics_expander).to_contain_text(str(error_message))
 
 
 @pytest.mark.e2e
@@ -5136,9 +4914,7 @@ def test_ui_15_comparison_exports_preserve_api_result(
         api_envelope,
     ) = _find_single_metric_reference_case()
 
-    api_table = _main_table_dataframe(
-        api_envelope
-    )
+    api_table = _main_table_dataframe(api_envelope)
 
     page.goto(
         _compare_url(
@@ -5164,9 +4940,7 @@ def test_ui_15_comparison_exports_preserve_api_result(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
     run_button.click()
 
     expect(
@@ -5178,12 +4952,8 @@ def test_ui_15_comparison_exports_preserve_api_result(
     ).to_be_visible(timeout=30_000)
 
     csv_payload = _download_table_csv(page)
-    json_payload = _download_diagnostics_json(
-        page
-    )
-    markdown_payload = (
-        _download_summary_markdown(page)
-    )
+    json_payload = _download_diagnostics_json(page)
+    markdown_payload = _download_summary_markdown(page)
 
     _assert_export_csv_matches_api_columns(
         csv_payload=csv_payload,
@@ -5194,10 +4964,7 @@ def test_ui_15_comparison_exports_preserve_api_result(
         ),
     )
 
-    assert (
-        json_payload.get("mode")
-        == api_envelope.get("mode")
-    )
+    assert json_payload.get("mode") == api_envelope.get("mode")
 
     metadata = json_payload.get("metadata")
     assert isinstance(metadata, dict)
@@ -5205,31 +4972,17 @@ def test_ui_15_comparison_exports_preserve_api_result(
     selection = metadata.get("Selection")
     assert isinstance(selection, dict)
 
-    assert (
-        selection.get("Metric ID")
-        == metric_id
-    )
-    assert selection.get(
-        "Countries"
-    ) == country_codes
+    assert selection.get("Metric ID") == metric_id
+    assert selection.get("Countries") == country_codes
 
     data_metadata = metadata.get("Data")
     assert isinstance(data_metadata, dict)
 
-    assert (
-        data_metadata.get("Rows returned")
-        == len(api_table.index)
-    )
+    assert data_metadata.get("Rows returned") == len(api_table.index)
 
-    assert (
-        f"Rows: {len(api_table.index)}"
-        in markdown_payload
-    )
+    assert f"Rows: {len(api_table.index)}" in markdown_payload
 
-    assert (
-        f"Columns: {len(api_table.columns)}"
-        in markdown_payload
-    )
+    assert f"Columns: {len(api_table.columns)}" in markdown_payload
 
     _assert_exports_contain_no_secrets(
         csv_payload,
@@ -5251,9 +5004,7 @@ def test_ui_15_scoring_exports_preserve_api_result(
         api_envelope,
     ) = _find_weighted_score_reference_case()
 
-    api_table = _main_table_dataframe(
-        api_envelope
-    )
+    api_table = _main_table_dataframe(api_envelope)
 
     page.goto(
         _compare_url(
@@ -5284,9 +5035,7 @@ def test_ui_15_scoring_exports_preserve_api_result(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
     run_button.click()
 
     _select_compare_tab(
@@ -5303,12 +5052,8 @@ def test_ui_15_scoring_exports_preserve_api_result(
     ).to_be_visible(timeout=30_000)
 
     csv_payload = _download_table_csv(page)
-    json_payload = _download_diagnostics_json(
-        page
-    )
-    markdown_payload = (
-        _download_summary_markdown(page)
-    )
+    json_payload = _download_diagnostics_json(page)
+    markdown_payload = _download_summary_markdown(page)
 
     _assert_export_csv_matches_api_columns(
         csv_payload=csv_payload,
@@ -5325,26 +5070,15 @@ def test_ui_15_scoring_exports_preserve_api_result(
     selection = metadata.get("Selection")
     assert isinstance(selection, dict)
 
-    assert (
-        selection.get("Profile")
-        == profile_name
-    )
-    assert selection.get(
-        "Countries"
-    ) == country_codes
+    assert selection.get("Profile") == profile_name
+    assert selection.get("Countries") == country_codes
 
     data_metadata = metadata.get("Data")
     assert isinstance(data_metadata, dict)
 
-    assert (
-        data_metadata.get("Rows returned")
-        == len(api_table.index)
-    )
+    assert data_metadata.get("Rows returned") == len(api_table.index)
 
-    assert (
-        f"Rows: {len(api_table.index)}"
-        in markdown_payload
-    )
+    assert f"Rows: {len(api_table.index)}" in markdown_payload
 
     _assert_exports_contain_no_secrets(
         csv_payload,
@@ -5368,24 +5102,14 @@ def test_ui_15_prediction_exports_preserve_api_result(
         api_envelope,
     ) = _find_single_forecast_reference_case()
 
-    expected_table = (
-        _expected_forecast_ui_table(
-            api_envelope
-        )
-    )
+    expected_table = _expected_forecast_ui_table(api_envelope)
 
-    expected_csv = _csv_bytes(
-        expected_table
-    )
+    expected_csv = _csv_bytes(expected_table)
 
-    expected_summary = api_envelope.get(
-        "summary"
-    )
+    expected_summary = api_envelope.get("summary")
     assert isinstance(expected_summary, dict)
 
-    expected_diagnostics = (
-        expected_summary.get("diagnostics")
-    )
+    expected_diagnostics = expected_summary.get("diagnostics")
     assert isinstance(
         expected_diagnostics,
         dict,
@@ -5422,9 +5146,7 @@ def test_ui_15_prediction_exports_preserve_api_result(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
     run_button.click()
 
     _select_prediction_tab(
@@ -5441,50 +5163,27 @@ def test_ui_15_prediction_exports_preserve_api_result(
     ).to_be_visible(timeout=30_000)
 
     csv_payload = _download_table_csv(page)
-    json_payload = _download_diagnostics_json(
-        page
-    )
-    markdown_payload = (
-        _download_summary_markdown(page)
+    json_payload = _download_diagnostics_json(page)
+    markdown_payload = _download_summary_markdown(page)
+
+    _assert_prediction_run_metadata(csv_payload)
+
+    assert _csv_without_columns(
+        csv_payload,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    ) == _csv_without_columns(
+        expected_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
     )
 
-    _assert_prediction_run_metadata(
-        csv_payload
-    )
-
-    assert (
-        _csv_without_columns(
-            csv_payload,
-            _PREDICTION_RUN_SPECIFIC_COLUMNS,
-        )
-        == _csv_without_columns(
-            expected_csv,
-            _PREDICTION_RUN_SPECIFIC_COLUMNS,
-        )
-    )
-
-    exported_summary = json_payload.get(
-        "summary"
-    )
+    exported_summary = json_payload.get("summary")
     assert isinstance(exported_summary, dict)
 
-    assert (
-        exported_summary.get("diagnostics")
-        == expected_diagnostics
-    )
+    assert exported_summary.get("diagnostics") == expected_diagnostics
 
-    assert (
-        "# Country Compare Prediction Result"
-        in markdown_payload
-    )
-    assert (
-        f"Rows: {len(expected_table.index)}"
-        in markdown_payload
-    )
-    assert (
-        f"Columns: {len(expected_table.columns)}"
-        in markdown_payload
-    )
+    assert "# Country Compare Prediction Result" in markdown_payload
+    assert f"Rows: {len(expected_table.index)}" in markdown_payload
+    assert f"Columns: {len(expected_table.columns)}" in markdown_payload
 
     _assert_exports_contain_no_secrets(
         csv_payload,
@@ -5508,24 +5207,16 @@ def test_ui_15_backtest_exports_preserve_api_result(
         api_envelope,
     ) = _find_backtest_reference_case()
 
-    expected_table = (
-        _named_table_dataframe(
-            api_envelope,
-            "actual_vs_predicted",
-        )
+    expected_table = _named_table_dataframe(
+        api_envelope,
+        "actual_vs_predicted",
     )
 
-    expected_summary = api_envelope.get(
-        "summary"
-    )
+    expected_summary = api_envelope.get("summary")
     assert isinstance(expected_summary, dict)
 
-    expected_metrics = (
-        expected_summary.get("metrics")
-    )
-    expected_diagnostics = (
-        expected_summary.get("diagnostics")
-    )
+    expected_metrics = expected_summary.get("metrics")
+    expected_diagnostics = expected_summary.get("diagnostics")
 
     assert isinstance(
         expected_metrics,
@@ -5567,9 +5258,7 @@ def test_ui_15_backtest_exports_preserve_api_result(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
     run_button.click()
 
     _select_prediction_tab(
@@ -5585,51 +5274,29 @@ def test_ui_15_backtest_exports_preserve_api_result(
     ).to_be_visible(timeout=30_000)
 
     csv_payload = _download_table_csv(page)
-    json_payload = _download_diagnostics_json(
-        page
-    )
-    markdown_payload = (
-        _download_summary_markdown(page)
+    json_payload = _download_diagnostics_json(page)
+    markdown_payload = _download_summary_markdown(page)
+
+    expected_csv = _csv_bytes(expected_table)
+
+    _assert_prediction_run_metadata(csv_payload)
+
+    assert _csv_without_columns(
+        csv_payload,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
+    ) == _csv_without_columns(
+        expected_csv,
+        _PREDICTION_RUN_SPECIFIC_COLUMNS,
     )
 
-    expected_csv = _csv_bytes(
-        expected_table
-    )
+    assert json_payload.get("metrics") == expected_metrics
 
-    _assert_prediction_run_metadata(
-        csv_payload
-    )
-
-    assert (
-        _csv_without_columns(
-            csv_payload,
-            _PREDICTION_RUN_SPECIFIC_COLUMNS,
-        )
-        == _csv_without_columns(
-            expected_csv,
-            _PREDICTION_RUN_SPECIFIC_COLUMNS,
-        )
-    )
-
-    assert (
-        json_payload.get("metrics")
-        == expected_metrics
-    )
-
-    exported_summary = json_payload.get(
-        "summary"
-    )
+    exported_summary = json_payload.get("summary")
     assert isinstance(exported_summary, dict)
 
-    assert (
-        exported_summary.get("diagnostics")
-        == expected_diagnostics
-    )
+    assert exported_summary.get("diagnostics") == expected_diagnostics
 
-    assert (
-        "# Country Compare Backtest Result"
-        in markdown_payload
-    )
+    assert "# Country Compare Backtest Result" in markdown_payload
 
     _assert_exports_contain_no_secrets(
         csv_payload,
@@ -5645,13 +5312,8 @@ def test_ui_15_backtest_exports_preserve_api_result(
 def test_ui_15_llm_exports_are_safe_when_available(
     page: Page,
 ) -> None:
-    if not _prediction_method_available(
-        "llm_forecast"
-    ):
-        pytest.skip(
-            "llm_forecast is not advertised "
-            "by this runtime."
-        )
+    if not _prediction_method_available("llm_forecast"):
+        pytest.skip("llm_forecast is not advertised " "by this runtime.")
 
     (
         country_code,
@@ -5694,9 +5356,7 @@ def test_ui_15_llm_exports_are_safe_when_available(
         exact=True,
     )
 
-    expect(run_button).to_be_visible(
-        timeout=20_000
-    )
+    expect(run_button).to_be_visible(timeout=20_000)
     run_button.click()
 
     _select_prediction_tab(
@@ -5713,32 +5373,16 @@ def test_ui_15_llm_exports_are_safe_when_available(
     ).to_be_visible(timeout=60_000)
 
     csv_payload = _download_table_csv(page)
-    json_payload = _download_diagnostics_json(
-        page
-    )
-    markdown_payload = (
-        _download_summary_markdown(page)
-    )
+    json_payload = _download_diagnostics_json(page)
+    markdown_payload = _download_summary_markdown(page)
 
-    dataframe = pd.read_csv(
-        BytesIO(csv_payload)
-    )
+    dataframe = pd.read_csv(BytesIO(csv_payload))
 
     assert len(dataframe.index) == 1
 
-    assert (
-        dataframe["country_code"]
-        .astype(str)
-        .eq(country_code)
-        .all()
-    )
+    assert dataframe["country_code"].astype(str).eq(country_code).all()
 
-    assert (
-        dataframe["metric_id"]
-        .astype(str)
-        .eq(metric_id)
-        .all()
-    )
+    assert dataframe["metric_id"].astype(str).eq(metric_id).all()
 
     predicted_values = pd.to_numeric(
         dataframe["predicted_value"],
@@ -5747,14 +5391,10 @@ def test_ui_15_llm_exports_are_safe_when_available(
 
     assert predicted_values.notna().all()
 
-    exported_summary = json_payload.get(
-        "summary"
-    )
+    exported_summary = json_payload.get("summary")
     assert isinstance(exported_summary, dict)
 
-    diagnostics = exported_summary.get(
-        "diagnostics"
-    )
+    diagnostics = exported_summary.get("diagnostics")
     assert isinstance(diagnostics, dict)
 
     items = diagnostics.get("items")
@@ -5764,22 +5404,11 @@ def test_ui_15_llm_exports_are_safe_when_available(
     item = items[0]
     assert isinstance(item, dict)
 
-    assert (
-        item.get("method_requested")
-        == "llm_forecast"
-    )
-    assert (
-        item.get("method_used")
-        == "llm_forecast"
-    )
-    assert item.get(
-        "fallback_used"
-    ) is False
+    assert item.get("method_requested") == "llm_forecast"
+    assert item.get("method_used") == "llm_forecast"
+    assert item.get("fallback_used") is False
 
-    assert (
-        "# Country Compare Prediction Result"
-        in markdown_payload
-    )
+    assert "# Country Compare Prediction Result" in markdown_payload
 
     _assert_exports_contain_no_secrets(
         csv_payload,
@@ -5789,3 +5418,254 @@ def test_ui_15_llm_exports_are_safe_when_available(
         ),
         markdown_payload,
     )
+
+
+@pytest.mark.e2e
+def test_ui_16_single_metric_requires_two_countries(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        metric_id,
+        _api_envelope,
+    ) = _find_single_metric_reference_case()
+
+    assert country_codes
+
+    page.goto(
+        _compare_url(
+            countries=[country_codes[0]],
+            mode="single_metric",
+            metric=metric_id,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Compare",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run single-metric comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(timeout=20_000)
+    run_button.click()
+
+    _assert_streamlit_error(
+        page,
+        title="Countries are required",
+        message=("Please select at least two countries."),
+    )
+
+    # No successful result should have been
+    # generated from the invalid request.
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Main result table",
+            exact=True,
+        )
+    ).not_to_be_visible()
+
+
+@pytest.mark.e2e
+def test_ui_16_multi_metric_requires_metric_selection(
+    page: Page,
+) -> None:
+    (
+        country_codes,
+        _metric_ids,
+        _api_envelope,
+    ) = _find_multi_metric_reference_case()
+
+    assert len(country_codes) >= 2
+
+    page.goto(
+        _compare_url(
+            countries=country_codes,
+            mode="multi_metric",
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Compare",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_compare_tab(
+        page,
+        "Multi Metric",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run multi-metric comparison",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(timeout=20_000)
+    run_button.click()
+
+    _select_compare_tab(
+        page,
+        "Multi Metric",
+    )
+
+    _assert_streamlit_error(
+        page,
+        title="Metrics are required",
+        message=("Please select at least one metric " "before running the comparison."),
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Main result table",
+            exact=True,
+        )
+    ).not_to_be_visible()
+
+
+@pytest.mark.e2e
+def test_ui_16_target_year_is_enabled_and_bounded_only_for_target_year_strategy(
+    page: Page,
+) -> None:
+    countries_payload = _api_get_json("/api/v1/metadata/countries")
+    metrics_payload = _api_get_json("/api/v1/metadata/metrics")
+    years_payload = _api_get_json("/api/v1/metadata/years")
+
+    countries = countries_payload.get("countries")
+    metrics = metrics_payload.get("metrics")
+    years = years_payload.get("years")
+
+    assert isinstance(countries, list)
+    assert isinstance(metrics, list)
+    assert isinstance(years, list)
+    assert len(countries) >= 2
+    assert metrics
+    assert years
+
+    country_codes = [
+        str(item.get("code") or item.get("country_code")) for item in countries[:2]
+    ]
+
+    metric_item = metrics[0]
+    assert isinstance(metric_item, dict)
+
+    metric_id = str(metric_item.get("metric_id") or metric_item.get("id"))
+
+    min_year = min(int(year) for year in years)
+    max_year = max(int(year) for year in years)
+
+    page.goto(
+        _compare_url(
+            countries=country_codes,
+            mode="single_metric",
+            metric=metric_id,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    target_year = page.get_by_role(
+        "spinbutton",
+        name="Target year",
+        exact=True,
+    )
+
+    expect(target_year).to_be_visible(timeout=20_000)
+    expect(target_year).to_be_disabled()
+
+    _select_streamlit_combobox_option(
+        page,
+        label="Year strategy",
+        option="Target year",
+    )
+
+    expect(target_year).to_be_enabled(timeout=20_000)
+
+    assert int(target_year.get_attribute("min") or min_year) == min_year
+
+    assert int(target_year.get_attribute("max") or max_year) == max_year
+
+    current_year = int(target_year.input_value())
+
+    assert min_year <= current_year <= max_year
+
+
+@pytest.mark.e2e
+def test_ui_16_multi_country_prediction_requires_countries(
+    page: Page,
+) -> None:
+    (
+        _country_code,
+        metric_id,
+        method,
+        horizon_years,
+        _api_envelope,
+    ) = _find_single_forecast_reference_case()
+
+    page.goto(
+        _prediction_url(
+            mode="multi_country_forecast",
+            metric=metric_id,
+            method=method,
+            horizon_years=horizon_years,
+        ),
+        wait_until="domcontentloaded",
+        timeout=30_000,
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Prediction",
+            exact=True,
+        )
+    ).to_be_visible(timeout=30_000)
+
+    _select_prediction_tab(
+        page,
+        "Multi-Country Forecast",
+    )
+
+    run_button = page.get_by_role(
+        "button",
+        name="Run multi-country forecast",
+        exact=True,
+    )
+
+    expect(run_button).to_be_visible(timeout=20_000)
+    run_button.click()
+
+    _select_prediction_tab(
+        page,
+        "Multi-Country Forecast",
+    )
+
+    _assert_streamlit_error(
+        page,
+        title="Countries are required",
+        message=("Please select at least one country " "before running the forecast."),
+    )
+
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Forecast table",
+            exact=True,
+        )
+    ).not_to_be_visible()

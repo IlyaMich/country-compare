@@ -356,9 +356,7 @@ def render_comparison_result(
     debug: bool = False,
     presentation_service: Any | None = None,
     export_table: pd.DataFrame | None = None,
-    empty_message: str = (
-        "Run a comparison to see results here."
-    ),
+    empty_message: str = ("Run a comparison to see results here."),
 ) -> None:
     if presentation is None:
         st.info(empty_message)
@@ -457,9 +455,7 @@ def _render_comparison_downloads(
     summary: dict[str, Any],
 ) -> None:
     resolved_export_table = (
-        export_table
-        if isinstance(export_table, pd.DataFrame)
-        else table
+        export_table if isinstance(export_table, pd.DataFrame) else table
     )
 
     if not isinstance(
@@ -476,14 +472,8 @@ def _render_comparison_downloads(
         )
         or "comparison"
     )
-    metadata = (
-        getattr(presentation, "metadata", {})
-        or {}
-    )
-    warnings = list(
-        getattr(presentation, "warnings", [])
-        or []
-    )
+    metadata = getattr(presentation, "metadata", {}) or {}
+    warnings = list(getattr(presentation, "warnings", []) or [])
     diagnostics = (
         getattr(
             presentation,
@@ -493,40 +483,23 @@ def _render_comparison_downloads(
         or {}
     )
 
-    summary_markdown = (
-        build_result_markdown_summary(
-            title=str(
-                summary.get(
-                    "title",
-                    "Country Compare Result",
-                )
-            ),
-            sections={
-                "Result": [
-                    f"Mode: {mode}",
-                    (
-                        "Rows: "
-                        f"{len(resolved_export_table.index)}"
-                    ),
-                    (
-                        "Columns: "
-                        f"{len(resolved_export_table.columns)}"
-                    ),
-                    (
-                        "Top item: "
-                        f"{_string_or_dash(summary.get('top_country'))}"
-                    ),
-                    (
-                        "Top rank: "
-                        f"{_string_or_dash(summary.get('top_rank'))}"
-                    ),
-                ],
-                "Notes": (
-                    "Generated from the current "
-                    "Country Compare UI selection."
-                ),
-            },
-        )
+    summary_markdown = build_result_markdown_summary(
+        title=str(
+            summary.get(
+                "title",
+                "Country Compare Result",
+            )
+        ),
+        sections={
+            "Result": [
+                f"Mode: {mode}",
+                ("Rows: " f"{len(resolved_export_table.index)}"),
+                ("Columns: " f"{len(resolved_export_table.columns)}"),
+                ("Top item: " f"{_string_or_dash(summary.get('top_country'))}"),
+                ("Top rank: " f"{_string_or_dash(summary.get('top_rank'))}"),
+            ],
+            "Notes": ("Generated from the current " "Country Compare UI selection."),
+        },
     )
 
     render_result_downloads(
@@ -539,9 +512,7 @@ def _render_comparison_downloads(
             "diagnostics": diagnostics,
         },
         summary_markdown=summary_markdown,
-        base_file_name=(
-            f"country_compare_{mode}_result"
-        ),
+        base_file_name=(f"country_compare_{mode}_result"),
         key_prefix=f"comparison_{mode}",
     )
 

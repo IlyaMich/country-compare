@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pandas as pd
 
 from country_compare.ui.components.prediction_result_panels import (
@@ -9,6 +11,7 @@ from country_compare.ui.components.prediction_result_panels import (
     build_predicted_comparison_summary,
     build_streamlit_line_chart_table,
 )
+from country_compare.ui.views import prediction as prediction_view
 
 
 def test_build_streamlit_line_chart_table_pivots_long_dataframe() -> None:
@@ -157,4 +160,59 @@ def test_prediction_download_key_prefix_falls_back_to_result_mode() -> None:
             key_prefix=None,
         )
         == "prediction_single_metric_countries"
+    )
+
+
+def test_multi_country_forecast_rejects_empty_country_selection(
+    monkeypatch,
+) -> None:
+    service_called = False
+    stored_result = []
+    stored_error = []
+
+    def run_prediction(**kwargs):
+        nonlocal service_called
+        service_called = True
+        raise AssertionError("Prediction service must not be called")
+
+    service = SimpleNamespace(run_single_metric_prediction_for_countries=run_prediction)
+
+    monkeypatch.setattr(
+        prediction_view,
+        "set_prediction_result",
+        lambda result, *, mode: stored_result.append((result, mode)),
+    )
+
+    monkeypatch.setattr(
+        prediction_view,
+        "set_prediction_error",
+        lambda error, *, mode: stored_error.append((error, mode)),
+    )
+
+    prediction_view._run_multi_country_forecast(
+        prediction_service=service,
+        country_codes=[],
+        metric_id="metric_a",
+        method_id="last_observed",
+        horizon_years=3,
+    )
+
+    assert service_called is False
+
+    assert stored_result == [
+        (
+            None,
+            "multi_country_forecast",
+        )
+    ]
+
+    assert len(stored_error) == 1
+
+    error, mode = stored_error[0]
+
+    assert mode == "multi_country_forecast"
+    assert error.code == "input_invalid"
+    assert error.title == "Countries are required"
+    assert error.user_message == (
+        "Please select at least one country " "before running the forecast."
     )

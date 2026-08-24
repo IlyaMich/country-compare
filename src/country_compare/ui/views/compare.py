@@ -132,12 +132,8 @@ def render_compare_view(context: AppContext) -> None:
                 presentation_service=presentation_service,
             )
 
-        latest_presentation = get_latest_compare_presentation(
-            mode="single_metric"
-        )
-        latest_result = get_latest_compare_result(
-            mode="single_metric"
-        )
+        latest_presentation = get_latest_compare_presentation(mode="single_metric")
+        latest_result = get_latest_compare_result(mode="single_metric")
 
         render_comparison_result(
             latest_presentation,
@@ -148,10 +144,7 @@ def render_compare_view(context: AppContext) -> None:
                 "dataframe",
                 None,
             ),
-            empty_message=(
-                "Run a single-metric comparison "
-                "to see results here."
-            ),
+            empty_message=("Run a single-metric comparison " "to see results here."),
         )
         error = get_compare_error(mode="single_metric")
         if error is not None:
@@ -177,12 +170,8 @@ def render_compare_view(context: AppContext) -> None:
                 presentation_service=presentation_service,
             )
 
-        latest_presentation = get_latest_compare_presentation(
-            mode="multi_metric"
-        )
-        latest_result = get_latest_compare_result(
-            mode="multi_metric"
-        )
+        latest_presentation = get_latest_compare_presentation(mode="multi_metric")
+        latest_result = get_latest_compare_result(mode="multi_metric")
 
         render_comparison_result(
             latest_presentation,
@@ -193,10 +182,7 @@ def render_compare_view(context: AppContext) -> None:
                 "dataframe",
                 None,
             ),
-            empty_message=(
-                "Run a multi-metric comparison "
-                "to see results here."
-            ),
+            empty_message=("Run a multi-metric comparison " "to see results here."),
         )
         error = get_compare_error(mode="multi_metric")
         if error is not None:
@@ -221,13 +207,9 @@ def render_compare_view(context: AppContext) -> None:
                 presentation_service=presentation_service,
             )
 
-        latest_presentation = get_latest_compare_presentation(
-            mode="weighted_score"
-        )
-        latest_result = get_latest_compare_result(
-            mode="weighted_score"
-        )
-        
+        latest_presentation = get_latest_compare_presentation(mode="weighted_score")
+        latest_result = get_latest_compare_result(mode="weighted_score")
+
         render_comparison_result(
             latest_presentation,
             debug=get_debug_mode(),
@@ -237,10 +219,7 @@ def render_compare_view(context: AppContext) -> None:
                 "dataframe",
                 None,
             ),
-            empty_message=(
-                "Run a weighted-score comparison "
-                "to see results here."
-            ),
+            empty_message=("Run a weighted-score comparison " "to see results here."),
         )
         error = get_compare_error(mode="weighted_score")
         if error is not None:

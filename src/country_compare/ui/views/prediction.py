@@ -531,6 +531,24 @@ def _run_multi_country_forecast(
     method_id: str,
     horizon_years: int,
 ) -> None:
+    if not country_codes:
+        set_prediction_result(
+            None,
+            mode="multi_country_forecast",
+        )
+        set_prediction_error(
+            AppError(
+                code="input_invalid",
+                title="Countries are required",
+                user_message=(
+                    "Please select at least one country " "before running the forecast."
+                ),
+                technical_detail=(f"country_codes={country_codes!r}"),
+            ),
+            mode="multi_country_forecast",
+        )
+        return
+
     try:
         result = prediction_service.run_single_metric_prediction_for_countries(
             metric_id=metric_id,
@@ -540,9 +558,15 @@ def _run_multi_country_forecast(
             fail_fast=False,
         )
     except ClientError as exc:
-        _store_prediction_client_error(exc, mode="multi_country_forecast")
+        _store_prediction_client_error(
+            exc,
+            mode="multi_country_forecast",
+        )
     else:
-        _store_prediction_service_result(result, mode="multi_country_forecast")
+        _store_prediction_service_result(
+            result,
+            mode="multi_country_forecast",
+        )
 
 
 def _run_predicted_comparison(
