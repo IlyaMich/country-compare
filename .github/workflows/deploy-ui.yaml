@@ -230,6 +230,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install OPS browser test dependencies
+        if: ${{ inputs.run_smoke_test == 'true' }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m playwright install --with-deps chromium
+
       - name: Run OPS-01 post-deploy operational checks
         if: inputs.run_smoke_test == 'true'
         env:
@@ -266,3 +273,14 @@ jobs:
             --base-url "${UI_BASE_URL}" \
             --timeout-seconds 30 \
             --wait-seconds 420
+
+      - name: OPS-03 - Deployed UI/API browser parity
+        if: ${{ inputs.run_smoke_test == 'true' }}
+        env:
+          COUNTRY_COMPARE_E2E_UI_URL: ${{ secrets.COUNTRY_COMPARE_UI_BASE_URL }}
+          COUNTRY_COMPARE_E2E_API_URL: ${{ secrets.COUNTRY_COMPARE_API_BASE_URL }}
+          COUNTRY_COMPARE_E2E_API_KEY: ${{ secrets.COUNTRY_COMPARE_API_KEY }}
+        run: |
+          python -m pytest \
+            tests/e2e/ui_validation.py::test_ui_03_single_metric_csv_matches_backend_result \
+            -vv
