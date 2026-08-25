@@ -284,3 +284,47 @@ jobs:
           python -m pytest \
             tests/e2e/ui_validation.py::test_ui_03_single_metric_csv_matches_backend_result \
             -vv
+
+      - name: OPS-04 - Deployed release identity and configuration
+        if: ${{ inputs.run_smoke_test == 'true' }}
+        env:
+          API_BASE_URL: ${{ secrets.COUNTRY_COMPARE_API_BASE_URL }}
+          API_KEY: ${{ secrets.COUNTRY_COMPARE_API_KEY }}
+
+          EXPECTED_RELEASE_VERSION: ${{ vars.COUNTRY_COMPARE_EXPECTED_RELEASE_VERSION }}
+          EXPECTED_DATASET_CHECKSUM: ${{ vars.COUNTRY_COMPARE_EXPECTED_DATASET_CHECKSUM }}
+          EXPECT_LLM_FORECAST: ${{ vars.COUNTRY_COMPARE_EXPECT_LLM_FORECAST }}
+          EXPECT_API_DOCS: ${{ vars.COUNTRY_COMPARE_EXPECT_API_DOCS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${EXPECTED_RELEASE_VERSION}" ]; then
+            echo "COUNTRY_COMPARE_EXPECTED_RELEASE_VERSION is not configured." >&2
+            exit 1
+          fi
+
+          if [ -z "${EXPECTED_DATASET_CHECKSUM}" ]; then
+            echo "COUNTRY_COMPARE_EXPECTED_DATASET_CHECKSUM is not configured." >&2
+            exit 1
+          fi
+
+          if [ -z "${EXPECT_LLM_FORECAST}" ]; then
+            echo "COUNTRY_COMPARE_EXPECT_LLM_FORECAST is not configured." >&2
+            exit 1
+          fi
+
+          if [ -z "${EXPECT_API_DOCS}" ]; then
+            echo "COUNTRY_COMPARE_EXPECT_API_DOCS is not configured." >&2
+            exit 1
+          fi
+
+          python scripts/smoke_deployment_identity.py \
+            --api-base-url "${API_BASE_URL}" \
+            --api-key "${API_KEY}" \
+            --expected-version "${EXPECTED_RELEASE_VERSION}" \
+            --expected-dataset-checksum "${EXPECTED_DATASET_CHECKSUM}" \
+            --expect-api-key-required true \
+            --expect-llm-enabled "${EXPECT_LLM_FORECAST}" \
+            --expect-docs-enabled "${EXPECT_API_DOCS}" \
+            --timeout-seconds 30            
